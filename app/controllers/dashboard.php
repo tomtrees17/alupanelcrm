@@ -3,21 +3,44 @@ declare(strict_types=1);
 
 /** @var PDO $pdo */
 
-$stats = [
-    'customers' => (int) $pdo->query('SELECT COUNT(*) FROM customers')->fetchColumn(),
-    'products'  => (int) $pdo->query('SELECT COUNT(*) FROM products')->fetchColumn(),
-    'quotes'    => (int) $pdo->query('SELECT COUNT(*) FROM quotes')->fetchColumn(),
-    'pipeline'  => (float) $pdo->query(
-        "SELECT COALESCE(SUM(total),0) FROM quotes WHERE status IN ('sent','accepted','ordered')"
-    )->fetchColumn(),
-];
+$revenue = (float) $pdo->query("SELECT COALESCE(SUM(amount_paid),0) FROM invoices")->fetchColumn();
+$custCount = (int) $pdo->query('SELECT COUNT(*) FROM customers')->fetchColumn();
+$activeDeals = (int) $pdo->query("SELECT COUNT(*) FROM deals WHERE stage <> '已成交'")->fetchColumn();
+$taskTotal = (int) $pdo->query('SELECT COUNT(*) FROM tasks')->fetchColumn();
+$taskDone  = (int) $pdo->query('SELECT COUNT(*) FROM tasks WHERE done = 1')->fetchColumn();
+$taskRate  = $taskTotal ? round($taskDone / $taskTotal * 100) : 0;
 
+// Funnel by stage
+$funnel = [];
+$dealTotal = (int) $pdo->query('SELECT COUNT(*) FROM deals')->fetchColumn();
+$byStage = [];
+foreach ($pdo->query('SELECT stage, COUNT(*) c FROM deals GROUP BY stage') as $r) {
+    $byStage[$r['stage']] = (int) $r['c'];
+}
+foreach (deal_stages() as $s) {
+    $count = $byStage[$s] ?? 0;
+    $funnel[] = ['stage' => $s, 'count' => $count, 'pct' => $dealTotal ? round($count / $dealTotal * 100) : 0];
+}
+
+// Recent orders
 $recent = $pdo->query(
-    "SELECT q.*, c.company
-       FROM quotes q
-       JOIN customers c ON c.id = q.customer_id
-   ORDER BY q.id DESC
-      LIMIT 8"
+    'SELECT o.*, (SELECT COALESCE(SUM(qty*price),0)+o.shipping_cost FROM order_items WHERE order_id=o.id) AS amount
+       FROM orders o ORDER BY o.id DESC LIMIT 6'
 )->fetchAll();
 
-view('dashboard.index', ['stats' => $stats, 'recent' => $recent]);
+// Credit alerts: overdue invoices
+$overdue = $pdo->query(
+    "SELECT * FROM invoices WHERE payment_status = 'overdue' ORDER BY due_date"
+)->fetchAll();
+
+view('dashboard.index', [
+    'pageTitle' => '数据看板',
+    'pageSub'   => '2026年5月概览',
+    'revenue'   => $revenue,
+    'custCount' => $custCount,
+    'activeDeals' => $activeDeals,
+    'taskRate'  => $taskRate,
+    'funnel'    => $funnel,
+    'recent'    => $recent,
+    'overdue'   => $overdue,
+]);

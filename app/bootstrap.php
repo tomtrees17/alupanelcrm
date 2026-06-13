@@ -13,6 +13,7 @@ if (session_status() === PHP_SESSION_NONE) {
 $config = require __DIR__ . '/../config.php';
 
 require __DIR__ . '/helpers.php';
+require __DIR__ . '/domain.php';
 require __DIR__ . '/Database.php';
 require __DIR__ . '/Csrf.php';
 require __DIR__ . '/Auth.php';

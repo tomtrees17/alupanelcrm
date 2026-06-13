@@ -1,59 +1,72 @@
-# AluPanel CRM
+# AluPanel CRM (NexusCRM)
 
-铝标识板（Alusignpanel）业务的轻量级 CRM 系统。后端为 **纯 PHP + PDO**，数据库为 **SQLite**，无需任何框架或 Composer 依赖。
+面向**铝塑板（ACP）业务·印尼市场**的销售 CRM / 轻量 ERP。后端为 **纯 PHP + PDO**，数据库 **SQLite**，无框架、无 Composer 依赖。按既定规划（Nexus CRM）实现。
 
 ## 功能模块
 
-- **仪表盘** — 客户 / 产品 / 报价数量与进行中金额概览
-- **客户 / 联系人** — 增删改查、搜索、客户报价历史
-- **报价 / 订单** — 多行明细、自动计算小计/税额/合计、状态流转（草稿→已发送→已确认→已下单→已完成/已取消）、打印
-- **产品目录** — 铝塑板 / 标牌等产品的 SKU、规格、单价
-- **用户与登录** — 会话登录、角色（管理员 / 销售）、用户管理（仅管理员）
-- 全站 CSRF 保护、密码哈希（`password_hash`）
+| 模块 | 说明 |
+| --- | --- |
+| **数据看板** | 已收款、客户数、进行中商机、任务完成率；销售漏斗、最近订单、逾期信用预警 |
+| **客户管理** | 标签（重点/潜在/成交/流失）、潜在价值、城市、跟进；关联商机与订单 |
+| **销售漏斗** | 看板：初步接触→需求确认→方案报价→谈判中→已成交，可左右移动阶段 |
+| **任务提醒** | 优先级、截止日、关联客户、完成统计、快速添加 |
+| **财务管理** | 发票（PPN 11%、NPWP、账期 Net）、收款状态（已收/部分/待收/逾期）、登记收款、逾期自动判定 |
+| **订单审批** | **四级审批流**：销售员 → 主管 → 经理 → 仓库；仓库确认后**自动扣库存 + 生成送货单(DO) + 生成发票** |
+| **库存管理** | 产品（SKU/中英颜色/规格/尺寸/库存/安全库存）、低库存预警、手动出入库、出入库流水 |
+| **用户管理** | 角色：管理员 / 经理 / 主管 / 销售 / 仓库（仅管理员可管理） |
 
-## 运行要求
+货币：印尼盾 **IDR（Rp）**。全站 CSRF 保护、密码哈希、会话鉴权、基于角色的审批权限。
 
-- PHP 8.0+（需启用 `pdo_sqlite` 扩展，PHP 默认自带）
+## 运行
 
-## 启动
+需 PHP 8.0+（自带 `pdo_sqlite`）。在项目根目录：
 
 ```bash
-# 在项目根目录执行，使用 PHP 内置服务器
 php -S localhost:8000 -t public
 ```
 
-然后浏览器打开 <http://localhost:8000>
+浏览器打开 <http://localhost:8000>。首次访问自动建库并写入示例数据（含 **269 个产品**及示例客户/订单/发票）。
 
-首次访问会自动创建并初始化 SQLite 数据库（`data/crm.sqlite`），并写入示例数据。
+### 默认账号（密码均为 `admin123`）
 
-### 默认登录账号
-
-| 邮箱 | 密码 |
+| 邮箱 | 角色 |
 | --- | --- |
-| `admin@alupanel.local` | `admin123` |
+| `admin@alupanel.local` | 管理员 |
+| `mutiara@alupanel.local` | 经理 |
+| `sari@alupanel.local` | 主管 |
+| `ahmad@alupanel.local` | 销售 |
+| `joko@alupanel.local` | 仓库 |
 
-> 上线前请登录后在「用户」中修改密码或新建账号。
+> 不同角色登录后，只能在订单流转到自己阶段时进行审批。
+
+## 订单审批 → 履约流程
+
+1. 销售员新建订单 → 进入 `待主管审批`
+2. 主管通过 → `待经理审批`；经理通过 → `待仓库出货`
+3. 仓库「确认出货」→ 系统自动：
+   - 按 SKU+规格匹配产品并**扣减库存**（记一条 `out_auto` 流水）
+   - 生成**送货单** `DO-YYYY-NNN`
+   - 生成**发票**（小计 = 货品 + 运费，PPN 11%，按账期算到期日）
+   - 订单变为 `已批准`
+4. 财务在发票上**登记收款**，状态随已收金额/到期日自动更新
 
 ## 目录结构
 
 ```
-.
-├── public/              # Web 根目录（仅此目录对外）
-│   ├── index.php        # 前端控制器（路由：index.php?r=controller.action）
-│   └── assets/css/app.css
-├── app/
-│   ├── bootstrap.php     # 启动：会话、配置、服务装配
-│   ├── Database.php      # PDO 连接 + 建表 + 示例数据
-│   ├── Auth.php          # 登录鉴权
-│   ├── Csrf.php          # CSRF 令牌
-│   ├── helpers.php       # 视图/URL/金额等辅助函数
-│   └── controllers/      # 各模块控制器
-├── views/                # 模板（按模块分目录）
-├── database/schema.sql   # SQLite 表结构
-├── data/                 # 运行时数据库（已 gitignore）
-└── config.php            # 应用配置
+public/index.php          前端控制器（路由 index.php?r=controller.action）
+app/
+  bootstrap.php           启动装配
+  Database.php            连接 + 建表 + 种子（schema.sql + seed_products.sql + PHP 种子）
+  domain.php              业务逻辑（库存增减、单号生成、发票状态、订单金额）
+  Auth.php / Csrf.php / helpers.php
+  controllers/            dashboard customers pipeline tasks finance orders inventory users auth
+views/                    按模块分目录的模板 + layout.php
+database/schema.sql       表结构
+database/seed_products.sql 由 tools/gen_products.php 从规划原型生成的产品目录
+tools/gen_products.php    产品目录抽取脚本（一次性）
+data/                     运行时 SQLite（已 gitignore）
 ```
 
 ## 重置数据库
 
-删除 `data/crm.sqlite`，下次访问会重新初始化。
+删除 `data/crm.sqlite`，下次访问自动重新初始化。

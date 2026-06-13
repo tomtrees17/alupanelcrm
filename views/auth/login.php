@@ -10,24 +10,26 @@
 <body class="login-body">
 <div class="login-card">
     <div class="login-brand">
-        <span class="logo">▰</span>
-        <h1><?= e($cfg['company']) ?> CRM</h1>
-        <p>铝标识板业务管理系统</p>
+        <div class="logo-mark" style="font-size:24px"><?= e($cfg['brand']) ?><span>CRM</span></div>
+        <p>铝塑板业务管理系统 · ACP Sales Platform</p>
     </div>
-    <?php if ($error): ?>
-        <div class="alert alert-error"><?= e($error) ?></div>
-    <?php endif; ?>
+    <?php if ($error): ?><div class="alert alert-error"><?= e($error) ?></div><?php endif; ?>
     <form method="post" action="<?= url('auth.authenticate') ?>">
         <?= Csrf::field() ?>
-        <label>邮箱
-            <input type="email" name="email" value="admin@alupanel.local" required autofocus>
-        </label>
-        <label>密码
-            <input type="password" name="password" placeholder="••••••••" required>
-        </label>
+        <div class="form-group">
+            <label>邮箱</label>
+            <input class="form-input" type="email" name="email" value="admin@alupanel.local" required autofocus>
+        </div>
+        <div class="form-group">
+            <label>密码</label>
+            <input class="form-input" type="password" name="password" placeholder="••••••••" required>
+        </div>
         <button type="submit" class="btn btn-primary btn-block">登录</button>
     </form>
-    <p class="login-hint">默认账号：admin@alupanel.local / admin123</p>
+    <p class="login-hint">
+        默认管理员：admin@alupanel.local / admin123<br>
+        其他角色：sari@（主管）· mutiara@（经理）· ahmad@（销售）· joko@（仓库），密码同上
+    </p>
 </div>
 </body>
 </html>

@@ -2,10 +2,14 @@
 /** @var string $content */
 /** @var Auth $auth */
 $cfg  = $GLOBALS['config'];
+$pdo  = $GLOBALS['pdo'];
 $cur  = $_GET['r'] ?? 'dashboard.index';
-$nav  = function (string $prefix) use ($cur): string {
-    return str_starts_with($cur, $prefix) ? ' class="active"' : '';
-};
+$user = $auth->user();
+$active = fn(string $p) => str_starts_with($cur, $p) ? ' active' : '';
+
+$pendingTasks  = (int) $pdo->query('SELECT COUNT(*) FROM tasks WHERE done = 0')->fetchColumn();
+$pendingOrders = (int) $pdo->query("SELECT COUNT(*) FROM orders WHERE status LIKE 'pending_%'")->fetchColumn();
+$initial = mb_substr($user['name'] ?? '?', 0, 1);
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -16,35 +20,46 @@ $nav  = function (string $prefix) use ($cur): string {
     <link rel="stylesheet" href="assets/css/app.css">
 </head>
 <body>
-<div class="layout">
+<div class="app">
     <aside class="sidebar">
-        <div class="brand">
-            <span class="logo">▰</span>
-            <div>
-                <strong><?= e($cfg['company']) ?></strong>
-                <small>CRM</small>
-            </div>
+        <div class="logo">
+            <div class="logo-mark"><?= e($cfg['brand']) ?><span>CRM</span></div>
+            <div class="logo-sub"><?= e($cfg['tagline']) ?></div>
         </div>
-        <nav>
-            <a href="<?= url('dashboard.index') ?>"<?= $nav('dashboard') ?>>仪表盘</a>
-            <a href="<?= url('customers.index') ?>"<?= $nav('customers') ?>>客户</a>
-            <a href="<?= url('quotes.index') ?>"<?= $nav('quotes') ?>>报价 / 订单</a>
-            <a href="<?= url('products.index') ?>"<?= $nav('products') ?>>产品</a>
+        <nav class="nav">
+            <div class="nav-label">主菜单</div>
+            <a class="nav-item<?= $active('dashboard') ?>" href="<?= url('dashboard.index') ?>"><span class="nav-icon">⬡</span> 数据看板</a>
+            <a class="nav-item<?= $active('customers') ?>" href="<?= url('customers.index') ?>"><span class="nav-icon">◎</span> 客户管理</a>
+            <a class="nav-item<?= $active('pipeline') ?>" href="<?= url('pipeline.index') ?>"><span class="nav-icon">⟋</span> 销售漏斗</a>
+            <a class="nav-item<?= $active('tasks') ?>" href="<?= url('tasks.index') ?>"><span class="nav-icon">◻</span> 任务提醒<?php if ($pendingTasks): ?><span class="nav-badge"><?= $pendingTasks ?></span><?php endif; ?></a>
+            <a class="nav-item<?= $active('finance') ?>" href="<?= url('finance.index') ?>"><span class="nav-icon">◈</span> 财务管理</a>
+            <div class="nav-label">扩展功能</div>
+            <a class="nav-item<?= $active('orders') ?>" href="<?= url('orders.index') ?>"><span class="nav-icon">✦</span> 订单审批<?php if ($pendingOrders): ?><span class="nav-badge" style="background:var(--warning)"><?= $pendingOrders ?></span><?php endif; ?></a>
+            <a class="nav-item<?= $active('inventory') ?>" href="<?= url('inventory.index') ?>"><span class="nav-icon">▣</span> 库存管理</a>
             <?php if ($auth->isAdmin()): ?>
-                <a href="<?= url('users.index') ?>"<?= $nav('users') ?>>用户</a>
+                <a class="nav-item<?= $active('users') ?>" href="<?= url('users.index') ?>"><span class="nav-icon">⚙</span> 用户管理</a>
             <?php endif; ?>
         </nav>
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="user-avatar"><?= e($initial) ?></div>
+                <div>
+                    <div class="user-name"><?= e($user['name'] ?? '') ?></div>
+                    <div class="user-role"><?= e($user['title'] ?? role_label($user['role'] ?? '')) ?></div>
+                    <a class="user-logout" href="<?= url('auth.logout') ?>">退出登录</a>
+                </div>
+            </div>
+        </div>
     </aside>
 
     <main class="main">
         <header class="topbar">
-            <div></div>
-            <div class="user-box">
-                <span><?= e($auth->user()['name'] ?? '') ?> · <?= e($auth->user()['role'] ?? '') ?></span>
-                <a class="btn btn-ghost btn-sm" href="<?= url('auth.logout') ?>">退出</a>
+            <div>
+                <div class="topbar-title"><?= e($pageTitle ?? $cfg['app_name']) ?></div>
+                <div class="topbar-sub"><?= e($pageSub ?? '') ?></div>
             </div>
+            <div class="ml-auto"></div>
         </header>
-
         <div class="content">
             <?php foreach (flash() as $f): ?>
                 <div class="alert alert-<?= e($f['type']) ?>"><?= e($f['message']) ?></div>

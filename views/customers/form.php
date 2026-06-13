@@ -8,24 +8,31 @@ $v = fn(string $k) => e($customer[$k] ?? '');
     <a class="btn btn-ghost" href="<?= url('customers.index') ?>">返回列表</a>
 </div>
 
-<div class="card">
-    <form method="post" action="<?= url($isEdit ? 'customers.update' : 'customers.store') ?>" class="form">
+<div class="card"><div class="card-body">
+    <form method="post" action="<?= url($isEdit ? 'customers.update' : 'customers.store') ?>">
         <?= Csrf::field() ?>
         <?php if ($isEdit): ?><input type="hidden" name="id" value="<?= (int) $customer['id'] ?>"><?php endif; ?>
-
-        <div class="grid-2">
-            <label>公司名称 *<input type="text" name="company" value="<?= $v('company') ?>" required></label>
-            <label>联系人<input type="text" name="contact_name" value="<?= $v('contact_name') ?>"></label>
-            <label>邮箱<input type="email" name="email" value="<?= $v('email') ?>"></label>
-            <label>电话<input type="text" name="phone" value="<?= $v('phone') ?>"></label>
-            <label>城市<input type="text" name="city" value="<?= $v('city') ?>"></label>
-            <label>国家<input type="text" name="country" value="<?= $v('country') ?>"></label>
+        <div class="form-row">
+            <div class="form-group"><label class="form-label">客户姓名 *</label><input class="form-input" name="name" value="<?= $v('name') ?>" required></div>
+            <div class="form-group"><label class="form-label">公司名称</label><input class="form-input" name="company" value="<?= $v('company') ?>"></div>
         </div>
-        <label>地址<input type="text" name="address" value="<?= $v('address') ?>"></label>
-        <label>备注<textarea name="notes" rows="3"><?= $v('notes') ?></textarea></label>
-
-        <div class="form-actions">
-            <button class="btn btn-primary" type="submit">保存</button>
+        <div class="form-row">
+            <div class="form-group"><label class="form-label">手机号</label><input class="form-input" name="phone" value="<?= $v('phone') ?>" placeholder="08xx 或 +62 8xx"></div>
+            <div class="form-group"><label class="form-label">邮箱</label><input class="form-input" type="email" name="email" value="<?= $v('email') ?>"></div>
         </div>
+        <div class="form-row-3">
+            <div class="form-group"><label class="form-label">城市</label><input class="form-input" name="city" value="<?= $v('city') ?>"></div>
+            <div class="form-group"><label class="form-label">客户标签</label>
+                <select class="form-select" name="tag">
+                    <?php foreach (['潜在', '重点', '成交', '流失'] as $tg): ?>
+                        <option value="<?= $tg ?>" <?= ($customer['tag'] ?? '潜在') === $tg ? 'selected' : '' ?>><?= $tg ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">潜在价值 (Rp)</label><input class="form-input" type="number" name="value" value="<?= $isEdit ? e($customer['value']) : '0' ?>"></div>
+        </div>
+        <div class="form-group"><label class="form-label">最后跟进日期</label><input class="form-input" type="date" name="last_contact" value="<?= $v('last_contact') ?>"></div>
+        <div class="form-group"><label class="form-label">备注</label><textarea class="form-textarea" name="note"><?= $v('note') ?></textarea></div>
+        <div class="form-actions"><button class="btn btn-primary" type="submit">保存客户</button></div>
     </form>
-</div>
+</div></div>

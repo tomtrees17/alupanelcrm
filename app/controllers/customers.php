@@ -4,72 +4,76 @@ declare(strict_types=1);
 /** @var string $action */
 /** @var PDO $pdo */
 
-$fields = ['company', 'contact_name', 'email', 'phone', 'address', 'city', 'country', 'notes'];
+$fields = ['name', 'company', 'phone', 'email', 'city', 'tag', 'value', 'note', 'last_contact'];
 
 switch ($action) {
     case 'index':
         $q = trim((string) input('q', ''));
+        $tag = trim((string) input('tag', ''));
+        $sql = 'SELECT * FROM customers';
+        $cond = [];
+        $args = [];
         if ($q !== '') {
-            $stmt = $pdo->prepare(
-                'SELECT * FROM customers
-                  WHERE company LIKE :kw OR contact_name LIKE :kw OR email LIKE :kw OR city LIKE :kw
-               ORDER BY id DESC'
-            );
-            $stmt->execute([':kw' => "%{$q}%"]);
-            $customers = $stmt->fetchAll();
-        } else {
-            $customers = $pdo->query('SELECT * FROM customers ORDER BY id DESC')->fetchAll();
+            $cond[] = '(name LIKE ? OR company LIKE ? OR email LIKE ? OR city LIKE ?)';
+            array_push($args, "%$q%", "%$q%", "%$q%", "%$q%");
         }
-        view('customers.index', ['customers' => $customers, 'q' => $q]);
+        if ($tag !== '') {
+            $cond[] = 'tag = ?';
+            $args[] = $tag;
+        }
+        if ($cond) {
+            $sql .= ' WHERE ' . implode(' AND ', $cond);
+        }
+        $sql .= ' ORDER BY id DESC';
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($args);
+        view('customers.index', ['pageTitle' => '客户管理', 'pageSub' => '管理所有客户信息', 'customers' => $stmt->fetchAll(), 'q' => $q, 'tag' => $tag]);
         break;
 
     case 'create':
-        view('customers.form', ['customer' => null]);
+        view('customers.form', ['pageTitle' => '新建客户', 'pageSub' => '', 'customer' => null]);
         break;
 
     case 'store':
         Csrf::verify();
-        $data = [];
-        foreach ($fields as $f) {
-            $data[$f] = trim((string) input($f, ''));
-        }
-        if ($data['company'] === '') {
-            flash('公司名称必填。', 'error');
+        $data = collect_customer($fields);
+        if ($data['name'] === '') {
+            flash('客户姓名必填。', 'error');
             redirect('customers.create');
         }
         $cols = implode(',', $fields);
-        $ph   = implode(',', array_fill(0, count($fields), '?'));
-        $stmt = $pdo->prepare("INSERT INTO customers ($cols) VALUES ($ph)");
-        $stmt->execute(array_values($data));
+        $ph = implode(',', array_fill(0, count($fields), '?'));
+        $pdo->prepare("INSERT INTO customers ($cols) VALUES ($ph)")->execute(array_values($data));
         flash('客户已创建。');
         redirect('customers.show', ['id' => (int) $pdo->lastInsertId()]);
         break;
 
     case 'show':
         $customer = find_customer($pdo, (int) input('id', 0));
-        $quotes = $pdo->prepare('SELECT * FROM quotes WHERE customer_id = ? ORDER BY id DESC');
-        $quotes->execute([$customer['id']]);
-        view('customers.show', ['customer' => $customer, 'quotes' => $quotes->fetchAll()]);
+        $deals = $pdo->prepare('SELECT * FROM deals WHERE customer_id = ? ORDER BY id DESC');
+        $deals->execute([$customer['id']]);
+        $orders = $pdo->prepare('SELECT * FROM orders WHERE customer_id = ? ORDER BY id DESC');
+        $orders->execute([$customer['id']]);
+        view('customers.show', [
+            'pageTitle' => $customer['name'], 'pageSub' => $customer['company'],
+            'customer' => $customer, 'deals' => $deals->fetchAll(), 'orders' => $orders->fetchAll(),
+        ]);
         break;
 
     case 'edit':
-        view('customers.form', ['customer' => find_customer($pdo, (int) input('id', 0))]);
+        view('customers.form', ['pageTitle' => '编辑客户', 'pageSub' => '', 'customer' => find_customer($pdo, (int) input('id', 0))]);
         break;
 
     case 'update':
         Csrf::verify();
         $customer = find_customer($pdo, (int) input('id', 0));
-        $data = [];
-        foreach ($fields as $f) {
-            $data[$f] = trim((string) input($f, ''));
-        }
-        if ($data['company'] === '') {
-            flash('公司名称必填。', 'error');
+        $data = collect_customer($fields);
+        if ($data['name'] === '') {
+            flash('客户姓名必填。', 'error');
             redirect('customers.edit', ['id' => $customer['id']]);
         }
         $set = implode(',', array_map(fn($f) => "$f = ?", $fields));
-        $stmt = $pdo->prepare("UPDATE customers SET $set WHERE id = ?");
-        $stmt->execute([...array_values($data), $customer['id']]);
+        $pdo->prepare("UPDATE customers SET $set WHERE id = ?")->execute([...array_values($data), $customer['id']]);
         flash('客户已更新。');
         redirect('customers.show', ['id' => $customer['id']]);
         break;
@@ -85,6 +89,17 @@ switch ($action) {
     default:
         http_response_code(404);
         echo 'Not found';
+}
+
+function collect_customer(array $fields): array
+{
+    $data = [];
+    foreach ($fields as $f) {
+        $data[$f] = trim((string) input($f, ''));
+    }
+    $data['value'] = (float) ($data['value'] ?: 0);
+    $data['tag'] = $data['tag'] ?: '潜在';
+    return $data;
 }
 
 function find_customer(PDO $pdo, int $id): array
