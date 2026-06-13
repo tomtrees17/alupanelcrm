@@ -64,16 +64,16 @@ function next_do_no(PDO $pdo): string
     return sprintf('DO-%s-%03d', date('Y'), $max + 1);
 }
 
-/** Next invoice number: NNN-AMI-MM-YY */
+/** Next invoice number, matching the company format: "480 - AMI - INV - 04 - 26". */
 function next_invoice_no(PDO $pdo): string
 {
-    $max = 124;
+    $max = 0;
     foreach ($pdo->query("SELECT invoice_no FROM invoices") as $r) {
-        if (preg_match('/^(\d+)-/', (string) $r['invoice_no'], $mm)) {
+        if (preg_match('/^(\d+)\s*-/', (string) $r['invoice_no'], $mm)) {
             $max = max($max, (int) $mm[1]);
         }
     }
-    return sprintf('%d-AMI-%s-%s', $max + 1, date('m'), date('y'));
+    return sprintf('%d - AMI - INV - %s - %s', $max + 1, date('m'), date('y'));
 }
 
 /** Indonesian "terbilang": spell a Rupiah amount in words. */

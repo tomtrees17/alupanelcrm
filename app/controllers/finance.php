@@ -51,7 +51,13 @@ switch ($action) {
         $invoice = find_invoice($pdo, (int) input('id', 0));
         $items = $pdo->prepare('SELECT * FROM invoice_items WHERE invoice_id = ?');
         $items->execute([$invoice['id']]);
-        view('print.invoice', ['invoice' => $invoice, 'items' => $items->fetchAll()], false);
+        $orderNo = '';
+        if ($invoice['order_id']) {
+            $o = $pdo->prepare('SELECT order_no FROM orders WHERE id = ?');
+            $o->execute([$invoice['order_id']]);
+            $orderNo = (string) ($o->fetchColumn() ?: '');
+        }
+        view('print.invoice', ['invoice' => $invoice, 'items' => $items->fetchAll(), 'orderNo' => $orderNo], false);
         break;
 
     case 'pay':

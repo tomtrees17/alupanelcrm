@@ -36,10 +36,11 @@ $remaining = $invoice['total'] - $invoice['amount_paid'];
             <?php endforeach; ?>
             </tbody>
             <tfoot>
-                <tr><td colspan="4" class="right">运费</td><td class="right"><?= idr($invoice['shipping_cost']) ?></td></tr>
-                <tr><td colspan="4" class="right">小计</td><td class="right"><?= idr($invoice['subtotal']) ?></td></tr>
-                <tr><td colspan="4" class="right">PPN 11%</td><td class="right"><?= idr($invoice['ppn']) ?></td></tr>
-                <tr class="total-row"><td colspan="4" class="right">合计</td><td class="right"><?= idr($invoice['total']) ?></td></tr>
+                <tr><td colspan="4" class="right"><?= t('shipping') ?></td><td class="right"><?= idr($invoice['shipping_cost']) ?></td></tr>
+                <tr><td colspan="4" class="right"><?= t('th_subtotal') ?></td><td class="right"><?= idr($invoice['subtotal']) ?></td></tr>
+                <tr><td colspan="4" class="right">DPP</td><td class="right"><?= idr(round($invoice['subtotal'] * 11 / 12)) ?></td></tr>
+                <tr><td colspan="4" class="right">VAT 12%</td><td class="right"><?= idr($invoice['ppn']) ?></td></tr>
+                <tr class="total-row"><td colspan="4" class="right"><?= t('total') ?></td><td class="right"><?= idr($invoice['total']) ?></td></tr>
                 <tr><td colspan="4" class="right">已收</td><td class="right"><?= idr($invoice['amount_paid']) ?></td></tr>
                 <tr><td colspan="4" class="right" style="color:var(--danger)">未收</td><td class="right" style="color:var(--danger)"><?= idr($remaining) ?></td></tr>
             </tfoot>

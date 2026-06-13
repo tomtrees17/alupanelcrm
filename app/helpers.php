@@ -37,6 +37,12 @@ function idr($amount): string
     return $cur . ' ' . number_format((float) $amount, 0, ',', '.');
 }
 
+/** Plain Indonesian number format (no currency): 211.711,71 */
+function num($amount, int $dec = 0): string
+{
+    return number_format((float) $amount, $dec, ',', '.');
+}
+
 /** Compact Rupiah for tight UI: Rp 28,0 jt / Rp 1,2 M */
 function idr_short($amount): string
 {

@@ -1,7 +1,15 @@
 <?php
-/** @var array $invoice */ /** @var array $items */
+/** @var array $invoice */ /** @var array $items */ /** @var string $orderNo */
 $cfg = $GLOBALS['config'];
-$paid = $invoice['payment_status'] === 'paid';
+$subtotal = (float) $invoice['subtotal'];
+$dpp = round($subtotal * 11 / 12);
+$vat = (float) $invoice['ppn'];           // = subtotal × 11% = DPP × 12%
+$total = (float) $invoice['total'];
+$fdate = fn($d) => $d ? date('j/M/y', strtotime($d)) : '';
+$fdate2 = fn($d) => $d ? date('j-M-y', strtotime($d)) : '';
+$rp = fn($n) => 'Rp' . num($n);
+$logoImg = dirname(__DIR__, 2) . '/public/assets/img/logo.png';
+$logo = $cfg['company_logo'] ?? 'ALUSIGNPANEL';
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -16,82 +24,102 @@ $paid = $invoice['payment_status'] === 'paid';
     <a class="btn btn-primary" href="javascript:window.print()"><?= t('btn_print') ?> / Cetak</a>
 </div>
 
-<div class="sheet">
-    <div class="doc-head">
-        <div>
-            <div class="co-name"><?= e($cfg['company_full']) ?></div>
-            <div class="co-meta">
-                <?= e($cfg['company_addr']) ?><br>
-                Tel: <?= e($cfg['company_phone']) ?> · NPWP: <?= e($cfg['company_npwp']) ?>
-            </div>
-        </div>
-        <div class="doc-title">
-            <h1>INVOICE</h1>
-            <div class="no">No: <?= e($invoice['invoice_no']) ?></div>
-            <div class="date">Tanggal: <?= e($invoice['invoice_date']) ?></div>
-            <?php if ($invoice['tax_invoice_no']): ?><div class="date">Faktur Pajak: <?= e($invoice['tax_invoice_no']) ?></div><?php endif; ?>
-        </div>
-    </div>
+<div class="sheet inv">
+    <!-- Header -->
+    <table class="inv-top"><tr>
+        <td class="inv-logo">
+            <?php if (is_file($logoImg)): ?>
+                <img src="assets/img/logo.png" alt="logo" style="max-width:190px;max-height:60px">
+            <?php else: ?>
+                <div class="mark"><span class="r"><?= e(mb_substr($logo, 0, 1)) ?></span><?= e(mb_substr($logo, 1, max(0, mb_strlen($logo) - 2))) ?><span class="b"><?= e(mb_substr($logo, -1)) ?></span></div>
+            <?php endif; ?>
+        </td>
+        <td>
+            <div class="inv-co"><b><?= e($cfg['company_full']) ?></b><br>:<?= e($cfg['company_addr']) ?></div>
+        </td>
+        <td class="inv-title"><h1>Invoice</h1></td>
+    </tr></table>
 
-    <div class="parties">
-        <div class="party">
-            <div class="lbl">Kepada / Bill To</div>
-            <div class="name"><?= e($invoice['bill_to_name'] ?: $invoice['customer']) ?></div>
-            <div class="info">
-                <?= e($invoice['customer']) ?><br>
-                <?= nl2br(e($invoice['address'])) ?><br>
-                <?php if ($invoice['npwp']): ?>NPWP: <?= e($invoice['npwp']) ?><br><?php endif; ?>
-                <?php if ($invoice['no_po']): ?>No. PO: <?= e($invoice['no_po']) ?><?php endif; ?>
-            </div>
-        </div>
-        <div class="party" style="text-align:right">
-            <div class="lbl">Status</div>
-            <div class="status-stamp <?= $paid ? 'stamp-paid' : 'stamp-unpaid' ?>"><?= $paid ? 'LUNAS' : strtoupper(invoice_status_label($invoice['payment_status'])) ?></div>
-            <div class="info" style="margin-top:10px">
-                Jatuh Tempo: <strong><?= e($invoice['due_date']) ?></strong><br>
-                Termin: <?= e($invoice['payment_term']) ?><?= $invoice['payment_term'] === 'custom' ? ' Net ' . (int) $invoice['custom_days'] . ' hari' : '' ?><br>
-                <?php if ($invoice['do_number']): ?>Surat Jalan: <?= e($invoice['do_number']) ?><?php endif; ?>
-            </div>
-        </div>
-    </div>
+    <!-- Bill To + meta -->
+    <table style="width:100%"><tr class="inv-mid">
+        <td class="inv-billto" style="width:55%">
+            <div class="lbl">Bill To :</div>
+            <strong><?= e($invoice['bill_to_name'] ?: $invoice['customer']) ?></strong><br>
+            <?= nl2br(e($invoice['address'])) ?><br>
+            <?php if ($invoice['npwp']): ?>NPWP : <?= e($invoice['npwp']) ?><?php endif; ?>
+        </td>
+        <td>
+            <table class="inv-meta b" style="width:360px">
+                <tr><th>Sales Invoice Date</th><th>Sales Invoice No.</th></tr>
+                <tr><td class="c"><?= e($fdate($invoice['invoice_date'])) ?></td><td class="c"><?= e($invoice['invoice_no']) ?></td></tr>
+                <tr><td>No CO / PO</td><td class="c"><?= e($orderNo ?: $invoice['no_po']) ?></td></tr>
+                <tr><td>Job NO</td><td class="c">Currency <?= e($invoice['currency'] ?: 'IDR') ?></td></tr>
+                <tr><td>Due Date</td><td class="c"><?= e($fdate2($invoice['due_date'])) ?></td></tr>
+            </table>
+        </td>
+    </tr></table>
 
-    <table class="items">
-        <thead><tr><th style="width:34px">No</th><th>Deskripsi</th><th class="r">Qty</th><th class="r">Harga</th><th class="r">Jumlah</th></tr></thead>
-        <tbody>
+    <!-- Items -->
+    <table class="inv-items b">
+        <thead><tr><th>No.</th><th>Item Description</th><th>Quantity</th><th>Unit Price</th><th>Amount</th></tr></thead>
+        <tbody class="inv-itembody">
         <?php foreach ($items as $i => $it): ?>
             <tr>
-                <td><?= $i + 1 ?></td>
-                <td><strong><?= e($it['sku']) ?></strong> — <?= e($it['color']) ?><br><span style="color:#888;font-size:11px"><?= e($it['spec']) ?> · <?= e($it['size']) ?></span></td>
-                <td class="r"><?= (int) $it['qty'] ?> <?= e($it['unit']) ?></td>
-                <td class="r"><?= idr($it['price']) ?></td>
-                <td class="r"><?= idr($it['qty'] * $it['price']) ?></td>
+                <td class="no"><?= $i + 1 ?></td>
+                <td>(<?= e($it['spec']) ?>) <?= e($it['sku']) ?> (<?= e($it['color']) ?>) <?= e($it['size']) ?></td>
+                <td class="q"><?= num($it['qty']) ?></td>
+                <td class="up"><?= num($it['price'], 2) ?></td>
+                <td class="amt"><?= num($it['qty'] * $it['price']) ?></td>
             </tr>
         <?php endforeach; ?>
+        <?php if ($invoice['shipping_cost'] > 0): ?>
+            <tr>
+                <td class="no"><?= count($items) + 1 ?></td>
+                <td>Ongkir</td>
+                <td class="q">1</td>
+                <td class="up"><?= num($invoice['shipping_cost'], 2) ?></td>
+                <td class="amt"><?= num($invoice['shipping_cost']) ?></td>
+            </tr>
+        <?php endif; ?>
         </tbody>
     </table>
 
-    <table class="totals">
-        <tr><td>Ongkos Kirim</td><td class="r"><?= idr($invoice['shipping_cost']) ?></td></tr>
-        <tr><td>Subtotal (termasuk ongkir)</td><td class="r"><?= idr($invoice['subtotal']) ?></td></tr>
-        <tr><td>PPN 11%</td><td class="r"><?= idr($invoice['ppn']) ?></td></tr>
-        <tr class="grand"><td>TOTAL</td><td class="r"><?= idr($invoice['total']) ?></td></tr>
-        <?php if ($invoice['amount_paid'] > 0): ?>
-            <tr><td>Dibayar</td><td class="r"><?= idr($invoice['amount_paid']) ?></td></tr>
-            <tr><td>Sisa</td><td class="r"><?= idr($invoice['total'] - $invoice['amount_paid']) ?></td></tr>
-        <?php endif; ?>
-    </table>
+    <!-- Totals -->
+    <table class="inv-tot"><tr>
+        <td style="width:56%"></td>
+        <td class="inv-totbox">
+            <table style="width:100%">
+                <tr><td class="k">Subtotal</td><td class="v"><?= $rp($subtotal) ?></td></tr>
+                <tr><td class="k">DPP</td><td class="v"><?= $rp($dpp) ?></td></tr>
+                <tr><td class="k">VAT 12%</td><td class="v"><?= $rp($vat) ?></td></tr>
+                <tr><td class="k">Total Invoice</td><td class="v"><?= $rp($total) ?></td></tr>
+                <tr class="grand"><td class="k">Total Amount</td><td class="v"><?= $rp($total) ?></td></tr>
+            </table>
+        </td>
+    </tr></table>
 
-    <div class="terbilang">Terbilang: <?= e(terbilang($invoice['total'])) ?></div>
-
-    <div class="notes">
-        Pembayaran ke: <?= e($cfg['company_bank']) ?><br>
-        <?php if ($invoice['note']): ?>Catatan: <?= e($invoice['note']) ?><?php endif; ?>
-    </div>
-
-    <div class="signs">
-        <div class="sign"><div>Penerima,</div><div class="line"><?= e($invoice['bill_to_name'] ?: $invoice['customer']) ?></div></div>
-        <div class="sign"><div>Hormat kami,</div><div class="line"><?= e($invoice['issued_by'] ?: $cfg['company']) ?></div></div>
-    </div>
+    <!-- Bank + signature -->
+    <table class="inv-tot" style="margin-top:18px"><tr>
+        <td class="inv-bank">
+            <div class="hdr">Please deposit above amount to our account</div>
+            <?php foreach ($cfg['banks'] as $bk): ?>
+                <table style="margin-bottom:8px">
+                    <tr><td style="width:38%">Bank Name</td><td>: <?= e($bk['name']) ?></td></tr>
+                    <tr><td>Branch</td><td>: <?= e($bk['branch']) ?></td></tr>
+                    <tr><td>Account Name</td><td>: <?= e($bk['account_name']) ?></td></tr>
+                    <tr><td>Account No</td><td>: <?= e($bk['account_no']) ?></td></tr>
+                    <tr><td>Swift Code</td><td>: <?= e($bk['swift']) ?></td></tr>
+                </table>
+            <?php endforeach; ?>
+        </td>
+        <td class="inv-sign">
+            On Your Behalf<br>
+            <strong><?= e($cfg['company_full']) ?></strong>
+            <div class="gap"></div>
+            <strong><?= e($invoice['issued_by'] ?: $cfg['signer_name']) ?></strong><br>
+            <?= e($cfg['signer_title']) ?>
+        </td>
+    </tr></table>
 </div>
 </body>
 </html>
