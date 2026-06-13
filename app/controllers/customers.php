@@ -27,7 +27,7 @@ switch ($action) {
         $sql .= ' ORDER BY id DESC';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($args);
-        view('customers.index', ['pageTitle' => '客户管理', 'pageSub' => '管理所有客户信息', 'customers' => $stmt->fetchAll(), 'q' => $q, 'tag' => $tag]);
+        view('customers.index', ['customers' => $stmt->fetchAll(), 'q' => $q, 'tag' => $tag]);
         break;
 
     case 'create':

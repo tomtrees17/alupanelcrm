@@ -23,7 +23,6 @@ switch ($action) {
             $counts[$r['status']] = (int) $r['c'];
         }
         view('orders.index', [
-            'pageTitle' => '订单审批', 'pageSub' => '销售员 → 主管 → 经理 → 仓管 四级审批',
             'orders' => $stmt->fetchAll(), 'counts' => $counts, 'statusFilter' => $statusFilter,
         ]);
         break;
@@ -39,9 +38,16 @@ switch ($action) {
             $iv->execute([$order['invoice_number']]);
             $invoice = $iv->fetch() ?: null;
         }
+        $deliveryId = null;
+        if ($order['do_number']) {
+            $d = $pdo->prepare('SELECT id FROM delivery_orders WHERE do_no = ?');
+            $d->execute([$order['do_number']]);
+            $deliveryId = $d->fetchColumn() ?: null;
+        }
         view('orders.show', [
-            'pageTitle' => '订单 ' . $order['order_no'], 'pageSub' => $order['company'],
-            'order' => $order, 'items' => $items->fetchAll(), 'totals' => $totals, 'invoice' => $invoice,
+            'pageTitle' => $order['order_no'], 'pageSub' => $order['company'],
+            'order' => $order, 'items' => $items->fetchAll(), 'totals' => $totals,
+            'invoice' => $invoice, 'deliveryId' => $deliveryId,
         ]);
         break;
 

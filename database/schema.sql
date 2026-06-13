@@ -1,4 +1,4 @@
--- AluPanel CRM / NexusCRM schema (SQLite)
+-- AluPanel CRM schema (SQLite)
 -- Aluminum composite panel (ACP) business, Indonesia market.
 
 -- ── Users / staff (role drives the approval workflow) ──

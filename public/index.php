@@ -15,7 +15,7 @@ $controller = preg_replace('/[^a-z0-9_]/', '', strtolower($controller));
 $action     = preg_replace('/[^a-zA-Z0-9_]/', '', $action);
 
 // Routes reachable without logging in.
-$publicRoutes = ['auth.login', 'auth.authenticate'];
+$publicRoutes = ['auth.login', 'auth.authenticate', 'lang.set'];
 
 if (!in_array("{$controller}.{$action}", $publicRoutes, true) && !$auth->check()) {
     redirect('auth.login');

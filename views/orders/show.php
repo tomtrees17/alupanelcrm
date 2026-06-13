@@ -5,10 +5,10 @@
 // Determine the 4-step approval flow state.
 $status = $order['status'];
 $steps = [
-    ['key' => 'sales', 'label' => '销售', 'who' => $order['submitter'], 'note' => '', 'date' => $order['created_at']],
-    ['key' => 'sup', 'label' => '主管', 'who' => $order['sup_approver'], 'note' => $order['sup_note'], 'date' => $order['sup_date']],
-    ['key' => 'mgr', 'label' => '经理', 'who' => $order['mgr_approver'], 'note' => $order['mgr_note'], 'date' => $order['mgr_date']],
-    ['key' => 'wh', 'label' => '仓库', 'who' => $order['wh_approver'], 'note' => $order['wh_note'], 'date' => $order['wh_date']],
+    ['key' => 'sales', 'label' => t('sales'), 'who' => $order['submitter'], 'note' => '', 'date' => $order['created_at']],
+    ['key' => 'sup', 'label' => t('supervisor'), 'who' => $order['sup_approver'], 'note' => $order['sup_note'], 'date' => $order['sup_date']],
+    ['key' => 'mgr', 'label' => t('manager'), 'who' => $order['mgr_approver'], 'note' => $order['mgr_note'], 'date' => $order['mgr_date']],
+    ['key' => 'wh', 'label' => t('warehouse'), 'who' => $order['wh_approver'], 'note' => $order['wh_note'], 'date' => $order['wh_date']],
 ];
 $activeMap = ['pending_sup' => 'sup', 'pending_mgr' => 'mgr', 'pending_wh' => 'wh'];
 $rejStage = null;
@@ -33,8 +33,9 @@ $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['ro
 <div class="page-head">
     <h1>订单 <?= e($order['order_no']) ?> <span class="order-status-badge <?= order_status_class($status) ?>"><?= e(order_status_label($status)) ?></span></h1>
     <div class="head-actions">
-        <a class="btn btn-ghost" href="javascript:window.print()">打印</a>
-        <a class="btn btn-ghost" href="<?= url('orders.index') ?>">返回列表</a>
+        <?php if (!empty($deliveryId)): ?><a class="btn btn-ghost" href="<?= url('delivery.print', ['id' => $deliveryId]) ?>" target="_blank"><?= t('btn_print') ?> · DO</a><?php endif; ?>
+        <?php if (!empty($invoice)): ?><a class="btn btn-ghost" href="<?= url('finance.print', ['id' => $invoice['id']]) ?>" target="_blank"><?= t('btn_print') ?> · Invoice</a><?php endif; ?>
+        <a class="btn btn-ghost" href="<?= url('orders.index') ?>"><?= t('btn_back') ?></a>
     </div>
 </div>
 
@@ -53,23 +54,23 @@ $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['ro
 <div class="grid-2">
     <div class="card"><div class="card-body">
         <dl class="detail">
-            <div><dt>客户</dt><dd><?= e($order['customer_name']) ?></dd></div>
-            <div><dt>公司</dt><dd><?= e($order['company']) ?: '—' ?></dd></div>
-            <div><dt>电话</dt><dd><?= e($order['phone']) ?: '—' ?></dd></div>
-            <div><dt>客户类型</dt><dd><?= e($order['client_type']) ?></dd></div>
-            <div><dt>配送方式</dt><dd><?= e($order['delivery_service']) ?></dd></div>
-            <div><dt>送货日期</dt><dd><?= e($order['delivery_date']) ?: '—' ?></dd></div>
-            <div><dt>付款条件</dt><dd><?= e($order['payment_term']) ?><?= $order['payment_term'] === 'custom' ? ' Net ' . (int) $order['custom_days'] . '天' : '' ?></dd></div>
-            <div><dt>提交人</dt><dd><?= e($order['submitter']) ?></dd></div>
-            <div><dt>送货单 / 发票</dt><dd><?= e($order['do_number']) ?: '—' ?> / <?= $invoice ? '<a href="' . url('finance.show', ['id' => $invoice['id']]) . '">' . e($order['invoice_number']) . '</a>' : '—' ?></dd></div>
+            <div><dt><?= t('th_customer') ?></dt><dd><?= e($order['customer_name']) ?></dd></div>
+            <div><dt><?= t('th_company') ?></dt><dd><?= e($order['company']) ?: '—' ?></dd></div>
+            <div><dt><?= t('th_phone') ?></dt><dd><?= e($order['phone']) ?: '—' ?></dd></div>
+            <div><dt><?= t('f_client_type') ?></dt><dd><?= e($order['client_type']) ?></dd></div>
+            <div><dt><?= t('f_delivery_service') ?></dt><dd><?= e($order['delivery_service']) ?></dd></div>
+            <div><dt><?= t('f_delivery_date') ?></dt><dd><?= e($order['delivery_date']) ?: '—' ?></dd></div>
+            <div><dt><?= t('f_payment_term') ?></dt><dd><?= e($order['payment_term']) ?><?= $order['payment_term'] === 'custom' ? ' Net ' . (int) $order['custom_days'] . 'd' : '' ?></dd></div>
+            <div><dt><?= t('th_submitter') ?></dt><dd><?= e($order['submitter']) ?></dd></div>
+            <div><dt><?= t('do_invoice') ?></dt><dd><?= e($order['do_number']) ?: '—' ?> / <?= $invoice ? '<a href="' . url('finance.show', ['id' => $invoice['id']]) . '">' . e($order['invoice_number']) . '</a>' : '—' ?></dd></div>
         </dl>
-        <div class="notes"><strong>送货地址：</strong><?= e($order['delivery_address']) ?: e($order['address']) ?><?= $order['note'] ? '<br><strong>备注：</strong>' . e($order['note']) : '' ?></div>
+        <div class="notes"><strong><?= t('delivery_addr') ?>：</strong><?= e($order['delivery_address']) ?: e($order['address']) ?><?= $order['note'] ? '<br><strong>' . t('th_note') . '：</strong>' . e($order['note']) : '' ?></div>
     </div></div>
 
     <div class="card">
-        <div class="card-header"><span class="card-title">产品明细</span></div>
+        <div class="card-header"><span class="card-title"><?= t('product_items') ?></span></div>
         <div class="table-wrap"><table>
-            <thead><tr><th>SKU</th><th>颜色/规格</th><th class="right">数量</th><th class="right">单价</th><th class="right">小计</th></tr></thead>
+            <thead><tr><th><?= t('th_sku') ?></th><th><?= t('th_color_spec') ?></th><th class="right"><?= t('th_qty') ?></th><th class="right"><?= t('th_unit_price') ?></th><th class="right"><?= t('th_subtotal') ?></th></tr></thead>
             <tbody>
             <?php foreach ($items as $it): ?>
                 <tr><td><code><?= e($it['sku']) ?></code></td><td><?= e($it['color']) ?> · <?= e($it['spec']) ?></td>
@@ -78,8 +79,8 @@ $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['ro
             <?php endforeach; ?>
             </tbody>
             <tfoot>
-            <tr><td colspan="4" class="right">运费</td><td class="right"><?= idr($totals['shipping']) ?></td></tr>
-            <tr class="total-row"><td colspan="4" class="right">合计</td><td class="right"><?= idr($totals['total']) ?></td></tr>
+            <tr><td colspan="4" class="right"><?= t('shipping') ?></td><td class="right"><?= idr($totals['shipping']) ?></td></tr>
+            <tr class="total-row"><td colspan="4" class="right"><?= t('total') ?></td><td class="right"><?= idr($totals['total']) ?></td></tr>
             </tfoot>
         </table></div>
     </div>
@@ -87,10 +88,10 @@ $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['ro
 
 <?php if ($order['sup_note'] || $order['mgr_note'] || $order['wh_note']): ?>
     <div class="card"><div class="card-body">
-        <span class="card-title">审批意见</span>
-        <?php foreach ([['主管', $order['sup_approver'], $order['sup_note'], $order['sup_date']], ['经理', $order['mgr_approver'], $order['mgr_note'], $order['mgr_date']], ['仓库', $order['wh_approver'], $order['wh_note'], $order['wh_date']]] as $a): ?>
+        <span class="card-title"><?= t('approval_opinions') ?></span>
+        <?php foreach ([[t('supervisor'), $order['sup_approver'], $order['sup_note'], $order['sup_date']], [t('manager'), $order['mgr_approver'], $order['mgr_note'], $order['mgr_date']], [t('warehouse'), $order['wh_approver'], $order['wh_note'], $order['wh_date']]] as $a): ?>
             <?php if ($a[2] || $a[1]): ?>
-                <div class="notes" style="margin-top:8px"><strong><?= $a[0] ?> · <?= e($a[1]) ?> · <?= e($a[3]) ?>：</strong> <?= e($a[2]) ?: '（无意见）' ?></div>
+                <div class="notes" style="margin-top:8px"><strong><?= $a[0] ?> · <?= e($a[1]) ?> · <?= e($a[3]) ?>：</strong> <?= e($a[2]) ?: '—' ?></div>
             <?php endif; ?>
         <?php endforeach; ?>
     </div></div>
@@ -98,23 +99,23 @@ $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['ro
 
 <?php if ($canAct && in_array($status, ['pending_sup', 'pending_mgr', 'pending_wh'], true)): ?>
     <div class="card"><div class="card-body">
-        <span class="card-title"><?= e(role_label(order_action_role($status) ?? '')) ?>审批</span>
+        <span class="card-title"><?= e(role_label(order_action_role($status) ?? '')) ?> · <?= t('approval_by') ?></span>
         <form method="post" style="margin-top:10px">
             <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $order['id'] ?>">
-            <div class="form-group"><label class="form-label">审批意见</label><textarea class="form-textarea" name="note" placeholder="<?= $status === 'pending_wh' ? '确认出货后将自动扣减库存并生成送货单与发票' : '填写审批意见' ?>"></textarea></div>
+            <div class="form-group"><label class="form-label"><?= t('approval_opinions') ?></label><textarea class="form-textarea" name="note"></textarea></div>
             <div class="form-actions">
-                <button class="btn btn-danger" type="submit" formaction="<?= url('orders.reject') ?>" onclick="return confirm('确定驳回该订单？')">驳回</button>
-                <button class="btn btn-success" type="submit" formaction="<?= url('orders.approve') ?>"><?= $status === 'pending_wh' ? '确认出货' : '通过' ?></button>
+                <button class="btn btn-danger" type="submit" formaction="<?= url('orders.reject') ?>" onclick="return confirm('?')"><?= t('btn_reject') ?></button>
+                <button class="btn btn-success" type="submit" formaction="<?= url('orders.approve') ?>"><?= $status === 'pending_wh' ? t('btn_confirm_ship') : t('btn_approve') ?></button>
             </div>
         </form>
     </div></div>
 <?php elseif (in_array($status, ['pending_sup', 'pending_mgr', 'pending_wh'], true)): ?>
-    <div class="card"><div class="card-body muted">当前等待<strong><?= e(role_label(order_action_role($status) ?? '')) ?></strong>审批，你没有该阶段的操作权限。</div></div>
+    <div class="card"><div class="card-body muted"><?= t('wait_for') ?> <strong><?= e(role_label(order_action_role($status) ?? '')) ?></strong><?= t('no_permission_stage') ?></div></div>
 <?php endif; ?>
 
 <?php if ($auth->isAdmin()): ?>
-    <form method="post" action="<?= url('orders.delete') ?>" onsubmit="return confirm('确定删除该订单？')" class="no-print">
+    <form method="post" action="<?= url('orders.delete') ?>" onsubmit="return confirm('?')" class="no-print">
         <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $order['id'] ?>">
-        <button class="btn btn-ghost btn-sm" type="submit" style="color:var(--danger)">删除订单</button>
+        <button class="btn btn-ghost btn-sm" type="submit" style="color:var(--danger)"><?= t('btn_delete') ?></button>
     </form>
 <?php endif; ?>

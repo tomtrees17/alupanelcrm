@@ -34,8 +34,6 @@ $overdue = $pdo->query(
 )->fetchAll();
 
 view('dashboard.index', [
-    'pageTitle' => '数据看板',
-    'pageSub'   => '2026年5月概览',
     'revenue'   => $revenue,
     'custCount' => $custCount,
     'activeDeals' => $activeDeals,

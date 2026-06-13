@@ -31,7 +31,6 @@ switch ($action) {
             'overdue'  => (float) $pdo->query("SELECT COALESCE(SUM(total-amount_paid),0) FROM invoices WHERE payment_status='overdue'")->fetchColumn(),
         ];
         view('finance.index', [
-            'pageTitle' => '财务管理', 'pageSub' => '收款与应收账款',
             'invoices' => $stmt->fetchAll(), 'stats' => $stats, 'statusFilter' => $statusFilter,
         ]);
         break;
@@ -46,6 +45,13 @@ switch ($action) {
             'pageTitle' => '发票 ' . $invoice['invoice_no'], 'pageSub' => $invoice['customer'],
             'invoice' => $invoice, 'items' => $items->fetchAll(), 'payments' => $pays->fetchAll(),
         ]);
+        break;
+
+    case 'print':
+        $invoice = find_invoice($pdo, (int) input('id', 0));
+        $items = $pdo->prepare('SELECT * FROM invoice_items WHERE invoice_id = ?');
+        $items->execute([$invoice['id']]);
+        view('print.invoice', ['invoice' => $invoice, 'items' => $items->fetchAll()], false);
         break;
 
     case 'pay':

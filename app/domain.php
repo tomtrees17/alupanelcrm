@@ -76,6 +76,47 @@ function next_invoice_no(PDO $pdo): string
     return sprintf('%d-AMI-%s-%s', $max + 1, date('m'), date('y'));
 }
 
+/** Indonesian "terbilang": spell a Rupiah amount in words. */
+function terbilang($number): string
+{
+    $n = (int) round((float) $number);
+    if ($n === 0) {
+        return 'Nol Rupiah';
+    }
+    $words = trim(terbilang_helper($n));
+    return ucwords($words) . ' Rupiah';
+}
+
+function terbilang_helper(int $n): string
+{
+    $satuan = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'];
+    if ($n < 12) {
+        return ' ' . $satuan[$n];
+    }
+    if ($n < 20) {
+        return terbilang_helper($n - 10) . ' belas';
+    }
+    if ($n < 100) {
+        return terbilang_helper(intdiv($n, 10)) . ' puluh' . terbilang_helper($n % 10);
+    }
+    if ($n < 200) {
+        return ' seratus' . terbilang_helper($n - 100);
+    }
+    if ($n < 1000) {
+        return terbilang_helper(intdiv($n, 100)) . ' ratus' . terbilang_helper($n % 100);
+    }
+    if ($n < 2000) {
+        return ' seribu' . terbilang_helper($n - 1000);
+    }
+    if ($n < 1000000) {
+        return terbilang_helper(intdiv($n, 1000)) . ' ribu' . terbilang_helper($n % 1000);
+    }
+    if ($n < 1000000000) {
+        return terbilang_helper(intdiv($n, 1000000)) . ' juta' . terbilang_helper($n % 1000000);
+    }
+    return terbilang_helper(intdiv($n, 1000000000)) . ' miliar' . terbilang_helper($n % 1000000000);
+}
+
 /** Recompute an invoice's payment_status from amount_paid / due_date. */
 function refresh_invoice_status(PDO $pdo, int $invoiceId, string $today): void
 {

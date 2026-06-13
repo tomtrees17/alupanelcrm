@@ -23,7 +23,6 @@ switch ($action) {
         $done  = (int) $pdo->query('SELECT COUNT(*) FROM tasks WHERE done = 1')->fetchColumn();
         $high  = (int) $pdo->query("SELECT COUNT(*) FROM tasks WHERE priority='高' AND done=0")->fetchColumn();
         view('tasks.index', [
-            'pageTitle' => '任务提醒', 'pageSub' => '待办事项与提醒',
             'tasks' => $stmt->fetchAll(), 'filter' => $filter,
             'stats' => ['total' => $total, 'done' => $done, 'high' => $high, 'rate' => $total ? round($done / $total * 100) : 0],
             'customers' => $pdo->query('SELECT id, name FROM customers ORDER BY name')->fetchAll(),

@@ -12,7 +12,7 @@ switch ($action) {
            ORDER BY d.id DESC'
         )->fetchAll();
         $total = (float) $pdo->query('SELECT COALESCE(SUM(value),0) FROM deals')->fetchColumn();
-        view('pipeline.index', ['pageTitle' => '销售漏斗', 'pageSub' => '跟踪商机进展', 'deals' => $deals, 'total' => $total]);
+        view('pipeline.index', ['deals' => $deals, 'total' => $total]);
         break;
 
     case 'create':

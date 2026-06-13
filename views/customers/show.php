@@ -1,6 +1,6 @@
 <?php /** @var array $customer */ /** @var array $deals */ /** @var array $orders */ ?>
 <div class="page-head">
-    <h1><?= e($customer['name']) ?> <span class="tag <?= customer_tag_class($customer['tag']) ?>"><?= e($customer['tag']) ?></span></h1>
+    <h1><?= e($customer['name']) ?> <span class="tag <?= customer_tag_class($customer['tag']) ?>"><?= e(tr_tag($customer['tag'])) ?></span></h1>
     <div class="head-actions">
         <a class="btn btn-ghost" href="<?= url('customers.edit', ['id' => $customer['id']]) ?>">编辑</a>
         <form method="post" action="<?= url('customers.delete') ?>" onsubmit="return confirm('确定删除该客户？')" style="display:inline">
@@ -30,7 +30,7 @@
         <?php if (!$deals): ?><tr><td colspan="4" class="empty">暂无商机</td></tr><?php endif; ?>
         <?php foreach ($deals as $d): ?>
             <tr><td><strong><?= e($d['name']) ?></strong></td>
-                <td><span class="tag" style="background:<?= deal_stage_color($d['stage']) ?>22;color:<?= deal_stage_color($d['stage']) ?>"><?= e($d['stage']) ?></span></td>
+                <td><span class="tag" style="background:<?= deal_stage_color($d['stage']) ?>22;color:<?= deal_stage_color($d['stage']) ?>"><?= e(tr_stage($d['stage'])) ?></span></td>
                 <td><?= e($d['close_date']) ?></td><td class="right"><?= idr($d['value']) ?></td></tr>
         <?php endforeach; ?>
         </tbody>

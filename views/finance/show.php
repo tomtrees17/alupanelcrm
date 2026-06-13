@@ -4,8 +4,8 @@ $remaining = $invoice['total'] - $invoice['amount_paid'];
 <div class="page-head">
     <h1>发票 <?= e($invoice['invoice_no']) ?> <span class="tag <?= invoice_status_class($invoice['payment_status']) ?>"><?= e(invoice_status_label($invoice['payment_status'])) ?></span></h1>
     <div class="head-actions">
-        <a class="btn btn-ghost" href="javascript:window.print()">打印</a>
-        <a class="btn btn-ghost" href="<?= url('finance.index') ?>">返回列表</a>
+        <a class="btn btn-primary" href="<?= url('finance.print', ['id' => $invoice['id']]) ?>" target="_blank"><?= t('btn_print') ?> · Invoice</a>
+        <a class="btn btn-ghost" href="<?= url('finance.index') ?>"><?= t('btn_back') ?></a>
     </div>
 </div>
 

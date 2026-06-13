@@ -16,7 +16,7 @@ $roles = ['admin', 'manager', 'supervisor', 'sales', 'warehouse'];
 switch ($action) {
     case 'index':
         $users = $pdo->query('SELECT id,name,email,role,title,created_at FROM users ORDER BY id')->fetchAll();
-        view('users.index', ['pageTitle' => '用户管理', 'pageSub' => '员工与角色', 'users' => $users]);
+        view('users.index', ['users' => $users]);
         break;
 
     case 'create':

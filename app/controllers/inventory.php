@@ -41,7 +41,6 @@ switch ($action) {
         $cats = array_column($pdo->query('SELECT DISTINCT category FROM products ORDER BY category')->fetchAll(), 'category');
 
         view('inventory.index', [
-            'pageTitle' => '库存管理', 'pageSub' => '产品库存与自动扣减',
             'products' => $stmt->fetchAll(), 'stats' => $stats, 'cats' => $cats,
             'q' => $q, 'cat' => $cat, 'low' => $low,
         ]);

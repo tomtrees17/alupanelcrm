@@ -112,6 +112,30 @@ function priority_class(string $p): string
     return ['高' => 'pri-high', '中' => 'pri-med', '低' => 'pri-low'][$p] ?? 'pri-med';
 }
 
+/** Translate a canonical (Chinese) stored value for display. */
+function tr_stage(string $stage): string
+{
+    $map = ['初步接触' => 'stage_1', '需求确认' => 'stage_2', '方案报价' => 'stage_3', '谈判中' => 'stage_4', '已成交' => 'stage_5'];
+    return isset($map[$stage]) ? t($map[$stage]) : $stage;
+}
+
+function tr_tag(string $tag): string
+{
+    $map = ['重点' => 'tag_vip', '潜在' => 'tag_potential', '成交' => 'tag_closed', '流失' => 'tag_lost'];
+    return isset($map[$tag]) ? t($map[$tag]) : $tag;
+}
+
+function tr_priority(string $p): string
+{
+    $map = ['高' => 'pri_high', '中' => 'pri_med', '低' => 'pri_low'];
+    return isset($map[$p]) ? t($map[$p]) : $p;
+}
+
+function tr_txn_type(string $type): string
+{
+    return ['in' => t('txn_in'), 'out' => t('txn_out'), 'out_auto' => t('txn_out_auto')][$type] ?? $type;
+}
+
 /** Order approval workflow. */
 function order_statuses(): array
 {
@@ -120,10 +144,7 @@ function order_statuses(): array
 
 function order_status_label(string $s): string
 {
-    return [
-        'draft' => '草稿', 'pending_sup' => '待主管审批', 'pending_mgr' => '待经理审批',
-        'pending_wh' => '待仓库出货', 'approved' => '已批准', 'rejected' => '已驳回',
-    ][$s] ?? $s;
+    return in_array($s, order_statuses(), true) ? t('st_' . $s) : $s;
 }
 
 function order_status_class(string $s): string
@@ -146,7 +167,7 @@ function order_action_role(string $status): ?string
 
 function invoice_status_label(string $s): string
 {
-    return ['paid' => '已收款', 'partial' => '部分收款', 'pending' => '待收款', 'overdue' => '逾期'][$s] ?? $s;
+    return ['paid' => t('inv_paid'), 'partial' => t('inv_partial'), 'pending' => t('inv_pending'), 'overdue' => t('inv_overdue')][$s] ?? $s;
 }
 
 function invoice_status_class(string $s): string
@@ -156,10 +177,7 @@ function invoice_status_class(string $s): string
 
 function role_label(string $r): string
 {
-    return [
-        'admin' => '管理员', 'manager' => '经理', 'supervisor' => '主管',
-        'sales' => '销售员', 'warehouse' => '仓库',
-    ][$r] ?? $r;
+    return in_array($r, ['admin', 'manager', 'supervisor', 'sales', 'warehouse'], true) ? t('role_' . $r) : $r;
 }
 
 function payment_terms(): array

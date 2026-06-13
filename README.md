@@ -1,6 +1,6 @@
-# AluPanel CRM (NexusCRM)
+# AluPanel CRM
 
-面向**铝塑板（ACP）业务·印尼市场**的销售 CRM / 轻量 ERP。后端为 **纯 PHP + PDO**，数据库 **SQLite**，无框架、无 Composer 依赖。按既定规划（Nexus CRM）实现。
+面向**铝塑板（ACP）业务·印尼市场**的销售 CRM / 轻量 ERP。后端为 **纯 PHP + PDO**，数据库 **SQLite**，无框架、无 Composer 依赖。
 
 ## 功能模块
 

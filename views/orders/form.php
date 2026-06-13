@@ -9,72 +9,72 @@ $custJson = json_encode(array_map(fn($c) => [
 ], $customers), JSON_UNESCAPED_UNICODE);
 ?>
 <div class="page-head">
-    <h1>新建销售订单</h1>
-    <a class="btn btn-ghost" href="<?= url('orders.index') ?>">返回列表</a>
+    <h1><?= t('btn_add_order') ?></h1>
+    <a class="btn btn-ghost" href="<?= url('orders.index') ?>"><?= t('btn_back') ?></a>
 </div>
 
 <form method="post" action="<?= url('orders.store') ?>" id="order-form">
     <?= Csrf::field() ?>
     <div class="card"><div class="card-body">
         <div class="form-row">
-            <div class="form-group"><label class="form-label">客户 *</label>
+            <div class="form-group"><label class="form-label"><?= t('th_customer') ?> *</label>
                 <select class="form-select" name="customer_id" id="customer-select" required>
-                    <option value="">— 选择客户 —</option>
+                    <option value="">—</option>
                     <?php foreach ($customers as $c): ?><option value="<?= $c['id'] ?>"><?= e($c['name']) ?> · <?= e($c['company']) ?></option><?php endforeach; ?>
                 </select>
             </div>
-            <div class="form-group"><label class="form-label">公司</label><input class="form-input" name="company" id="f-company"></div>
+            <div class="form-group"><label class="form-label"><?= t('th_company') ?></label><input class="form-input" name="company" id="f-company"></div>
         </div>
         <div class="form-row">
-            <div class="form-group"><label class="form-label">电话</label><input class="form-input" name="phone" id="f-phone"></div>
-            <div class="form-group"><label class="form-label">客户类型</label>
+            <div class="form-group"><label class="form-label"><?= t('th_phone') ?></label><input class="form-input" name="phone" id="f-phone"></div>
+            <div class="form-group"><label class="form-label"><?= t('f_client_type') ?></label>
                 <select class="form-select" name="client_type"><?php foreach (client_types() as $ct): ?><option><?= $ct ?></option><?php endforeach; ?></select>
             </div>
         </div>
-        <div class="form-group"><label class="form-label">客户地址</label><input class="form-input" name="address" id="f-address"></div>
+        <div class="form-group"><label class="form-label"><?= t('f_address') ?></label><input class="form-input" name="address" id="f-address"></div>
         <div class="form-row-3">
-            <div class="form-group"><label class="form-label">配送方式</label>
+            <div class="form-group"><label class="form-label"><?= t('f_delivery_service') ?></label>
                 <select class="form-select" name="delivery_service"><?php foreach (delivery_services() as $d): ?><option><?= $d ?></option><?php endforeach; ?></select>
             </div>
-            <div class="form-group"><label class="form-label">送货日期</label><input class="form-input" type="date" name="delivery_date"></div>
-            <div class="form-group"><label class="form-label">运费 (Rp)</label><input class="form-input" type="number" name="shipping_cost" id="ship" value="0"></div>
+            <div class="form-group"><label class="form-label"><?= t('f_delivery_date') ?></label><input class="form-input" type="date" name="delivery_date"></div>
+            <div class="form-group"><label class="form-label"><?= t('f_shipping') ?></label><input class="form-input" type="number" name="shipping_cost" id="ship" value="0"></div>
         </div>
-        <div class="form-group"><label class="form-label">送货地址</label><input class="form-input" name="delivery_address"></div>
+        <div class="form-group"><label class="form-label"><?= t('delivery_addr') ?></label><input class="form-input" name="delivery_address"></div>
         <div class="form-row">
-            <div class="form-group"><label class="form-label">付款条件</label>
+            <div class="form-group"><label class="form-label"><?= t('f_payment_term') ?></label>
                 <select class="form-select" name="payment_term" id="pterm">
-                    <option value="CBD">CBD（货前付款）</option>
-                    <option value="COD">COD（货到付款）</option>
-                    <option value="custom">账期 Net（自定义天数）</option>
+                    <option value="CBD">CBD</option>
+                    <option value="COD">COD</option>
+                    <option value="custom">Net (custom)</option>
                 </select>
             </div>
-            <div class="form-group"><label class="form-label">账期天数</label><input class="form-input" type="number" name="custom_days" value="0"></div>
+            <div class="form-group"><label class="form-label"><?= t('f_custom_days') ?></label><input class="form-input" type="number" name="custom_days" value="0"></div>
         </div>
-        <div class="form-group"><label class="form-label">备注</label><textarea class="form-textarea" name="note"></textarea></div>
+        <div class="form-group"><label class="form-label"><?= t('th_note') ?></label><textarea class="form-textarea" name="note"></textarea></div>
     </div></div>
 
     <div class="card">
-        <div class="card-header"><span class="card-title">产品明细</span><button type="button" class="btn btn-sm btn-ghost" id="add-row">＋ 添加行</button></div>
+        <div class="card-header"><span class="card-title"><?= t('product_items') ?></span><button type="button" class="btn btn-sm btn-ghost" id="add-row"><?= t('btn_add_row') ?></button></div>
         <div class="table-wrap"><table id="items-table">
-            <thead><tr><th style="width:30%">产品</th><th class="right">数量</th><th class="right">单价</th><th class="right">小计</th><th></th></tr></thead>
+            <thead><tr><th style="width:30%"><?= t('th_product') ?></th><th class="right"><?= t('th_qty') ?></th><th class="right"><?= t('th_unit_price') ?></th><th class="right"><?= t('th_subtotal') ?></th><th></th></tr></thead>
             <tbody>
                 <!-- rows injected by JS -->
             </tbody>
             <tfoot>
-                <tr><td colspan="3" class="right">小计（含运费）</td><td class="right" id="t-subtotal">Rp 0</td><td></td></tr>
+                <tr><td colspan="3" class="right"><?= t('th_subtotal') ?> (+<?= t('shipping') ?>)</td><td class="right" id="t-subtotal">Rp 0</td><td></td></tr>
                 <tr><td colspan="3" class="right">PPN 11%</td><td class="right" id="t-ppn">Rp 0</td><td></td></tr>
-                <tr class="total-row"><td colspan="3" class="right">合计</td><td class="right" id="t-total">Rp 0</td><td></td></tr>
+                <tr class="total-row"><td colspan="3" class="right"><?= t('total') ?></td><td class="right" id="t-total">Rp 0</td><td></td></tr>
             </tfoot>
         </table></div>
     </div>
 
-    <div class="form-actions"><button class="btn btn-primary" type="submit">提交订单（进入主管审批）</button></div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit"><?= t('btn_save_order') ?></button></div>
 </form>
 
 <template id="row-tpl">
     <tr class="item-row">
         <td>
-            <select class="form-select product-select" name="sku_select"><option value="">— 选择产品 —</option>
+            <select class="form-select product-select" name="sku_select"><option value="">—</option>
                 <?php foreach ($products as $p): ?><option value="<?= $p['id'] ?>"><?= e($p['sku']) ?> · <?= e($p['color_en']) ?> · <?= e($p['spec']) ?> (<?= $p['stock'] ?>)</option><?php endforeach; ?>
             </select>
             <input type="hidden" name="sku[]" class="f-sku"><input type="hidden" name="color[]" class="f-color">
