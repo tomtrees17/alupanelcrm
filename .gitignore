@@ -1,0 +1,13 @@
+# SQLite database (runtime data)
+/data/*.sqlite
+/data/*.sqlite-journal
+/data/*.sqlite-wal
+/data/*.sqlite-shm
+
+# Dependencies / editor
+/vendor/
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db

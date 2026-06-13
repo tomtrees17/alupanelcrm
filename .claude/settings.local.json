@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(git ls-remote https://github.com/tomtrees17/alupanelcrm.git 2>&1)",
+      "PowerShell($out = git ls-remote https://github.com/tomtrees17/alupanelcrm.git 2>&1 | Out-String; if \\([string]::IsNullOrWhiteSpace\\($out\\)\\) { Write-Output \"EMPTY_OR_NO_REFS\" } else { Write-Output $out })",
+      "PowerShell($php = Get-Command php -ErrorAction SilentlyContinue; if \\($php\\) { Write-Output \"PHP_PATH: $\\($php.Source\\)\"; php -v } else { Write-Output \"PHP_NOT_FOUND\" })"
+    ]
+  }
+}
