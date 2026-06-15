@@ -72,7 +72,7 @@ const I18N = [
         // inventory
         'inv_skus' => 'SKU 数', 'inv_total_stock' => '总库存（张）', 'inv_low' => '低库存预警', 'inv_out' => '缺货',
         'only_low' => '仅看低库存', 'stock_adjust' => '±库存', 'all_specs' => '全部规格', 'all_tags' => '全部标签',
-        'stock_insufficient' => '库存不足', 'need' => '需', 'have' => '库存', 'stock_block_submit' => '有产品库存不足，无法提交订单',
+        'stock_insufficient' => '库存不足', 'need' => '需', 'have' => '库存', 'available' => '可用', 'stock_block_submit' => '有产品库存不足，无法提交订单',
         // orders / approval
         'approval_flow' => '审批流程', 'order_info' => '订单信息', 'do_invoice' => '送货单 / 发票',
         'delivery_addr' => '送货地址', 'note' => '备注', 'shipping' => '运费', 'total' => '合计',
@@ -146,7 +146,7 @@ const I18N = [
         'related_deals' => 'Peluang Terkait', 'order_records' => 'Riwayat Pesanan', 'product_items' => 'Rincian Produk', 'approval_opinions' => 'Catatan Persetujuan',
         'inv_skus' => 'Jumlah SKU', 'inv_total_stock' => 'Total Stok', 'inv_low' => 'Stok Rendah', 'inv_out' => 'Habis',
         'only_low' => 'Hanya stok rendah', 'stock_adjust' => '±Stok', 'all_specs' => 'Semua Spesifikasi', 'all_tags' => 'Semua Label',
-        'stock_insufficient' => 'Stok tidak cukup', 'need' => 'butuh', 'have' => 'stok', 'stock_block_submit' => 'Ada produk stok tidak cukup, pesanan tidak dapat dikirim',
+        'stock_insufficient' => 'Stok tidak cukup', 'need' => 'butuh', 'have' => 'stok', 'available' => 'Tersedia', 'stock_block_submit' => 'Ada produk stok tidak cukup, pesanan tidak dapat dikirim',
         'approval_flow' => 'Alur Persetujuan', 'order_info' => 'Info Pesanan', 'do_invoice' => 'Surat Jalan / Invoice',
         'delivery_addr' => 'Alamat Kirim', 'note' => 'Catatan', 'shipping' => 'Ongkir', 'total' => 'Total',
         'sales' => 'Sales', 'supervisor' => 'Supervisor', 'manager' => 'Manager', 'warehouse' => 'Gudang',

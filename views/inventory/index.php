@@ -27,15 +27,22 @@
 
 <div class="card">
     <div class="table-wrap"><table>
-        <thead><tr><th><?= t('th_sku') ?></th><th><?= t('th_color') ?></th><th><?= t('th_spec') ?></th><th class="right"><?= t('th_stock') ?></th><th class="right"><?= t('th_min_stock') ?></th><th class="right"><?= t('th_price') ?></th><th class="right"><?= t('th_action') ?></th></tr></thead>
+        <thead><tr><th><?= t('th_sku') ?></th><th><?= t('th_color') ?></th><th><?= t('th_spec') ?></th><th class="right"><?= t('available') ?></th><th class="right"><?= t('th_min_stock') ?></th><th class="right"><?= t('th_price') ?></th><th class="right"><?= t('th_action') ?></th></tr></thead>
         <tbody>
         <?php if (!$products): ?><tr><td colspan="7" class="empty"><?= t('no_products') ?></td></tr><?php endif; ?>
-        <?php foreach ($products as $p): $isLow = $p['stock'] <= $p['min_stock']; ?>
+        <?php foreach ($products as $p):
+            $reserved = (int) ($p['reserved'] ?? 0);
+            $avail = $p['stock'] - $reserved;
+            $isLow = $avail <= $p['min_stock'];
+        ?>
             <tr>
                 <td><code><?= e($p['sku']) ?></code></td>
                 <td><?= e($p['color_zh']) ?> / <?= e($p['color_en']) ?></td>
                 <td><?= e($p['spec']) ?></td>
-                <td class="right"><span class="<?= $isLow ? 'stock-low' : 'stock-ok' ?>"><?= number_format($p['stock']) ?></span></td>
+                <td class="right">
+                    <span class="<?= $isLow ? 'stock-low' : 'stock-ok' ?>"><?= number_format($avail) ?></span>
+                    <?php if ($reserved > 0): ?><div class="reserved-note"><?= t('have') ?> <?= number_format($p['stock']) ?> · 预留 <?= number_format($reserved) ?></div><?php endif; ?>
+                </td>
                 <td class="right muted"><?= $p['min_stock'] ?></td>
                 <td class="right"><?= $p['price'] > 0 ? idr($p['price']) : '—' ?></td>
                 <td class="right" style="white-space:nowrap">

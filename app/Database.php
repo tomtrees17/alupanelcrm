@@ -28,6 +28,7 @@ final class Database
         )->fetchColumn();
 
         if ($exists) {
+            self::ensureSchema($pdo);
             return;
         }
 
@@ -39,6 +40,34 @@ final class Database
         }
 
         self::seed($pdo);
+    }
+
+    /** Idempotent upgrades for databases created before a column existed. */
+    private static function ensureSchema(PDO $pdo): void
+    {
+        $cols = $pdo->query('PRAGMA table_info(products)')->fetchAll();
+        $hasReserved = false;
+        foreach ($cols as $c) {
+            if ($c['name'] === 'reserved') {
+                $hasReserved = true;
+                break;
+            }
+        }
+        if (!$hasReserved) {
+            $pdo->exec('ALTER TABLE products ADD COLUMN reserved INTEGER NOT NULL DEFAULT 0');
+            // Backfill product links + reservations from existing data.
+            $pdo->exec(
+                "UPDATE order_items SET product_id = (
+                     SELECT id FROM products p WHERE p.sku = order_items.sku AND p.spec = order_items.spec LIMIT 1
+                 ) WHERE product_id IS NULL"
+            );
+            $pdo->exec(
+                "UPDATE products SET reserved = COALESCE((
+                     SELECT SUM(oi.qty) FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                     WHERE oi.product_id = products.id AND o.status LIKE 'pending_%'
+                 ), 0)"
+            );
+        }
     }
 
     private static function seed(PDO $pdo): void
@@ -292,6 +321,19 @@ final class Database
                 $payStmt->execute([$ivId, $iv['customer'], $iv['paid'], $iv['paid_date'], $iv['method'], $iv['receipt'], $iv['pnote']]);
             }
         }
+
+        // Link order items to products and reserve stock for pending orders.
+        $pdo->exec(
+            "UPDATE order_items SET product_id = (
+                 SELECT id FROM products p WHERE p.sku = order_items.sku AND p.spec = order_items.spec LIMIT 1
+             ) WHERE product_id IS NULL"
+        );
+        $pdo->exec(
+            "UPDATE products SET reserved = COALESCE((
+                 SELECT SUM(oi.qty) FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                 WHERE oi.product_id = products.id AND o.status LIKE 'pending_%'
+             ), 0)"
+        );
 
         $pdo->commit();
     }

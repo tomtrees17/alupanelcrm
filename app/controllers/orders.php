@@ -55,7 +55,7 @@ switch ($action) {
         view('orders.form', [
             'pageTitle' => '新建销售订单', 'pageSub' => '',
             'customers' => $pdo->query('SELECT id, name, company, phone FROM customers ORDER BY name')->fetchAll(),
-            'products'  => $pdo->query('SELECT id, sku, color_en, color_zh, spec, size, price, stock FROM products ORDER BY sku LIMIT 400')->fetchAll(),
+            'products'  => $pdo->query('SELECT id, sku, color_en, color_zh, spec, size, price, stock, reserved, min_stock FROM products ORDER BY sku LIMIT 400')->fetchAll(),
         ]);
         break;
 
@@ -88,6 +88,7 @@ switch ($action) {
         }
         $order = find_order($pdo, (int) input('id', 0));
         $pdo->prepare('DELETE FROM orders WHERE id = ?')->execute([$order['id']]);
+        recompute_reservations($pdo);   // release any reserved stock
         flash('订单已删除。');
         redirect('orders.index');
         break;
@@ -119,6 +120,7 @@ function create_order(PDO $pdo, Auth $auth): int
     $sizes = (array) input('size', []);
     $qtys = (array) input('qty', []);
     $prices = (array) input('price', []);
+    $productIds = (array) input('product_id', []);
     $items = [];
     foreach ($skus as $i => $sku) {
         $sku = trim((string) $sku);
@@ -126,15 +128,22 @@ function create_order(PDO $pdo, Auth $auth): int
         if ($sku === '' && $qty <= 0) {
             continue;
         }
-        $items[] = [$sku, trim((string) ($colors[$i] ?? '')), trim((string) ($specs[$i] ?? '')), trim((string) ($sizes[$i] ?? '')), $qty, (float) ($prices[$i] ?? 0)];
+        $items[] = [
+            $sku, trim((string) ($colors[$i] ?? '')), trim((string) ($specs[$i] ?? '')),
+            trim((string) ($sizes[$i] ?? '')), $qty, (float) ($prices[$i] ?? 0),
+            ((int) ($productIds[$i] ?? 0)) ?: null,
+        ];
     }
     if (!$items) {
         flash('请至少添加一项产品。', 'error');
         redirect('orders.create');
     }
 
-    // Block orders that exceed available stock.
-    $short = stock_shortages($pdo, array_map(fn($it) => ['sku' => $it[0], 'spec' => $it[2], 'qty' => $it[4]], $items));
+    // Block orders that exceed AVAILABLE stock (stock − reserved by other open orders).
+    $short = available_shortages($pdo, array_map(
+        fn($it) => ['product_id' => $it[6], 'sku' => $it[0], 'spec' => $it[2], 'qty' => $it[4]],
+        $items
+    ));
     if ($short) {
         flash(shortage_message($short), 'error');
         redirect('orders.create');
@@ -156,10 +165,12 @@ function create_order(PDO $pdo, Auth $auth): int
             (int) input('custom_days', 0), 'pending_sup',
         ]);
         $oid = (int) $pdo->lastInsertId();
-        $ins = $pdo->prepare('INSERT INTO order_items (order_id,sku,color,spec,size,qty,unit,price) VALUES (?,?,?,?,?,?,?,?)');
+        $ins = $pdo->prepare('INSERT INTO order_items (order_id,product_id,sku,color,spec,size,qty,unit,price) VALUES (?,?,?,?,?,?,?,?,?)');
         foreach ($items as $it) {
-            $ins->execute([$oid, $it[0], $it[1], $it[2], $it[3], $it[4], 'Unit', $it[5]]);
+            $pid = $it[6] ?: match_product_id($pdo, $it[0], $it[2]);
+            $ins->execute([$oid, $pid, $it[0], $it[1], $it[2], $it[3], $it[4], 'Unit', $it[5]]);
         }
+        recompute_reservations($pdo);    // reserve stock for this new order
         $pdo->commit();
         return $oid;
     } catch (Throwable $ex) {
@@ -232,6 +243,7 @@ function reject_order(PDO $pdo, Auth $auth, array $order, string $note): void
     }
     $pdo->prepare("UPDATE orders SET status='rejected', {$col}_note=?, {$col}_approver=?, {$col}_date=? WHERE id=?")
         ->execute([$note, $name, $today, $order['id']]);
+    recompute_reservations($pdo);   // release reserved stock
     flash('订单已驳回。');
 }
 
@@ -301,6 +313,7 @@ function fulfill_order(PDO $pdo, array $order, string $name, string $note, strin
         $pdo->prepare('UPDATE orders SET status=?, wh_note=?, wh_approver=?, wh_date=?, do_number=?, invoice_number=? WHERE id=?')
             ->execute(['approved', $note, $name, $today, $doNo, $invNo, $order['id']]);
 
+        recompute_reservations($pdo);    // order no longer pending → release reservation (stock already deducted)
         $pdo->commit();
     } catch (Throwable $ex) {
         $pdo->rollBack();

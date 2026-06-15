@@ -1,9 +1,12 @@
 <?php
 /** @var array $customers */ /** @var array $products */
-$prodJson = json_encode(array_map(fn($p) => [
-    'id' => (int) $p['id'], 'sku' => $p['sku'], 'color' => $p['color_en'], 'spec' => $p['spec'],
-    'size' => $p['size'], 'price' => (float) $p['price'], 'stock' => (int) $p['stock'],
-], $products), JSON_UNESCAPED_UNICODE);
+$prodJson = json_encode(array_map(function ($p) {
+    $avail = max(0, (int) $p['stock'] - (int) $p['reserved']);
+    return [
+        'id' => (int) $p['id'], 'sku' => $p['sku'], 'color' => $p['color_en'], 'spec' => $p['spec'],
+        'size' => $p['size'], 'price' => (float) $p['price'], 'stock' => $avail, 'min' => (int) $p['min_stock'],
+    ];
+}, $products), JSON_UNESCAPED_UNICODE);
 $custJson = json_encode(array_map(fn($c) => [
     'id' => (int) $c['id'], 'company' => $c['company'], 'phone' => $c['phone'],
 ], $customers), JSON_UNESCAPED_UNICODE);
@@ -76,6 +79,7 @@ $custJson = json_encode(array_map(fn($c) => [
         <td style="position:relative">
             <input type="text" class="form-input product-search" placeholder="搜索 SKU / 颜色 / 规格 …" autocomplete="off">
             <div class="combo-list"></div>
+            <input type="hidden" name="product_id[]" class="f-pid">
             <input type="hidden" name="sku[]" class="f-sku"><input type="hidden" name="color[]" class="f-color">
             <input type="hidden" name="spec[]" class="f-spec"><input type="hidden" name="size[]" class="f-size">
         </td>
@@ -89,7 +93,8 @@ $custJson = json_encode(array_map(fn($c) => [
 <script>
 const PRODUCTS = <?= $prodJson ?>;
 const CUSTOMERS = <?= $custJson ?>;
-const STOCK_LBL = <?= json_encode(t('have'), JSON_UNESCAPED_UNICODE) ?>;
+const STOCK_LBL = <?= json_encode(t('available'), JSON_UNESCAPED_UNICODE) ?>;
+const AVAIL_LBL = <?= json_encode(t('available'), JSON_UNESCAPED_UNICODE) ?>;
 const BLOCK_MSG = <?= json_encode(t('stock_block_submit'), JSON_UNESCAPED_UNICODE) ?>;
 const fmt = n => 'Rp ' + Number(n||0).toLocaleString('id-ID');
 
@@ -133,7 +138,7 @@ function recalc() {
     document.getElementById('t-subtotal').textContent = fmt(gross - ppn);
 }
 
-const pLabel = p => `${p.sku} · ${p.color} · ${p.spec} (${p.stock})`;
+const pLabel = p => `${p.sku} · ${p.color} · ${p.spec} (${AVAIL_LBL} ${p.stock})`;
 
 function bindRow(row) {
     const input = row.querySelector('.product-search');
@@ -141,6 +146,7 @@ function bindRow(row) {
     let matches = [], hi = -1;
 
     const pick = p => {
+        row.querySelector('.f-pid').value = p.id;
         row.querySelector('.f-sku').value = p.sku;
         row.querySelector('.f-color').value = p.color;
         row.querySelector('.f-spec').value = p.spec;
@@ -160,8 +166,10 @@ function bindRow(row) {
         )).slice(0, 40);
         hi = -1;
         if (!matches.length) { list.style.display = 'none'; return; }
-        list.innerHTML = matches.map((p, i) =>
-            `<div class="combo-item" data-i="${i}">${pLabel(p)}</div>`).join('');
+        list.innerHTML = matches.map((p, i) => {
+            const cls = p.stock <= 0 ? 'st-out' : (p.stock <= p.min ? 'st-low' : '');
+            return `<div class="combo-item" data-i="${i}">${p.sku} · ${p.color} · ${p.spec} <span class="${cls}">(${AVAIL_LBL} ${p.stock})</span></div>`;
+        }).join('');
         list.style.display = 'block';
     };
 

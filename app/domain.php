@@ -53,6 +53,47 @@ function stock_shortages(PDO $pdo, array $items): array
     return $short;
 }
 
+/**
+ * Items whose qty exceeds AVAILABLE stock (= stock − reserved by other open orders).
+ * Used when placing a new order. $items: ['product_id'?, 'sku', 'spec', 'qty'].
+ */
+function available_shortages(PDO $pdo, array $items): array
+{
+    $stmt = $pdo->prepare('SELECT stock, reserved FROM products WHERE id = ?');
+    $short = [];
+    foreach ($items as $it) {
+        $pid = $it['product_id'] ?? null;
+        if (!$pid) {
+            $pid = match_product_id($pdo, (string) ($it['sku'] ?? ''), (string) ($it['spec'] ?? ''));
+        }
+        if (!$pid) {
+            continue;
+        }
+        $stmt->execute([$pid]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            continue;
+        }
+        $avail = (int) $row['stock'] - (int) $row['reserved'];
+        $need = (int) ceil((float) ($it['qty'] ?? 0));
+        if ($need > $avail) {
+            $short[] = ['sku' => $it['sku'] ?? '', 'spec' => $it['spec'] ?? '', 'need' => $need, 'have' => max(0, $avail)];
+        }
+    }
+    return $short;
+}
+
+/** Recompute every product's reserved qty from currently-open (pending) orders. */
+function recompute_reservations(PDO $pdo): void
+{
+    $pdo->exec(
+        "UPDATE products SET reserved = COALESCE((
+             SELECT SUM(oi.qty) FROM order_items oi JOIN orders o ON o.id = oi.order_id
+             WHERE oi.product_id = products.id AND o.status LIKE 'pending_%'
+         ), 0)"
+    );
+}
+
 /** Human-readable shortage message (bilingual prefix). */
 function shortage_message(array $short): string
 {

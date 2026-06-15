@@ -35,8 +35,8 @@ switch ($action) {
         $stats = [
             'skus'  => (int) $pdo->query('SELECT COUNT(*) FROM products')->fetchColumn(),
             'stock' => (int) $pdo->query('SELECT COALESCE(SUM(stock),0) FROM products')->fetchColumn(),
-            'low'   => (int) $pdo->query('SELECT COUNT(*) FROM products WHERE stock <= min_stock')->fetchColumn(),
-            'out'   => (int) $pdo->query('SELECT COUNT(*) FROM products WHERE stock = 0')->fetchColumn(),
+            'low'   => (int) $pdo->query('SELECT COUNT(*) FROM products WHERE (stock - reserved) <= min_stock')->fetchColumn(),
+            'out'   => (int) $pdo->query('SELECT COUNT(*) FROM products WHERE (stock - reserved) <= 0')->fetchColumn(),
         ];
         $cats = array_column($pdo->query('SELECT DISTINCT category FROM products ORDER BY category')->fetchAll(), 'category');
 
