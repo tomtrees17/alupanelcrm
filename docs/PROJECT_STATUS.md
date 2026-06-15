@@ -1,0 +1,124 @@
+# AluPanel CRM — 项目上下文摘要 / Handoff
+
+> 本文档用于保存项目全貌，便于跨会话/上下文续接。最后更新：对应 git 提交 `f64c117`。
+
+## 1. 项目概述
+
+- **名称**：AluPanel CRM（侧边栏 logo 显示 `AluPanelCRM`）
+- **业务**：铝塑板（ACP）销售 CRM / 轻量 ERP，面向**印尼市场**
+- **真实公司**：PT ALUPANEL MULIA INDONESIA
+- **来源**：按规划原型 `C:\Users\yuans\Downloads\crm-system_25.html`（NexusCRM）实现
+- **仓库**：https://github.com/tomtrees17/alupanelcrm （main 分支，公开）
+- **本地路径**：`D:\AluPanelCRM`
+
+## 2. 技术栈
+
+- 后端：**纯 PHP + PDO**（无框架、无 Composer）
+- 数据库：**SQLite**（`data/crm.sqlite`，已 gitignore，首次访问自动建库+示例数据）
+- 前端：服务端渲染 PHP 模板 + 原生 JS/CSS，无构建步骤
+- 路由：前端控制器 `public/index.php?r=controller.action`
+- 货币：印尼盾 IDR（Rp）
+- 语言：中文 / 印尼语（id）可切换
+
+## 3. 运行方式
+
+**本地**（Windows，PHP 未加入 PATH）：
+```
+& "C:\Users\yuans\AppData\Local\Microsoft\WinGet\Packages\PHP.PHP.8.3_Microsoft.Winget.Source_8wekyb3d8bbwe\php.exe" -S localhost:8000 -t public
+```
+打开 http://localhost:8000 。重置数据：删除 `data/crm.sqlite`（被沙箱保护时用 PHP `unlink` 删）。
+
+**服务器**（宝塔，已部署）：
+- 域名/站点：`www.alupanel.cc`，路径 `/www/wwwroot/www.alupanel.cc`
+- PHP 8.2（已确认 `pdo_sqlite`/`sqlite3` 启用）
+- **网站运行目录必须设为 `/public`**
+- `data/` 目录需 `www` 用户可写：`chown -R www:www data && chmod -R 755 data`
+- 更新代码：`cd /www/wwwroot/www.alupanel.cc && git pull`
+
+## 4. 默认账号（密码均 `admin123`，登录后请改）
+
+| 邮箱 | 角色 |
+|---|---|
+| admin@alupanel.local | 管理员 admin |
+| mutiara@alupanel.local | 经理 manager |
+| sari@alupanel.local | 主管 supervisor |
+| ahmad@alupanel.local | 销售 sales |
+| joko@alupanel.local | 仓库 warehouse |
+
+## 5. 模块（7 + 用户）
+
+数据看板、客户管理、销售漏斗(deals)、任务提醒、财务管理(invoices)、订单审批(orders)、库存管理(products) + 用户管理。
+
+## 6. 关键业务逻辑
+
+**订单四级审批流**：销售→主管(supervisor)→经理(manager)→仓库(warehouse)。
+- 状态：`draft / pending_sup / pending_mgr / pending_wh / approved / rejected`
+- 仅对应角色（或 admin）能在该阶段审批（`order_action_role()`）
+- 仓库「确认出货」(`fulfill_order`) 自动：扣库存(out_auto) + 生成送货单DO + 生成发票
+
+**税务（印尼 2025，价格含税）**：
+- 订单输入单价为**含税价**；开票时反算 pre-tax = 含税价 / 1.11
+- 发票：Subtotal(税前) + VAT12% = 含税总额（不再额外加税）
+- DPP = Subtotal × 11/12，VAT12% = DPP × 12% = Subtotal × 11%，Total = Subtotal + VAT
+- 发票号格式 `N - AMI - INV - MM - YY`
+- 已与公司真实模板核对一致（235.000×3 含税 → 单价 211.711,71 / Subtotal 714.262 / VAT 78.569 / Total 792.831）
+
+**库存预留防超卖**：
+- `products.reserved` 列，**可用 = stock − reserved**
+- 下单即预留(`recompute_reservations`，按所有 pending 订单求和)；驳回/删除释放；出货实扣并释放
+- 新建订单按**可用库存**校验（客户端标红阻止提交 + 服务端拒绝）；每级审批再按物理库存校验
+- `order_items.product_id` 已记录；线上旧库由 `Database::ensureSchema()` 自动加列+回填+重算
+
+**打印**：发票(`print/invoice.php`，公司抬头+Bill To+DPP/VAT+双银行ICBC/BCA+签字+terbilang金额大写) 与送货单(`print/do.php`，SURAT JALAN)，A4 样式 `public/assets/css/print.css`。logo：`public/assets/img/logo.{png,svg}`（已提交 SVG 还原版，放 png 可覆盖）。
+
+## 7. 目录结构
+
+```
+public/index.php            前端控制器（路由）
+public/assets/css/{app,print}.css
+public/assets/img/logo.svg
+app/
+  bootstrap.php             启动装配（session, config, i18n, helpers, domain, Database, Auth, Csrf）
+  Database.php              连接+建表+种子+ensureSchema(线上升级)
+  domain.php                业务逻辑：库存增减、预留重算、可用/库存校验、单号生成、发票状态、terbilang
+  helpers.php               视图辅助：e/url/redirect/idr/num/各label与tr_*翻译
+  i18n.php                  中印双语字典 + t() + current_lang()
+  Auth.php / Csrf.php
+  controllers/              dashboard customers pipeline tasks finance orders inventory delivery users auth lang
+views/                      按模块分目录 + layout.php + print/ + errors/
+database/schema.sql         表结构
+database/seed_products.sql  269 个产品（由 tools/gen_products.php 从原型抽取）
+data/                       运行时 SQLite（gitignore）
+config.php                  应用与公司配置
+```
+
+## 8. config.php 可定制项
+
+`company_full / company_addr / company_npwp / banks[ICBC,BCA] / signer_name / signer_title`（发票抬头）、`ppn_rate=11`、`currency=Rp`、`brand=AluPanel`。
+
+## 9. 数据模型（表）
+
+users, customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments。
+
+## 10. 提交历史（main）
+
+```
+f64c117 Reserve stock on order placement to prevent overselling
+4681501 Block order flow when product stock is insufficient
+4212162 Add keyword search to product picker in new-order form
+a76cd2b Add ALUSIGNPANEL logo (SVG) to printed invoice and delivery order
+4ba25e8 Treat order prices as tax-inclusive when generating invoice
+99d1a41 Match printed invoice to company template (PT Alupanel Mulia Indonesia)
+c94400e Add bilingual zh/id, print templates, delivery orders; rename to AluPanelCRM
+feccc03 Rebuild as ACP sales CRM per NexusCRM plan (7 modules)
+56afafa Stop tracking local .claude settings
+c3ad488 Initial commit: AluPanel CRM (PHP + SQLite)
+```
+
+## 11. 用户偏好
+
+中文交流；尽量少打断/少让用户授权，按合理默认自主推进。
+
+## 12. 可能的后续
+
+真实 logo.png 上传、发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全、修改默认密码。
