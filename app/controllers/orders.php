@@ -245,15 +245,23 @@ function fulfill_order(PDO $pdo, array $order, string $name, string $note, strin
             $order['delivery_address'], $order['delivery_service'], $today, $name, $order['note'],
         ]);
 
-        // 3) Invoice (subtotal = items + shipping; PPN 11%)
+        // 3) Invoice — order prices are TAX-INCLUSIVE, so back the tax out.
+        //    pre-tax = inclusive / (1 + rate); Subtotal + VAT = inclusive total.
         $ppnRate = (float) ($GLOBALS['config']['ppn_rate'] ?? 11);
+        $div = 1 + $ppnRate / 100;            // 1.11
+
         $itemsSum = 0.0;
+        $lines = [];
         foreach ($rows as $it) {
-            $itemsSum += (float) $it['qty'] * (float) $it['price'];
+            $pretaxUnit = round((float) $it['price'] / $div, 2);   // shown on invoice line
+            $lineAmt = round((float) $it['qty'] * $pretaxUnit);
+            $itemsSum += $lineAmt;
+            $lines[] = [$it, $pretaxUnit];
         }
-        $subtotal = $itemsSum + (float) $order['shipping_cost'];
+        $pretaxShip = round((float) $order['shipping_cost'] / $div, 2);
+        $subtotal = $itemsSum + round($pretaxShip);
         $ppn = round($subtotal * $ppnRate / 100);
-        $total = $subtotal + $ppn;
+        $total = $subtotal + $ppn;            // ≈ original tax-inclusive order amount
         $days = $order['payment_term'] === 'custom' ? (int) $order['custom_days'] : 0;
         $due = date('Y-m-d', strtotime($today . " +{$days} days"));
         $invNo = next_invoice_no($pdo);
@@ -263,13 +271,13 @@ function fulfill_order(PDO $pdo, array $order, string $name, string $note, strin
              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
         )->execute([
             $invNo, $order['id'], $doNo, $order['company'] ?: $order['customer_name'], $order['customer_name'],
-            $order['address'], 'IDR', $order['shipping_cost'], $subtotal, $ppn, $total, $today, $due,
+            $order['address'], 'IDR', $pretaxShip, $subtotal, $ppn, $total, $today, $due,
             $name, $order['payment_term'], $order['custom_days'], 'pending',
         ]);
         $invId = (int) $pdo->lastInsertId();
         $iis = $pdo->prepare('INSERT INTO invoice_items (invoice_id,sku,color,spec,size,qty,unit,price) VALUES (?,?,?,?,?,?,?,?)');
-        foreach ($rows as $it) {
-            $iis->execute([$invId, $it['sku'], $it['color'], $it['spec'], $it['size'], $it['qty'], $it['unit'], $it['price']]);
+        foreach ($lines as [$it, $pretaxUnit]) {
+            $iis->execute([$invId, $it['sku'], $it['color'], $it['spec'], $it['size'], $it['qty'], $it['unit'], $pretaxUnit]);
         }
 
         // 4) Mark order approved

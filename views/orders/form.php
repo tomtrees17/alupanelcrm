@@ -54,16 +54,16 @@ $custJson = json_encode(array_map(fn($c) => [
     </div></div>
 
     <div class="card">
-        <div class="card-header"><span class="card-title"><?= t('product_items') ?></span><button type="button" class="btn btn-sm btn-ghost" id="add-row"><?= t('btn_add_row') ?></button></div>
+        <div class="card-header"><span class="card-title"><?= t('product_items') ?> <span class="muted" style="font-weight:400;font-size:11px">· 单价为含税价 / harga termasuk PPN</span></span><button type="button" class="btn btn-sm btn-ghost" id="add-row"><?= t('btn_add_row') ?></button></div>
         <div class="table-wrap"><table id="items-table">
             <thead><tr><th style="width:30%"><?= t('th_product') ?></th><th class="right"><?= t('th_qty') ?></th><th class="right"><?= t('th_unit_price') ?></th><th class="right"><?= t('th_subtotal') ?></th><th></th></tr></thead>
             <tbody>
                 <!-- rows injected by JS -->
             </tbody>
             <tfoot>
-                <tr><td colspan="3" class="right"><?= t('th_subtotal') ?> (+<?= t('shipping') ?>)</td><td class="right" id="t-subtotal">Rp 0</td><td></td></tr>
-                <tr><td colspan="3" class="right">PPN 11%</td><td class="right" id="t-ppn">Rp 0</td><td></td></tr>
-                <tr class="total-row"><td colspan="3" class="right"><?= t('total') ?></td><td class="right" id="t-total">Rp 0</td><td></td></tr>
+                <tr class="total-row"><td colspan="3" class="right"><?= t('total') ?>（含税 incl. VAT）</td><td class="right" id="t-total">Rp 0</td><td></td></tr>
+                <tr><td colspan="3" class="right" style="color:var(--text3)">其中含 PPN 12% / termasuk PPN</td><td class="right" id="t-ppn" style="color:var(--text3)">Rp 0</td><td></td></tr>
+                <tr><td colspan="3" class="right" style="color:var(--text3)">税前 Subtotal (DPP base)</td><td class="right" id="t-subtotal" style="color:var(--text3)">Rp 0</td><td></td></tr>
             </tfoot>
         </table></div>
     </div>
@@ -110,11 +110,11 @@ function recalc() {
         subtotal += line;
         r.querySelector('.line-total').textContent = fmt(line);
     });
-    subtotal += parseFloat(document.getElementById('ship').value) || 0;
-    const ppn = Math.round(subtotal * 0.11);
-    document.getElementById('t-subtotal').textContent = fmt(subtotal);
+    const gross = subtotal + (parseFloat(document.getElementById('ship').value) || 0); // tax-inclusive
+    const ppn = Math.round(gross * 11 / 111);   // PPN embedded in inclusive price
+    document.getElementById('t-total').textContent = fmt(gross);
     document.getElementById('t-ppn').textContent = fmt(ppn);
-    document.getElementById('t-total').textContent = fmt(subtotal + ppn);
+    document.getElementById('t-subtotal').textContent = fmt(gross - ppn);
 }
 
 function bindRow(row) {
