@@ -79,7 +79,7 @@ $custJson = json_encode(array_map(fn($c) => [
             <input type="hidden" name="sku[]" class="f-sku"><input type="hidden" name="color[]" class="f-color">
             <input type="hidden" name="spec[]" class="f-spec"><input type="hidden" name="size[]" class="f-size">
         </td>
-        <td><input class="form-input qty right" type="number" name="qty[]" value="1" style="width:90px"></td>
+        <td><input class="form-input qty right" type="number" name="qty[]" value="1" style="width:90px"><div class="stock-warn"></div></td>
         <td><input class="form-input price right" type="number" name="price[]" value="0" style="width:120px"></td>
         <td class="right line-total">Rp 0</td>
         <td class="right"><button type="button" class="btn btn-ghost btn-sm remove-row" style="color:var(--danger)">×</button></td>
@@ -89,7 +89,24 @@ $custJson = json_encode(array_map(fn($c) => [
 <script>
 const PRODUCTS = <?= $prodJson ?>;
 const CUSTOMERS = <?= $custJson ?>;
+const STOCK_LBL = <?= json_encode(t('have'), JSON_UNESCAPED_UNICODE) ?>;
+const BLOCK_MSG = <?= json_encode(t('stock_block_submit'), JSON_UNESCAPED_UNICODE) ?>;
 const fmt = n => 'Rp ' + Number(n||0).toLocaleString('id-ID');
+
+function validateRow(row) {
+    const stock = row.dataset.stock;
+    const qtyInput = row.querySelector('.qty');
+    const warn = row.querySelector('.stock-warn');
+    const qty = parseFloat(qtyInput.value) || 0;
+    if (stock !== undefined && stock !== '' && qty > Number(stock)) {
+        qtyInput.classList.add('over');
+        warn.textContent = STOCK_LBL + ' ' + stock;
+        return false;
+    }
+    qtyInput.classList.remove('over');
+    warn.textContent = '';
+    return true;
+}
 
 document.getElementById('customer-select').addEventListener('change', e => {
     const c = CUSTOMERS.find(x => x.id == e.target.value);
@@ -129,8 +146,10 @@ function bindRow(row) {
         row.querySelector('.f-spec').value = p.spec;
         row.querySelector('.f-size').value = p.size;
         row.querySelector('.price').value = p.price;
+        row.dataset.stock = p.stock;
         input.value = pLabel(p);
         list.style.display = 'none';
+        validateRow(row);
         recalc();
     };
 
@@ -168,7 +187,8 @@ function bindRow(row) {
         if (document.querySelectorAll('.item-row').length > 1) row.remove();
         recalc();
     });
-    row.querySelectorAll('.qty,.price').forEach(i => i.addEventListener('input', recalc));
+    row.querySelector('.price').addEventListener('input', recalc);
+    row.querySelector('.qty').addEventListener('input', () => { validateRow(row); recalc(); });
 }
 
 function addRow() {
@@ -179,5 +199,10 @@ function addRow() {
 }
 document.getElementById('add-row').addEventListener('click', addRow);
 document.getElementById('ship').addEventListener('input', recalc);
+document.getElementById('order-form').addEventListener('submit', e => {
+    let ok = true;
+    document.querySelectorAll('.item-row').forEach(r => { if (!validateRow(r)) ok = false; });
+    if (!ok) { e.preventDefault(); alert(BLOCK_MSG); }
+});
 addRow();
 </script>

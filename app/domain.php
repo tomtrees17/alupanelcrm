@@ -29,6 +29,40 @@ function match_product_id(PDO $pdo, string $sku, string $spec): ?int
     return $id ? (int) $id : null;
 }
 
+/**
+ * Return items whose ordered qty exceeds current product stock.
+ * $items: array of ['sku'=>, 'spec'=>, 'qty'=>]. Unknown products are skipped.
+ * Each result: ['sku','spec','need','have'].
+ */
+function stock_shortages(PDO $pdo, array $items): array
+{
+    $stmt = $pdo->prepare('SELECT stock FROM products WHERE id = ?');
+    $short = [];
+    foreach ($items as $it) {
+        $pid = match_product_id($pdo, (string) ($it['sku'] ?? ''), (string) ($it['spec'] ?? ''));
+        if (!$pid) {
+            continue;
+        }
+        $stmt->execute([$pid]);
+        $have = (int) $stmt->fetchColumn();
+        $need = (int) ceil((float) ($it['qty'] ?? 0));
+        if ($need > $have) {
+            $short[] = ['sku' => $it['sku'] ?? '', 'spec' => $it['spec'] ?? '', 'need' => $need, 'have' => $have];
+        }
+    }
+    return $short;
+}
+
+/** Human-readable shortage message (bilingual prefix). */
+function shortage_message(array $short): string
+{
+    $parts = array_map(
+        fn($s) => "{$s['sku']} ({$s['spec']}) " . t('need') . " {$s['need']} / " . t('have') . " {$s['have']}",
+        $short
+    );
+    return t('stock_insufficient') . '：' . implode('；', $parts);
+}
+
 /** Order subtotal (items) and grand total (with shipping). */
 function order_totals(PDO $pdo, int $orderId): array
 {

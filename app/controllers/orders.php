@@ -133,6 +133,13 @@ function create_order(PDO $pdo, Auth $auth): int
         redirect('orders.create');
     }
 
+    // Block orders that exceed available stock.
+    $short = stock_shortages($pdo, array_map(fn($it) => ['sku' => $it[0], 'spec' => $it[2], 'qty' => $it[4]], $items));
+    if ($short) {
+        flash(shortage_message($short), 'error');
+        redirect('orders.create');
+    }
+
     $pdo->beginTransaction();
     try {
         $stmt = $pdo->prepare(
@@ -177,6 +184,16 @@ function approve_order(PDO $pdo, Auth $auth, array $order, string $note): void
         flash('当前阶段无权审批。', 'error');
         return;
     }
+
+    // Re-check stock at every approval stage; the flow cannot pass if insufficient.
+    $oi = $pdo->prepare('SELECT sku, spec, qty FROM order_items WHERE order_id = ?');
+    $oi->execute([$order['id']]);
+    $short = stock_shortages($pdo, $oi->fetchAll());
+    if ($short) {
+        flash(shortage_message($short), 'error');
+        return;
+    }
+
     $name = $auth->user()['name'] ?? '';
     $today = date('Y-m-d');
 
