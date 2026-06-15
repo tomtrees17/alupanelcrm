@@ -73,10 +73,9 @@ $custJson = json_encode(array_map(fn($c) => [
 
 <template id="row-tpl">
     <tr class="item-row">
-        <td>
-            <select class="form-select product-select" name="sku_select"><option value="">—</option>
-                <?php foreach ($products as $p): ?><option value="<?= $p['id'] ?>"><?= e($p['sku']) ?> · <?= e($p['color_en']) ?> · <?= e($p['spec']) ?> (<?= $p['stock'] ?>)</option><?php endforeach; ?>
-            </select>
+        <td style="position:relative">
+            <input type="text" class="form-input product-search" placeholder="搜索 SKU / 颜色 / 规格 …" autocomplete="off">
+            <div class="combo-list"></div>
             <input type="hidden" name="sku[]" class="f-sku"><input type="hidden" name="color[]" class="f-color">
             <input type="hidden" name="spec[]" class="f-spec"><input type="hidden" name="size[]" class="f-size">
         </td>
@@ -117,19 +116,54 @@ function recalc() {
     document.getElementById('t-subtotal').textContent = fmt(gross - ppn);
 }
 
+const pLabel = p => `${p.sku} · ${p.color} · ${p.spec} (${p.stock})`;
+
 function bindRow(row) {
-    const sel = row.querySelector('.product-select');
-    sel.addEventListener('change', () => {
-        const p = PRODUCTS.find(x => x.id == sel.value);
-        if (p) {
-            row.querySelector('.f-sku').value = p.sku;
-            row.querySelector('.f-color').value = p.color;
-            row.querySelector('.f-spec').value = p.spec;
-            row.querySelector('.f-size').value = p.size;
-            row.querySelector('.price').value = p.price;
-        }
+    const input = row.querySelector('.product-search');
+    const list = row.querySelector('.combo-list');
+    let matches = [], hi = -1;
+
+    const pick = p => {
+        row.querySelector('.f-sku').value = p.sku;
+        row.querySelector('.f-color').value = p.color;
+        row.querySelector('.f-spec').value = p.spec;
+        row.querySelector('.f-size').value = p.size;
+        row.querySelector('.price').value = p.price;
+        input.value = pLabel(p);
+        list.style.display = 'none';
         recalc();
+    };
+
+    const render = () => {
+        const q = input.value.trim().toLowerCase();
+        matches = (q === '' ? PRODUCTS : PRODUCTS.filter(p =>
+            (p.sku + ' ' + p.color + ' ' + p.spec).toLowerCase().includes(q)
+        )).slice(0, 40);
+        hi = -1;
+        if (!matches.length) { list.style.display = 'none'; return; }
+        list.innerHTML = matches.map((p, i) =>
+            `<div class="combo-item" data-i="${i}">${pLabel(p)}</div>`).join('');
+        list.style.display = 'block';
+    };
+
+    input.addEventListener('focus', render);
+    input.addEventListener('input', render);
+    input.addEventListener('blur', () => setTimeout(() => list.style.display = 'none', 150));
+    input.addEventListener('keydown', e => {
+        if (list.style.display === 'none') return;
+        const items = list.querySelectorAll('.combo-item');
+        if (e.key === 'ArrowDown') { e.preventDefault(); hi = Math.min(hi + 1, items.length - 1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); hi = Math.max(hi - 1, 0); }
+        else if (e.key === 'Enter') { e.preventDefault(); if (matches[hi >= 0 ? hi : 0]) pick(matches[hi >= 0 ? hi : 0]); return; }
+        else if (e.key === 'Escape') { list.style.display = 'none'; return; }
+        items.forEach((el, i) => el.classList.toggle('active', i === hi));
+        if (items[hi]) items[hi].scrollIntoView({ block: 'nearest' });
     });
+    list.addEventListener('mousedown', e => {
+        const it = e.target.closest('.combo-item');
+        if (it) pick(matches[+it.dataset.i]);
+    });
+
     row.querySelector('.remove-row').addEventListener('click', () => {
         if (document.querySelectorAll('.item-row').length > 1) row.remove();
         recalc();
