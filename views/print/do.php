@@ -1,6 +1,11 @@
 <?php
 /** @var array $do */ /** @var array $items */
 $cfg = $GLOBALS['config'];
+$logoDir = dirname(__DIR__, 2) . '/public/assets/img/';
+$logoFile = null;
+foreach (['logo.png', 'logo.svg', 'logo.jpg'] as $cand) {
+    if (is_file($logoDir . $cand)) { $logoFile = $cand; break; }
+}
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -19,10 +24,11 @@ $cfg = $GLOBALS['config'];
 <div class="sheet">
     <div class="doc-head">
         <div>
+            <?php if ($logoFile): ?><img src="assets/img/<?= e($logoFile) ?>" alt="logo" style="max-width:190px;max-height:54px;margin-bottom:6px"><?php endif; ?>
             <div class="co-name"><?= e($cfg['company_full']) ?></div>
             <div class="co-meta">
-                <?= e($cfg['company_addr']) ?><br>
-                Tel: <?= e($cfg['company_phone']) ?>
+                <?= e($cfg['company_addr']) ?>
+                <?php if ($cfg['company_phone']): ?><br>Tel: <?= e($cfg['company_phone']) ?><?php endif; ?>
             </div>
         </div>
         <div class="doc-title">
