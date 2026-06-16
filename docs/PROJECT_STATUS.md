@@ -71,6 +71,8 @@
 
 **打印**：发票(`print/invoice.php`，公司抬头+Bill To+DPP/VAT+双银行ICBC/BCA+签字+terbilang金额大写) 与送货单(`print/do.php`，SURAT JALAN)，A4 样式 `public/assets/css/print.css`。logo：`public/assets/img/logo.{png,svg}`（已提交 SVG 还原版，放 png 可覆盖）。
 
+**角色与权限**：角色 admin/manager/finance_manager(财务经理)/supervisor/sales/warehouse。`role_permissions` 表按角色控制模块访问（`can_access()`），bootstrap 载入 `$GLOBALS['permissions']`，前端控制器拦截越权、导航按权限隐藏、仪表盘对无财务权限者隐藏营收/逾期。默认 sales/supervisor/warehouse 无 finance；admin 始终全权。管理员在 **权限设置(roles.index)** 勾选矩阵实时配置。线上旧库由 `ensureSchema` 自动建表+播种。
+
 ## 7. 目录结构
 
 ```
