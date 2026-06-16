@@ -194,6 +194,13 @@ CREATE TABLE payments (
     created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+-- ── Role → module access permissions (editable by admin) ──
+CREATE TABLE role_permissions (
+    role   TEXT NOT NULL,
+    module TEXT NOT NULL,
+    PRIMARY KEY (role, module)
+);
+
 CREATE INDEX idx_deals_customer  ON deals(customer_id);
 CREATE INDEX idx_tasks_customer  ON tasks(customer_id);
 CREATE INDEX idx_items_order     ON order_items(order_id);

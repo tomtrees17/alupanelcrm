@@ -21,6 +21,14 @@ if (!in_array("{$controller}.{$action}", $publicRoutes, true) && !$auth->check()
     redirect('auth.login');
 }
 
+// Module access control by role (configurable by admin under 权限设置).
+$moduleForAccess = ['delivery' => 'orders'][$controller] ?? $controller;
+if (in_array($moduleForAccess, controllable_modules(), true) && !can_access($moduleForAccess)) {
+    http_response_code(403);
+    flash('无权访问该模块 / Tidak punya akses.', 'error');
+    redirect('dashboard.index');
+}
+
 $file = __DIR__ . "/../app/controllers/{$controller}.php";
 
 if (!is_file($file)) {

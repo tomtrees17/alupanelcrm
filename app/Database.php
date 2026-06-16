@@ -68,6 +68,14 @@ final class Database
                  ), 0)"
             );
         }
+
+        // role_permissions table (added later) — create + seed defaults on existing DBs.
+        $pdo->exec(
+            'CREATE TABLE IF NOT EXISTS role_permissions (role TEXT NOT NULL, module TEXT NOT NULL, PRIMARY KEY (role, module))'
+        );
+        if ((int) $pdo->query('SELECT COUNT(*) FROM role_permissions')->fetchColumn() === 0) {
+            self::seedPermissions($pdo);
+        }
     }
 
     private static function seed(PDO $pdo): void
@@ -335,6 +343,19 @@ final class Database
              ), 0)"
         );
 
+        self::seedPermissions($pdo);
+
         $pdo->commit();
+    }
+
+    /** Insert default role → module permissions (idempotent). */
+    private static function seedPermissions(PDO $pdo): void
+    {
+        $rp = $pdo->prepare('INSERT OR IGNORE INTO role_permissions (role, module) VALUES (?, ?)');
+        foreach (default_permissions() as $role => $mods) {
+            foreach ($mods as $m) {
+                $rp->execute([$role, $m]);
+            }
+        }
     }
 }

@@ -2,7 +2,7 @@
 /** @var float $revenue */ /** @var int $custCount */ /** @var int $activeDeals */
 /** @var int $taskRate */ /** @var array $funnel */ /** @var array $recent */ /** @var array $overdue */
 ?>
-<?php if ($overdue): ?>
+<?php if (can_access('finance') && $overdue): ?>
     <div class="credit-alert">
         ⚠ <?= t('credit_alert_1') ?> <strong><?= count($overdue) ?></strong> <?= t('credit_alert_2') ?>
         <strong><?= idr(array_sum(array_map(fn($i) => $i['total'] - $i['amount_paid'], $overdue))) ?></strong>。
@@ -11,7 +11,11 @@
 <?php endif; ?>
 
 <div class="stats-grid">
-    <div class="stat-card c1"><div class="stat-label"><?= t('stat_received') ?></div><div class="stat-value c1"><?= idr_short($revenue) ?></div></div>
+    <?php if (can_access('finance')): ?>
+        <div class="stat-card c1"><div class="stat-label"><?= t('stat_received') ?></div><div class="stat-value c1"><?= idr_short($revenue) ?></div></div>
+    <?php else: ?>
+        <div class="stat-card c1"><div class="stat-label"><?= t('nav_orders') ?></div><div class="stat-value c1"><?= (int) ($pendingOrders ?? 0) ?></div></div>
+    <?php endif; ?>
     <div class="stat-card c2"><div class="stat-label"><?= t('stat_customers') ?></div><div class="stat-value c2"><?= $custCount ?></div></div>
     <div class="stat-card c3"><div class="stat-label"><?= t('stat_active_deals') ?></div><div class="stat-value c3"><?= $activeDeals ?></div></div>
     <div class="stat-card c4"><div class="stat-label"><?= t('stat_task_rate') ?></div><div class="stat-value c4"><?= $taskRate ?>%</div></div>

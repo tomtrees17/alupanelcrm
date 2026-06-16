@@ -181,9 +181,54 @@ function invoice_status_class(string $s): string
     return ['paid' => 'tag-green', 'partial' => 'tag-blue', 'pending' => 'tag-orange', 'overdue' => 'tag-red'][$s] ?? 'tag-gray';
 }
 
+function all_roles(): array
+{
+    return ['admin', 'manager', 'finance_manager', 'supervisor', 'sales', 'warehouse'];
+}
+
 function role_label(string $r): string
 {
-    return in_array($r, ['admin', 'manager', 'supervisor', 'sales', 'warehouse'], true) ? t('role_' . $r) : $r;
+    return in_array($r, all_roles(), true) ? t('role_' . $r) : $r;
+}
+
+/** Modules whose access is configurable per role (admin always has all). */
+function controllable_modules(): array
+{
+    return ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory'];
+}
+
+/** Default role → allowed modules (used to seed role_permissions). */
+function default_permissions(): array
+{
+    return [
+        'manager'         => ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory'],
+        'finance_manager' => ['customers', 'finance', 'orders', 'inventory'],
+        'supervisor'      => ['customers', 'pipeline', 'tasks', 'orders', 'inventory'],
+        'sales'           => ['customers', 'pipeline', 'tasks', 'orders', 'inventory'],
+        'warehouse'       => ['orders', 'inventory'],
+        // admin is omitted on purpose → always full access.
+    ];
+}
+
+/** Can the current user access a module? Admin = all; dashboard always allowed. */
+function can_access(string $module): bool
+{
+    $auth = $GLOBALS['auth'] ?? null;
+    if ($auth === null || !$auth->check()) {
+        return false;
+    }
+    if ($auth->isAdmin()) {
+        return true;
+    }
+    if (in_array($module, ['dashboard', 'auth', 'lang'], true)) {
+        return true;
+    }
+    if ($module === 'users') {
+        return false;   // admin-only
+    }
+    $role = $auth->user()['role'] ?? '';
+    $perms = $GLOBALS['permissions'][$role] ?? [];
+    return in_array($module, $perms, true);
 }
 
 function payment_terms(): array

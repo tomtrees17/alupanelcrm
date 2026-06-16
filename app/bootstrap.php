@@ -30,3 +30,10 @@ $auth = new Auth($pdo);
 // Expose core services to views (which run in function scope).
 $GLOBALS['auth'] = $auth;
 $GLOBALS['pdo']  = $pdo;
+
+// Load role → module permissions for access control.
+$permissions = [];
+foreach ($pdo->query('SELECT role, module FROM role_permissions') as $row) {
+    $permissions[$row['role']][] = $row['module'];
+}
+$GLOBALS['permissions'] = $permissions;

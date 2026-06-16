@@ -39,15 +39,16 @@ $sub   = $pageSub ?? (I18N[$lang]['sub_' . $module] ?? '');
         <nav class="nav">
             <div class="nav-label"><?= t('nav_main') ?></div>
             <a class="nav-item<?= $active('dashboard') ?>" href="<?= url('dashboard.index') ?>"><span class="nav-icon">⬡</span> <?= t('nav_dashboard') ?></a>
-            <a class="nav-item<?= $active('customers') ?>" href="<?= url('customers.index') ?>"><span class="nav-icon">◎</span> <?= t('nav_customers') ?></a>
-            <a class="nav-item<?= $active('pipeline') ?>" href="<?= url('pipeline.index') ?>"><span class="nav-icon">⟋</span> <?= t('nav_pipeline') ?></a>
-            <a class="nav-item<?= $active('tasks') ?>" href="<?= url('tasks.index') ?>"><span class="nav-icon">◻</span> <?= t('nav_tasks') ?><?php if ($pendingTasks): ?><span class="nav-badge"><?= $pendingTasks ?></span><?php endif; ?></a>
-            <a class="nav-item<?= $active('finance') ?>" href="<?= url('finance.index') ?>"><span class="nav-icon">◈</span> <?= t('nav_finance') ?></a>
+            <?php if (can_access('customers')): ?><a class="nav-item<?= $active('customers') ?>" href="<?= url('customers.index') ?>"><span class="nav-icon">◎</span> <?= t('nav_customers') ?></a><?php endif; ?>
+            <?php if (can_access('pipeline')): ?><a class="nav-item<?= $active('pipeline') ?>" href="<?= url('pipeline.index') ?>"><span class="nav-icon">⟋</span> <?= t('nav_pipeline') ?></a><?php endif; ?>
+            <?php if (can_access('tasks')): ?><a class="nav-item<?= $active('tasks') ?>" href="<?= url('tasks.index') ?>"><span class="nav-icon">◻</span> <?= t('nav_tasks') ?><?php if ($pendingTasks): ?><span class="nav-badge"><?= $pendingTasks ?></span><?php endif; ?></a><?php endif; ?>
+            <?php if (can_access('finance')): ?><a class="nav-item<?= $active('finance') ?>" href="<?= url('finance.index') ?>"><span class="nav-icon">◈</span> <?= t('nav_finance') ?></a><?php endif; ?>
             <div class="nav-label"><?= t('nav_extra') ?></div>
-            <a class="nav-item<?= $active('orders') ?>" href="<?= url('orders.index') ?>"><span class="nav-icon">✦</span> <?= t('nav_orders') ?><?php if ($pendingOrders): ?><span class="nav-badge" style="background:var(--warning)"><?= $pendingOrders ?></span><?php endif; ?></a>
-            <a class="nav-item<?= $active('inventory') ?>" href="<?= url('inventory.index') ?>"><span class="nav-icon">▣</span> <?= t('nav_inventory') ?></a>
+            <?php if (can_access('orders')): ?><a class="nav-item<?= $active('orders') ?>" href="<?= url('orders.index') ?>"><span class="nav-icon">✦</span> <?= t('nav_orders') ?><?php if ($pendingOrders): ?><span class="nav-badge" style="background:var(--warning)"><?= $pendingOrders ?></span><?php endif; ?></a><?php endif; ?>
+            <?php if (can_access('inventory')): ?><a class="nav-item<?= $active('inventory') ?>" href="<?= url('inventory.index') ?>"><span class="nav-icon">▣</span> <?= t('nav_inventory') ?></a><?php endif; ?>
             <?php if ($auth->isAdmin()): ?>
                 <a class="nav-item<?= $active('users') ?>" href="<?= url('users.index') ?>"><span class="nav-icon">⚙</span> <?= t('nav_users') ?></a>
+                <a class="nav-item<?= $active('roles') ?>" href="<?= url('roles.index') ?>"><span class="nav-icon">⛨</span> <?= t('nav_roles') ?></a>
             <?php endif; ?>
         </nav>
         <div class="sidebar-footer">

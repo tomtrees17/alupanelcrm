@@ -11,7 +11,7 @@ if (!$auth->isAdmin()) {
     redirect('dashboard.index');
 }
 
-$roles = ['admin', 'manager', 'supervisor', 'sales', 'warehouse'];
+$roles = all_roles();
 
 switch ($action) {
     case 'index':

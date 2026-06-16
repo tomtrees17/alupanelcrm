@@ -33,6 +33,8 @@ $overdue = $pdo->query(
     "SELECT * FROM invoices WHERE payment_status = 'overdue' ORDER BY due_date"
 )->fetchAll();
 
+$pendingOrders = (int) $pdo->query("SELECT COUNT(*) FROM orders WHERE status LIKE 'pending_%'")->fetchColumn();
+
 view('dashboard.index', [
     'revenue'   => $revenue,
     'custCount' => $custCount,
@@ -41,4 +43,5 @@ view('dashboard.index', [
     'funnel'    => $funnel,
     'recent'    => $recent,
     'overdue'   => $overdue,
+    'pendingOrders' => $pendingOrders,
 ]);
