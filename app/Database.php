@@ -76,6 +76,13 @@ final class Database
         if ((int) $pdo->query('SELECT COUNT(*) FROM role_permissions')->fetchColumn() === 0) {
             self::seedPermissions($pdo);
         }
+
+        // One-time migration: grant 'performance' (全员销售业绩) to manager/finance_manager.
+        $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (k TEXT PRIMARY KEY, v TEXT)');
+        if (!$pdo->query("SELECT 1 FROM app_meta WHERE k = 'perm_performance'")->fetchColumn()) {
+            $pdo->exec("INSERT OR IGNORE INTO role_permissions (role, module) VALUES ('manager','performance'),('finance_manager','performance')");
+            $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1')");
+        }
     }
 
     private static function seed(PDO $pdo): void
@@ -344,6 +351,8 @@ final class Database
         );
 
         self::seedPermissions($pdo);
+        $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (k TEXT PRIMARY KEY, v TEXT)');
+        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1')");
 
         $pdo->commit();
     }

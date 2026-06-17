@@ -191,18 +191,30 @@ function role_label(string $r): string
     return in_array($r, all_roles(), true) ? t('role_' . $r) : $r;
 }
 
-/** Modules whose access is configurable per role (admin always has all). */
+/** Modules whose access is route-guarded + configurable per role. */
 function controllable_modules(): array
 {
     return ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory'];
 }
 
-/** Default role → allowed modules (used to seed role_permissions). */
+/** Non-route view permissions (dashboard widgets etc.), also configurable per role. */
+function view_permissions(): array
+{
+    return ['performance'];   // 全员销售业绩
+}
+
+/** All permission keys shown in the 权限设置 matrix. */
+function permission_keys(): array
+{
+    return array_merge(controllable_modules(), view_permissions());
+}
+
+/** Default role → allowed permissions (used to seed role_permissions). */
 function default_permissions(): array
 {
     return [
-        'manager'         => ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory'],
-        'finance_manager' => ['customers', 'finance', 'orders', 'inventory'],
+        'manager'         => ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'performance'],
+        'finance_manager' => ['customers', 'finance', 'orders', 'inventory', 'performance'],
         'supervisor'      => ['customers', 'pipeline', 'tasks', 'orders', 'inventory'],
         'sales'           => ['customers', 'pipeline', 'tasks', 'orders', 'inventory'],
         'warehouse'       => ['orders', 'inventory'],

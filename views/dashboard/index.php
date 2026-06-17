@@ -58,7 +58,7 @@
     </div>
 </div>
 
-<?php if (can_access('finance')): ?>
+<?php if (can_access('performance')): ?>
 <div class="card">
     <div class="card-header"><span class="card-title"><?= t('sales_perf') ?></span></div>
     <div class="table-wrap"><table>

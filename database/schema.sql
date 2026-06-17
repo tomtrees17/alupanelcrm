@@ -201,6 +201,12 @@ CREATE TABLE role_permissions (
     PRIMARY KEY (role, module)
 );
 
+-- ── App metadata (one-time migration markers, etc.) ──
+CREATE TABLE app_meta (
+    k TEXT PRIMARY KEY,
+    v TEXT
+);
+
 CREATE INDEX idx_deals_customer  ON deals(customer_id);
 CREATE INDEX idx_tasks_customer  ON tasks(customer_id);
 CREATE INDEX idx_items_order     ON order_items(order_id);

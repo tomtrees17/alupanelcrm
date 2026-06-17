@@ -1,7 +1,7 @@
 <?php
 /** @var array $perms */   // $perms[role][module] = true
 $roles = array_values(array_diff(all_roles(), ['admin']));
-$mods = controllable_modules();
+$mods = permission_keys();
 ?>
 <div class="page-head">
     <h1><?= t('page_roles') ?></h1>

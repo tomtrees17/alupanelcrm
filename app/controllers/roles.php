@@ -24,7 +24,7 @@ switch ($action) {
         Csrf::verify();
         $sel = (array) input('perm', []);   // perm[role][] = module
         $roles = array_values(array_diff(all_roles(), ['admin']));
-        $mods = controllable_modules();
+        $mods = permission_keys();
 
         $pdo->beginTransaction();
         $pdo->exec('DELETE FROM role_permissions');
