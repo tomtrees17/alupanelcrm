@@ -197,10 +197,10 @@ function controllable_modules(): array
     return ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory'];
 }
 
-/** Non-route view permissions (dashboard widgets etc.), also configurable per role. */
+/** Non-route view permissions (dashboard widgets, export, etc.), configurable per role. */
 function view_permissions(): array
 {
-    return ['performance'];   // 全员销售业绩
+    return ['performance', 'export'];   // 全员销售业绩 / 导出 Excel
 }
 
 /** All permission keys shown in the 权限设置 matrix. */
@@ -213,7 +213,7 @@ function permission_keys(): array
 function default_permissions(): array
 {
     return [
-        'manager'         => ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'performance'],
+        'manager'         => ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'performance', 'export'],
         'finance_manager' => ['customers', 'finance', 'orders', 'inventory', 'performance'],
         'ops_supervisor'  => ['customers', 'pipeline', 'tasks', 'orders', 'inventory', 'performance'],
         'supervisor'      => ['customers', 'pipeline', 'tasks', 'orders', 'inventory'],
@@ -238,14 +238,10 @@ function can_edit_inventory(): bool
     return ($auth->user()['role'] ?? '') === 'warehouse';
 }
 
-/** Only managers (admin + manager) may export spreadsheets. */
+/** May the current user export spreadsheets? (configurable 'export' permission). */
 function can_export(): bool
 {
-    $auth = $GLOBALS['auth'] ?? null;
-    if ($auth === null) {
-        return false;
-    }
-    return $auth->isAdmin() || ($auth->user()['role'] ?? '') === 'manager';
+    return can_access('export');
 }
 
 /** Restricted users (sales) only see/modify their own orders & customers. */

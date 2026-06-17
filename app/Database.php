@@ -115,6 +115,12 @@ final class Database
             }
             $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_roles_v2', '1')");
         }
+
+        // One-time migration: grant 'export' (导出 Excel) to manager.
+        if (!$pdo->query("SELECT 1 FROM app_meta WHERE k = 'perm_export'")->fetchColumn()) {
+            $pdo->exec("INSERT OR IGNORE INTO role_permissions (role, module) VALUES ('manager','export')");
+            $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_export', '1')");
+        }
     }
 
     private static function seed(PDO $pdo): void
@@ -393,7 +399,7 @@ final class Database
 
         self::seedPermissions($pdo);
         $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (k TEXT PRIMARY KEY, v TEXT)');
-        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1')");
+        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1')");
 
         $pdo->commit();
     }
