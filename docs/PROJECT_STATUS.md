@@ -1,6 +1,6 @@
 # AluPanel CRM — 项目上下文摘要 / Handoff
 
-> 本文档用于保存项目全貌，便于跨会话/上下文续接。最后更新：对应 git 提交 `f64c117`。
+> 本文档用于保存项目全貌，便于跨会话/上下文续接。最新进度以 `git log` 为准（已含：双语、打印模板、含税发票、库存预留防超卖、角色与多级权限、记录级权限、客户归属分配）。
 
 ## 1. 项目概述
 
@@ -71,7 +71,23 @@
 
 **打印**：发票(`print/invoice.php`，公司抬头+Bill To+DPP/VAT+双银行ICBC/BCA+签字+terbilang金额大写) 与送货单(`print/do.php`，SURAT JALAN)，A4 样式 `public/assets/css/print.css`。logo：`public/assets/img/logo.{png,svg}`（已提交 SVG 还原版，放 png 可覆盖）。
 
-**角色与权限**：角色 admin/manager/finance_manager(财务经理)/supervisor/sales/warehouse。`role_permissions` 表按角色控制模块访问（`can_access()`），bootstrap 载入 `$GLOBALS['permissions']`，前端控制器拦截越权、导航按权限隐藏、仪表盘对无财务权限者隐藏营收/逾期。默认 sales/supervisor/warehouse 无 finance；admin 始终全权。管理员在 **权限设置(roles.index)** 勾选矩阵实时配置。线上旧库由 `ensureSchema` 自动建表+播种。
+## 6b. 角色与访问控制（重点）
+
+**角色**（`all_roles()`，共 9 个）：admin、manager(经理)、finance_manager(财务经理)、ops_supervisor(运营主管)、supervisor(主管)、sales(销售员)、warehouse(仓库/库存管理员)、hr(人力资源)、clerk(文员)。i18n 含中印双语标签。
+
+**① 模块级权限**（`role_permissions` 表 + `can_access($module)`）
+- bootstrap 载入 `$GLOBALS['permissions']`；前端控制器(`public/index.php`)拦截越权模块、导航按权限隐藏。
+- 可配置模块：customers/pipeline/tasks/finance/orders/inventory；另有视图权限 `performance`(看板全员业绩)。
+- 默认：sales/supervisor/warehouse/hr/clerk **无 finance**；admin 始终全权。
+- 管理员在 **权限设置(roles.index)** 用「角色×权限」勾选矩阵实时配置。
+- 看板财务卡片(营收/逾期)按 `can_access('finance')` 显示；全员业绩卡按 `can_access('performance')`，无此权限者改看「我的业绩」(仅本人 submitter 的订单)。
+
+**② 记录级权限**（helpers：`can_edit_inventory()` / `sees_only_own()` / `own_name()`）
+- **库存**：增删改产品/调库存仅 admin + warehouse；其他有库存权限者**只读**（控制器拦写操作 + 列表隐藏按钮）。
+- **销售(sales)**：只看/改**自己的订单**(`orders.submitter == 本人姓名`，列表/详情/计数/看板最近订单均过滤、`find_order` 校验)与**自己的客户**(`customers.owner` 字段，列表/详情过滤，`find_customer` 校验)；下单时客户下拉也只列自己的客户。
+- **客户归属**：`customers.owner` 在新建时记为创建者；管理员/经理可在客户表单的「负责销售」下拉**改派**，客户列表显示归属列；销售本人不可改派。
+
+**③ 线上库自动升级**（`Database::ensureSchema()` + `app_meta` 标记一次性迁移）：自动建/补 role_permissions、加 customers.owner 并按历史订单回填、加 products.reserved、补 performance 与新角色默认权限——均不覆盖管理员后续手动调整。
 
 ## 7. 目录结构
 
@@ -105,6 +121,13 @@ users, customers, deals, tasks, products(+reserved), stock_txn, orders, order_it
 ## 10. 提交历史（main）
 
 ```
+f4eb663 Let admins/managers assign customer owner (sales PIC)
+bd2863a Inventory edit limited to admin/warehouse; sales see only own orders & customers
+43dba6e Add HR, operations-supervisor and clerk roles
+88f1244 Make all-staff sales performance its own configurable permission
+73bf91c Show personal performance to sales (own orders only)
+763b01d Add sales performance & hot products to dashboard
+ebb8c2d Add finance_manager role and per-role module permissions
 f64c117 Reserve stock on order placement to prevent overselling
 4681501 Block order flow when product stock is insufficient
 4212162 Add keyword search to product picker in new-order form
