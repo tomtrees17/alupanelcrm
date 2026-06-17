@@ -11,7 +11,7 @@ $prodJson = json_encode(array_map(function ($p) {
     ];
 }, $products), JSON_UNESCAPED_UNICODE);
 $custJson = json_encode(array_map(fn($c) => [
-    'id' => (int) $c['id'], 'company' => $c['company'], 'phone' => $c['phone'],
+    'id' => (int) $c['id'], 'name' => $c['name'], 'company' => $c['company'], 'phone' => $c['phone'],
 ], $customers), JSON_UNESCAPED_UNICODE);
 $itemsJson = json_encode(array_map(fn($it) => [
     'product_id' => (int) ($it['product_id'] ?? 0), 'sku' => $it['sku'], 'color' => $it['color'],
@@ -38,10 +38,10 @@ $itemsJson = json_encode(array_map(fn($it) => [
         <?php endif; ?>
         <div class="form-row">
             <div class="form-group"><label class="form-label"><?= t('th_customer') ?> *</label>
-                <select class="form-select" name="customer_id" id="customer-select" required>
-                    <option value="">—</option>
-                    <?php foreach ($customers as $c): ?><option value="<?= $c['id'] ?>" <?= ($order['customer_id'] ?? '') == $c['id'] ? 'selected' : '' ?>><?= e($c['name']) ?> · <?= e($c['company']) ?></option><?php endforeach; ?>
-                </select>
+                <input class="form-input" type="text" name="customer_name" id="customer-name" list="cust-list" autocomplete="off" required value="<?= e($order['customer_name'] ?? '') ?>" placeholder="<?= t('cust_name_ph') ?>">
+                <input type="hidden" name="customer_id" id="customer-id" value="<?= (int) ($order['customer_id'] ?? 0) ?>">
+                <datalist id="cust-list"><?php foreach ($customers as $c): ?><option value="<?= e($c['name']) ?>"></option><?php endforeach; ?></datalist>
+                <label class="muted" style="font-size:11px;display:flex;gap:5px;align-items:center;margin-top:5px"><input type="checkbox" name="save_customer" value="1" checked style="width:auto"> <?= t('save_new_customer') ?></label>
             </div>
             <div class="form-group"><label class="form-label"><?= t('th_company') ?></label><input class="form-input" name="company" id="f-company" value="<?= $ov('company') ?>"></div>
         </div>
@@ -132,8 +132,11 @@ function validateRow(row) {
     return true;
 }
 
-document.getElementById('customer-select').addEventListener('change', e => {
-    const c = CUSTOMERS.find(x => x.id == e.target.value);
+const custInput = document.getElementById('customer-name');
+const custId = document.getElementById('customer-id');
+custInput.addEventListener('input', () => {
+    const c = CUSTOMERS.find(x => x.name === custInput.value.trim());
+    custId.value = c ? c.id : '';
     if (c) {
         document.getElementById('f-company').value = c.company || '';
         document.getElementById('f-phone').value = c.phone || '';

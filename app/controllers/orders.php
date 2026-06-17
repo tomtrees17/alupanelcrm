@@ -193,18 +193,34 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
     $back = $isEdit ? ['orders.edit', ['id' => $existing['id']]] : ['orders.create', []];
     $submit = (string) input('do', 'submit') === 'submit';
 
+    // Assigned salesperson (submitter): privileged roles may pick; sales = self.
+    $submitter = own_name();
+    if (!sees_only_own()) {
+        $picked = trim((string) input('submitter', ''));
+        $submitter = $picked !== '' ? $picked : ($isEdit ? (string) ($existing['submitter'] ?? own_name()) : own_name());
+    }
+
     $customerId = ((int) input('customer_id', 0)) ?: null;
     $custName = trim((string) input('customer_name', ''));
     if ($customerId) {
         $c = $pdo->prepare('SELECT name FROM customers WHERE id = ?');
         $c->execute([$customerId]);
-        if ($row = $c->fetch()) {
+        $row = $c->fetch();
+        if ($row) {
             $custName = $custName ?: $row['name'];
+        } else {
+            $customerId = null;
         }
     }
     if ($custName === '') {
         flash('请填写客户。', 'error');
         redirect($back[0], $back[1]);
+    }
+    // First-time customer: create it in the customers module, owned by the assigned sales.
+    if (!$customerId && input('save_customer')) {
+        $pdo->prepare('INSERT INTO customers (name, company, phone, owner, tag) VALUES (?,?,?,?,?)')
+            ->execute([$custName, trim((string) input('company', '')), trim((string) input('phone', '')), $submitter ?: own_name(), '潜在']);
+        $customerId = (int) $pdo->lastInsertId();
     }
 
     $skus = (array) input('sku', []);
@@ -230,13 +246,6 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
     if (!$items) {
         flash('请至少添加一项产品。', 'error');
         redirect($back[0], $back[1]);
-    }
-
-    // Assigned salesperson (submitter): privileged roles (clerk/admin/manager…) may pick; sales = self.
-    $submitter = own_name();
-    if (!sees_only_own()) {
-        $picked = trim((string) input('submitter', ''));
-        $submitter = $picked !== '' ? $picked : ($isEdit ? (string) ($existing['submitter'] ?? own_name()) : own_name());
     }
 
     // Only check stock when actually submitting for approval.
