@@ -4,7 +4,7 @@
 <body class="login-body">
 <div class="login-card" style="text-align:center">
     <h1 style="font-size:48px;margin:0">404</h1>
-    <p>页面不存在</p>
-    <a class="btn btn-primary" href="<?= url('dashboard.index') ?>">返回首页</a>
+    <p><?= t('not_found') ?></p>
+    <a class="btn btn-primary" href="<?= url('dashboard.index') ?>"><?= t('back_home') ?></a>
 </div>
 </body></html>

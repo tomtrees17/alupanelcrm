@@ -31,7 +31,7 @@ $stateOf = function (string $key) use ($status, $activeMap, $rejStage, $order) {
 $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['role'] ?? ''));
 ?>
 <div class="page-head">
-    <h1>订单 <?= e($order['order_no']) ?> <span class="order-status-badge <?= order_status_class($status) ?>"><?= e(order_status_label($status)) ?></span></h1>
+    <h1><?= t('order') ?> <?= e($order['order_no']) ?> <span class="order-status-badge <?= order_status_class($status) ?>"><?= e(order_status_label($status)) ?></span></h1>
     <div class="head-actions">
         <?php if (!empty($deliveryId)): ?><a class="btn btn-ghost" href="<?= url('delivery.print', ['id' => $deliveryId]) ?>" target="_blank"><?= t('btn_print') ?> · DO</a><?php endif; ?>
         <?php if (!empty($invoice)): ?><a class="btn btn-ghost" href="<?= url('finance.print', ['id' => $invoice['id']]) ?>" target="_blank"><?= t('btn_print') ?> · Invoice</a><?php endif; ?>
@@ -48,7 +48,7 @@ $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['ro
 
 <?php if (!empty($order['reject_note']) || (!empty($order['reject_by']) && $order['status'] === 'draft')): ?>
     <div class="alert alert-error">
-        ⚠ 已被 <strong><?= e($order['reject_by']) ?></strong>（<?= e($order['reject_date']) ?>）驳回退回草稿<?= $order['reject_note'] ? '：' . e($order['reject_note']) : '' ?>
+        ⚠ <strong><?= e($order['reject_by']) ?></strong> · <?= e($order['reject_date']) ?> · <?= t('rejected_back') ?><?= $order['reject_note'] ? '：' . e($order['reject_note']) : '' ?>
     </div>
 <?php endif; ?>
 

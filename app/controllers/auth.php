@@ -21,7 +21,7 @@ switch ($action) {
         $password = (string) input('password', '');
 
         if ($auth->attempt($email, $password)) {
-            flash('欢迎回来，' . ($auth->user()['name'] ?? ''));
+            flash(t('welcome_back') . '，' . ($auth->user()['name'] ?? ''));
             redirect('dashboard.index');
         }
         view('auth.login', ['error' => '邮箱或密码不正确。'], false);

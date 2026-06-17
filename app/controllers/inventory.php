@@ -82,7 +82,7 @@ switch ($action) {
         break;
 
     case 'create':
-        view('inventory.form', ['pageTitle' => '新建产品', 'pageSub' => '', 'product' => null]);
+        view('inventory.form', ['pageTitle' => t('btn_new') . ' · ' . t('th_product'), 'pageSub' => '', 'product' => null]);
         break;
 
     case 'store':
@@ -100,7 +100,7 @@ switch ($action) {
         break;
 
     case 'edit':
-        view('inventory.form', ['pageTitle' => '编辑产品', 'pageSub' => '', 'product' => find_product($pdo, (int) input('id', 0))]);
+        view('inventory.form', ['pageTitle' => t('btn_edit') . ' · ' . t('th_product'), 'pageSub' => '', 'product' => find_product($pdo, (int) input('id', 0))]);
         break;
 
     case 'update':

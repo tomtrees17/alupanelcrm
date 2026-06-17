@@ -42,7 +42,7 @@
                 <td><?= e($p['spec']) ?></td>
                 <td class="right">
                     <span class="<?= $isLow ? 'stock-low' : 'stock-ok' ?>"><?= number_format($avail) ?></span>
-                    <?php if ($reserved > 0): ?><div class="reserved-note"><?= t('have') ?> <?= number_format($p['stock']) ?> · 预留 <?= number_format($reserved) ?></div><?php endif; ?>
+                    <?php if ($reserved > 0): ?><div class="reserved-note"><?= t('have') ?> <?= number_format($p['stock']) ?> · <?= t('reserved') ?> <?= number_format($reserved) ?></div><?php endif; ?>
                 </td>
                 <td class="right muted"><?= $p['min_stock'] ?></td>
                 <td class="right"><?= $p['price'] > 0 ? idr($p['price']) : '—' ?></td>

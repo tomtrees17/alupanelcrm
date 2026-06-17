@@ -54,7 +54,7 @@ switch ($action) {
 
     case 'create':
         view('customers.form', [
-            'pageTitle' => '新建客户', 'pageSub' => '', 'customer' => null,
+            'pageTitle' => t('btn_new') . ' · ' . t('nav_customers'), 'pageSub' => '', 'customer' => null,
             'canAssign' => !sees_only_own(),
             'staff' => assignable_staff($pdo),
         ]);
@@ -94,7 +94,7 @@ switch ($action) {
 
     case 'edit':
         view('customers.form', [
-            'pageTitle' => '编辑客户', 'pageSub' => '', 'customer' => find_customer($pdo, (int) input('id', 0)),
+            'pageTitle' => t('btn_edit') . ' · ' . t('nav_customers'), 'pageSub' => '', 'customer' => find_customer($pdo, (int) input('id', 0)),
             'canAssign' => !sees_only_own(),
             'staff' => assignable_staff($pdo),
         ]);

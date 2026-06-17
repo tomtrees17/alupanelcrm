@@ -20,7 +20,7 @@ switch ($action) {
         break;
 
     case 'create':
-        view('users.form', ['pageTitle' => '新建用户', 'pageSub' => '', 'user' => null, 'roles' => $roles]);
+        view('users.form', ['pageTitle' => t('btn_new') . ' · ' . t('nav_users'), 'pageSub' => '', 'user' => null, 'roles' => $roles]);
         break;
 
     case 'store':
@@ -46,7 +46,7 @@ switch ($action) {
         break;
 
     case 'edit':
-        view('users.form', ['pageTitle' => '编辑用户', 'pageSub' => '', 'user' => find_user($pdo, (int) input('id', 0)), 'roles' => $roles]);
+        view('users.form', ['pageTitle' => t('btn_edit') . ' · ' . t('nav_users'), 'pageSub' => '', 'user' => find_user($pdo, (int) input('id', 0)), 'roles' => $roles]);
         break;
 
     case 'update':

@@ -68,7 +68,7 @@ switch ($action) {
 
     case 'create':
         view('orders.form', [
-            'pageTitle' => '新建销售订单', 'pageSub' => '', 'order' => null, 'items' => [],
+            'pageTitle' => t('btn_add_order'), 'pageSub' => '', 'order' => null, 'items' => [],
             'customers' => order_customer_list($pdo), 'products' => order_product_list($pdo),
         ]);
         break;
@@ -88,7 +88,7 @@ switch ($action) {
         $its = $pdo->prepare('SELECT * FROM order_items WHERE order_id = ?');
         $its->execute([$order['id']]);
         view('orders.form', [
-            'pageTitle' => '编辑订单 ' . $order['order_no'], 'pageSub' => '',
+            'pageTitle' => t('btn_edit') . ' ' . $order['order_no'], 'pageSub' => '',
             'order' => $order, 'items' => $its->fetchAll(),
             'customers' => order_customer_list($pdo), 'products' => order_product_list($pdo),
         ]);

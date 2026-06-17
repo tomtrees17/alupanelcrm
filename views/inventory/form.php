@@ -17,7 +17,7 @@ $v = fn(string $k) => e($product[$k] ?? '');
             <div class="form-group"><label class="form-label"><?= t('th_product') ?> *</label><input class="form-input" name="name" value="<?= $v('name') ?>" required placeholder="纯白 / Pure White"></div>
         </div>
         <div class="form-row">
-            <div class="form-group"><label class="form-label"><?= t('th_color') ?> (中)</label><input class="form-input" name="color_zh" value="<?= $v('color_zh') ?>"></div>
+            <div class="form-group"><label class="form-label"><?= t('th_color') ?> ZH</label><input class="form-input" name="color_zh" value="<?= $v('color_zh') ?>"></div>
             <div class="form-group"><label class="form-label"><?= t('th_color') ?> (EN)</label><input class="form-input" name="color_en" value="<?= $v('color_en') ?>"></div>
         </div>
         <div class="form-row-3">

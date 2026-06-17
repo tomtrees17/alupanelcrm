@@ -66,7 +66,7 @@ switch ($action) {
         $pays = $pdo->prepare('SELECT * FROM payments WHERE invoice_id = ? ORDER BY id DESC');
         $pays->execute([$invoice['id']]);
         view('finance.show', [
-            'pageTitle' => '发票 ' . $invoice['invoice_no'], 'pageSub' => $invoice['customer'],
+            'pageTitle' => t('invoice') . ' ' . $invoice['invoice_no'], 'pageSub' => $invoice['customer'],
             'invoice' => $invoice, 'items' => $items->fetchAll(), 'payments' => $pays->fetchAll(),
         ]);
         break;

@@ -17,7 +17,7 @@ switch ($action) {
 
     case 'create':
         view('pipeline.form', [
-            'pageTitle' => '新增商机', 'pageSub' => '',
+            'pageTitle' => t('btn_add_deal'), 'pageSub' => '',
             'deal' => null,
             'customers' => $pdo->query('SELECT id, name, company FROM customers ORDER BY name')->fetchAll(),
             'stage' => (string) input('stage', '初步接触'),
@@ -39,7 +39,7 @@ switch ($action) {
 
     case 'edit':
         view('pipeline.form', [
-            'pageTitle' => '编辑商机', 'pageSub' => '',
+            'pageTitle' => t('btn_edit') . ' · ' . t('nav_pipeline'), 'pageSub' => '',
             'deal' => find_deal($pdo, (int) input('id', 0)),
             'customers' => $pdo->query('SELECT id, name, company FROM customers ORDER BY name')->fetchAll(),
             'stage' => null,

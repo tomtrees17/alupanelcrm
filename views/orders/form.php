@@ -65,14 +65,14 @@ $itemsJson = json_encode(array_map(fn($it) => [
     </div></div>
 
     <div class="card">
-        <div class="card-header"><span class="card-title"><?= t('product_items') ?> <span class="muted" style="font-weight:400;font-size:11px">· 单价为含税价 / harga termasuk PPN</span></span><button type="button" class="btn btn-sm btn-ghost" id="add-row"><?= t('btn_add_row') ?></button></div>
+        <div class="card-header"><span class="card-title"><?= t('product_items') ?> <span class="muted" style="font-weight:400;font-size:11px">· <?= t('tax_inclusive_hint') ?></span></span><button type="button" class="btn btn-sm btn-ghost" id="add-row"><?= t('btn_add_row') ?></button></div>
         <div class="table-wrap"><table id="items-table">
             <thead><tr><th style="width:30%"><?= t('th_product') ?></th><th class="right"><?= t('th_qty') ?></th><th class="right"><?= t('th_unit_price') ?></th><th class="right"><?= t('th_subtotal') ?></th><th></th></tr></thead>
             <tbody></tbody>
             <tfoot>
-                <tr class="total-row"><td colspan="3" class="right"><?= t('total') ?>（含税 incl. VAT）</td><td class="right" id="t-total">Rp 0</td><td></td></tr>
-                <tr><td colspan="3" class="right" style="color:var(--text3)">其中含 PPN 12% / termasuk PPN</td><td class="right" id="t-ppn" style="color:var(--text3)">Rp 0</td><td></td></tr>
-                <tr><td colspan="3" class="right" style="color:var(--text3)">税前 Subtotal (DPP base)</td><td class="right" id="t-subtotal" style="color:var(--text3)">Rp 0</td><td></td></tr>
+                <tr class="total-row"><td colspan="3" class="right"><?= t('total') ?>（<?= t('incl_tax') ?>）</td><td class="right" id="t-total">Rp 0</td><td></td></tr>
+                <tr><td colspan="3" class="right" style="color:var(--text3)"><?= t('incl_ppn') ?></td><td class="right" id="t-ppn" style="color:var(--text3)">Rp 0</td><td></td></tr>
+                <tr><td colspan="3" class="right" style="color:var(--text3)"><?= t('pretax_subtotal') ?></td><td class="right" id="t-subtotal" style="color:var(--text3)">Rp 0</td><td></td></tr>
             </tfoot>
         </table></div>
     </div>
@@ -86,7 +86,7 @@ $itemsJson = json_encode(array_map(fn($it) => [
 <template id="row-tpl">
     <tr class="item-row">
         <td style="position:relative">
-            <input type="text" class="form-input product-search" placeholder="搜索 SKU / 颜色 / 规格 …" autocomplete="off">
+            <input type="text" class="form-input product-search" placeholder="<?= t('search_product') ?> …" autocomplete="off">
             <div class="combo-list"></div>
             <input type="hidden" name="product_id[]" class="f-pid">
             <input type="hidden" name="sku[]" class="f-sku"><input type="hidden" name="color[]" class="f-color">
