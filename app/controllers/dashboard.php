@@ -22,11 +22,20 @@ foreach (deal_stages() as $s) {
     $funnel[] = ['stage' => $s, 'count' => $count, 'pct' => $dealTotal ? round($count / $dealTotal * 100) : 0];
 }
 
-// Recent orders
-$recent = $pdo->query(
-    'SELECT o.*, (SELECT COALESCE(SUM(qty*price),0)+o.shipping_cost FROM order_items WHERE order_id=o.id) AS amount
-       FROM orders o ORDER BY o.id DESC LIMIT 6'
-)->fetchAll();
+// Recent orders (sales see only their own)
+if (sees_only_own()) {
+    $recentStmt = $pdo->prepare(
+        'SELECT o.*, (SELECT COALESCE(SUM(qty*price),0)+o.shipping_cost FROM order_items WHERE order_id=o.id) AS amount
+           FROM orders o WHERE o.submitter = ? ORDER BY o.id DESC LIMIT 6'
+    );
+    $recentStmt->execute([own_name()]);
+    $recent = $recentStmt->fetchAll();
+} else {
+    $recent = $pdo->query(
+        'SELECT o.*, (SELECT COALESCE(SUM(qty*price),0)+o.shipping_cost FROM order_items WHERE order_id=o.id) AS amount
+           FROM orders o ORDER BY o.id DESC LIMIT 6'
+    )->fetchAll();
+}
 
 // Credit alerts: overdue invoices
 $overdue = $pdo->query(

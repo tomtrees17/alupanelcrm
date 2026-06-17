@@ -6,6 +6,13 @@ declare(strict_types=1);
 
 $fields = ['sku', 'name', 'color_zh', 'color_en', 'spec', 'size', 'category', 'unit', 'price', 'stock', 'min_stock'];
 
+// Only admin / warehouse may modify; everyone else with inventory access is read-only.
+if (in_array($action, ['create', 'store', 'edit', 'update', 'adjust', 'delete'], true) && !can_edit_inventory()) {
+    http_response_code(403);
+    flash('只有管理员和库存管理员可以修改库存 / Hanya admin & gudang yang dapat mengubah stok.', 'error');
+    redirect('inventory.index');
+}
+
 switch ($action) {
     case 'index':
         $q = trim((string) input('q', ''));

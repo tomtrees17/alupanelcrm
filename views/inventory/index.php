@@ -3,7 +3,7 @@
     <h1><?= t('page_inventory') ?></h1>
     <div class="head-actions">
         <a class="btn btn-ghost" href="<?= url('inventory.txns') ?>"><?= t('btn_stock_txns') ?></a>
-        <a class="btn btn-primary" href="<?= url('inventory.create') ?>"><?= t('btn_add_product') ?></a>
+        <?php if (can_edit_inventory()): ?><a class="btn btn-primary" href="<?= url('inventory.create') ?>"><?= t('btn_add_product') ?></a><?php endif; ?>
     </div>
 </div>
 
@@ -46,10 +46,15 @@
                 <td class="right muted"><?= $p['min_stock'] ?></td>
                 <td class="right"><?= $p['price'] > 0 ? idr($p['price']) : '—' ?></td>
                 <td class="right" style="white-space:nowrap">
-                    <button class="btn btn-ghost btn-sm" type="button" onclick="document.getElementById('adj-<?= $p['id'] ?>').style.display='table-row'"><?= t('stock_adjust') ?></button>
-                    <a class="btn btn-ghost btn-sm" href="<?= url('inventory.edit', ['id' => $p['id']]) ?>"><?= t('btn_edit') ?></a>
+                    <?php if (can_edit_inventory()): ?>
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="document.getElementById('adj-<?= $p['id'] ?>').style.display='table-row'"><?= t('stock_adjust') ?></button>
+                        <a class="btn btn-ghost btn-sm" href="<?= url('inventory.edit', ['id' => $p['id']]) ?>"><?= t('btn_edit') ?></a>
+                    <?php else: ?>
+                        <span class="muted">—</span>
+                    <?php endif; ?>
                 </td>
             </tr>
+            <?php if (can_edit_inventory()): ?>
             <tr id="adj-<?= $p['id'] ?>" style="display:none;background:var(--surface2)">
                 <td colspan="7">
                     <form method="post" action="<?= url('inventory.adjust') ?>" class="flex-center" style="gap:8px;flex-wrap:wrap">
@@ -61,6 +66,7 @@
                     </form>
                 </td>
             </tr>
+            <?php endif; ?>
         <?php endforeach; ?>
         </tbody>
     </table></div>

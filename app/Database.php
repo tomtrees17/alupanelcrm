@@ -69,6 +69,26 @@ final class Database
             );
         }
 
+        // customers.owner column (added later) — add + backfill on existing DBs.
+        $ccols = $pdo->query('PRAGMA table_info(customers)')->fetchAll();
+        $hasOwner = false;
+        foreach ($ccols as $c) {
+            if ($c['name'] === 'owner') {
+                $hasOwner = true;
+                break;
+            }
+        }
+        if (!$hasOwner) {
+            $pdo->exec('ALTER TABLE customers ADD COLUMN owner TEXT');
+            $pdo->exec(
+                "UPDATE customers SET owner = (
+                     SELECT o.submitter FROM orders o
+                     WHERE o.customer_id = customers.id AND COALESCE(o.submitter, '') <> ''
+                     ORDER BY o.id DESC LIMIT 1
+                 ) WHERE owner IS NULL OR owner = ''"
+            );
+        }
+
         // role_permissions table (added later) — create + seed defaults on existing DBs.
         $pdo->exec(
             'CREATE TABLE IF NOT EXISTS role_permissions (role TEXT NOT NULL, module TEXT NOT NULL, PRIMARY KEY (role, module))'
@@ -360,6 +380,15 @@ final class Database
                  SELECT SUM(oi.qty) FROM order_items oi JOIN orders o ON o.id = oi.order_id
                  WHERE oi.product_id = products.id AND o.status LIKE 'pending_%'
              ), 0)"
+        );
+
+        // Assign each customer an owner (the salesperson who last ordered for them).
+        $pdo->exec(
+            "UPDATE customers SET owner = (
+                 SELECT o.submitter FROM orders o
+                 WHERE o.customer_id = customers.id AND COALESCE(o.submitter, '') <> ''
+                 ORDER BY o.id DESC LIMIT 1
+             ) WHERE owner IS NULL OR owner = ''"
         );
 
         self::seedPermissions($pdo);

@@ -9,17 +9,32 @@ switch ($action) {
     case 'index':
         $statusFilter = (string) input('status', '');
         $sql = 'SELECT o.*, (SELECT COALESCE(SUM(qty*price),0) FROM order_items WHERE order_id=o.id)+o.shipping_cost AS amount FROM orders o';
+        $cond = [];
         $args = [];
         if ($statusFilter !== '') {
-            $sql .= ' WHERE o.status = ?';
+            $cond[] = 'o.status = ?';
             $args[] = $statusFilter;
+        }
+        if (sees_only_own()) {
+            $cond[] = 'o.submitter = ?';
+            $args[] = own_name();
+        }
+        if ($cond) {
+            $sql .= ' WHERE ' . implode(' AND ', $cond);
         }
         $sql .= ' ORDER BY o.id DESC';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($args);
 
         $counts = [];
-        foreach ($pdo->query('SELECT status, COUNT(*) c FROM orders GROUP BY status') as $r) {
+        if (sees_only_own()) {
+            $cs = $pdo->prepare('SELECT status, COUNT(*) c FROM orders WHERE submitter = ? GROUP BY status');
+            $cs->execute([own_name()]);
+            $countRows = $cs->fetchAll();
+        } else {
+            $countRows = $pdo->query('SELECT status, COUNT(*) c FROM orders GROUP BY status')->fetchAll();
+        }
+        foreach ($countRows as $r) {
             $counts[$r['status']] = (int) $r['c'];
         }
         view('orders.index', [
@@ -52,9 +67,16 @@ switch ($action) {
         break;
 
     case 'create':
+        if (sees_only_own()) {
+            $cstmt = $pdo->prepare('SELECT id, name, company, phone FROM customers WHERE owner = ? ORDER BY name');
+            $cstmt->execute([own_name()]);
+            $custList = $cstmt->fetchAll();
+        } else {
+            $custList = $pdo->query('SELECT id, name, company, phone FROM customers ORDER BY name')->fetchAll();
+        }
         view('orders.form', [
             'pageTitle' => '新建销售订单', 'pageSub' => '',
-            'customers' => $pdo->query('SELECT id, name, company, phone FROM customers ORDER BY name')->fetchAll(),
+            'customers' => $custList,
             'products'  => $pdo->query('SELECT id, sku, color_en, color_zh, spec, size, price, stock, reserved, min_stock FROM products ORDER BY sku LIMIT 400')->fetchAll(),
         ]);
         break;
@@ -329,6 +351,11 @@ function find_order(PDO $pdo, int $id): array
     if (!$row) {
         http_response_code(404);
         exit('订单不存在');
+    }
+    if (sees_only_own() && ($row['submitter'] ?? '') !== own_name()) {
+        http_response_code(403);
+        flash('只能访问自己的订单 / Hanya pesanan Anda.', 'error');
+        redirect('orders.index');
     }
     return $row;
 }

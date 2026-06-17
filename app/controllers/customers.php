@@ -21,6 +21,10 @@ switch ($action) {
             $cond[] = 'tag = ?';
             $args[] = $tag;
         }
+        if (sees_only_own()) {
+            $cond[] = 'owner = ?';
+            $args[] = own_name();
+        }
         if ($cond) {
             $sql .= ' WHERE ' . implode(' AND ', $cond);
         }
@@ -43,7 +47,8 @@ switch ($action) {
         }
         $cols = implode(',', $fields);
         $ph = implode(',', array_fill(0, count($fields), '?'));
-        $pdo->prepare("INSERT INTO customers ($cols) VALUES ($ph)")->execute(array_values($data));
+        $pdo->prepare("INSERT INTO customers ($cols, owner) VALUES ($ph, ?)")
+            ->execute([...array_values($data), own_name()]);
         flash('客户已创建。');
         redirect('customers.show', ['id' => (int) $pdo->lastInsertId()]);
         break;
@@ -110,6 +115,11 @@ function find_customer(PDO $pdo, int $id): array
     if (!$row) {
         http_response_code(404);
         exit('客户不存在');
+    }
+    if (sees_only_own() && ($row['owner'] ?? '') !== own_name()) {
+        http_response_code(403);
+        flash('只能访问自己的客户 / Hanya pelanggan Anda.', 'error');
+        redirect('customers.index');
     }
     return $row;
 }

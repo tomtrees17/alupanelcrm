@@ -18,6 +18,7 @@
         <div><dt>城市</dt><dd><?= e($customer['city']) ?: '—' ?></dd></div>
         <div><dt>潜在价值</dt><dd><?= idr($customer['value']) ?></dd></div>
         <div><dt>最后跟进</dt><dd><?= e($customer['last_contact']) ?: '—' ?></dd></div>
+        <div><dt><?= t('owner') ?></dt><dd><?= e($customer['owner'] ?? '') ?: '—' ?></dd></div>
     </dl>
     <?php if ($customer['note']): ?><p class="notes"><?= nl2br(e($customer['note'])) ?></p><?php endif; ?>
 </div></div>

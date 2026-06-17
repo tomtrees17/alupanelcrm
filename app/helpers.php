@@ -225,6 +225,36 @@ function default_permissions(): array
     ];
 }
 
+/** Only admin and warehouse(库存管理员) may modify inventory; others are read-only. */
+function can_edit_inventory(): bool
+{
+    $auth = $GLOBALS['auth'] ?? null;
+    if ($auth === null) {
+        return false;
+    }
+    if ($auth->isAdmin()) {
+        return true;
+    }
+    return ($auth->user()['role'] ?? '') === 'warehouse';
+}
+
+/** Restricted users (sales) only see/modify their own orders & customers. */
+function sees_only_own(): bool
+{
+    $auth = $GLOBALS['auth'] ?? null;
+    if ($auth === null || $auth->isAdmin()) {
+        return false;
+    }
+    return ($auth->user()['role'] ?? '') === 'sales';
+}
+
+/** Current user's display name (used as order submitter / customer owner). */
+function own_name(): string
+{
+    $auth = $GLOBALS['auth'] ?? null;
+    return $auth ? (string) ($auth->user()['name'] ?? '') : '';
+}
+
 /** Can the current user access a module? Admin = all; dashboard always allowed. */
 function can_access(string $module): bool
 {

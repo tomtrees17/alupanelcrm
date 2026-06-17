@@ -24,6 +24,7 @@ CREATE TABLE customers (
     value        REAL    DEFAULT 0,         -- potential value (IDR)
     note         TEXT,
     last_contact TEXT,
+    owner        TEXT,                    -- responsible salesperson (name)
     created_at   TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
