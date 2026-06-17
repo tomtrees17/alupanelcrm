@@ -22,18 +22,14 @@
         <?= Csrf::field() ?>
         <div class="form-group">
             <label><?= t('login_email') ?></label>
-            <input class="form-input" type="email" name="email" value="admin@alupanel.local" required autofocus>
+            <input class="form-input" type="email" name="email" required autofocus autocomplete="username">
         </div>
         <div class="form-group">
             <label><?= t('login_password') ?></label>
-            <input class="form-input" type="password" name="password" placeholder="••••••••" required>
+            <input class="form-input" type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
         </div>
         <button type="submit" class="btn btn-primary btn-block"><?= t('login_btn') ?></button>
     </form>
-    <p class="login-hint">
-        admin@alupanel.local / admin123<br>
-        sari@ · mutiara@ · ahmad@ · joko@ (admin123)
-    </p>
 </div>
 </body>
 </html>

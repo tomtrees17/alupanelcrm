@@ -135,6 +135,27 @@ final class Database
             $pdo->exec("INSERT OR IGNORE INTO role_permissions (role, module) VALUES ('manager','export')");
             $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_export', '1')");
         }
+
+        // login_attempts table (brute-force throttle, added later).
+        $pdo->exec(
+            'CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT, email TEXT, attempt_time INTEGER NOT NULL DEFAULT 0)'
+        );
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_login_ip ON login_attempts(ip, attempt_time)');
+
+        // users.must_change_password column (added later) + flag accounts still on the default password.
+        $ucols = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+        if (!in_array('must_change_password', $ucols, true)) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0');
+        }
+        if (!$pdo->query("SELECT 1 FROM app_meta WHERE k = 'pwd_policy_v1'")->fetchColumn()) {
+            $flag = $pdo->prepare('UPDATE users SET must_change_password = 1 WHERE id = ?');
+            foreach ($pdo->query('SELECT id, password_hash FROM users') as $u) {
+                if (password_verify('admin123', (string) $u['password_hash'])) {
+                    $flag->execute([$u['id']]);
+                }
+            }
+            $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('pwd_policy_v1', '1')");
+        }
     }
 
     private static function seed(PDO $pdo): void
@@ -155,6 +176,8 @@ final class Database
         foreach ($users as $u) {
             $us->execute([$u[0], $u[1], $hash, $u[2], $u[3]]);
         }
+        // Demo accounts ship with the shared default password → force a change on first login.
+        $pdo->exec('UPDATE users SET must_change_password = 1');
 
         // ── Customers ──
         $customers = [
@@ -413,7 +436,7 @@ final class Database
 
         self::seedPermissions($pdo);
         $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (k TEXT PRIMARY KEY, v TEXT)');
-        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1')");
+        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1'), ('pwd_policy_v1', '1')");
 
         $pdo->commit();
     }

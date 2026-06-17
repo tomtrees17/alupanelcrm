@@ -192,6 +192,49 @@ function terbilang_helper(int $n): string
     return terbilang_helper(intdiv($n, 1000000000)) . ' miliar' . terbilang_helper($n % 1000000000);
 }
 
+// ──────────────────────────────────────────────────────────
+//  Login brute-force throttle (per client IP, sliding window)
+// ──────────────────────────────────────────────────────────
+
+const LOGIN_MAX_ATTEMPTS   = 8;     // failures allowed within the window
+const LOGIN_WINDOW_SECONDS = 900;   // 15-minute window / lockout
+
+function login_client_ip(): string
+{
+    return (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+}
+
+/** Remaining lockout for the current IP in minutes (0 = not locked). */
+function login_lockout_minutes(PDO $pdo): int
+{
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) c, MIN(attempt_time) m FROM login_attempts WHERE ip = ? AND attempt_time > ?'
+    );
+    $stmt->execute([login_client_ip(), time() - LOGIN_WINDOW_SECONDS]);
+    $row = $stmt->fetch();
+    if ((int) ($row['c'] ?? 0) < LOGIN_MAX_ATTEMPTS) {
+        return 0;
+    }
+    // Locked until the oldest in-window failure ages out.
+    $remain = ((int) $row['m'] + LOGIN_WINDOW_SECONDS) - time();
+    return max(1, (int) ceil($remain / 60));
+}
+
+/** Record a failed login and prune attempts older than the window. */
+function login_record_failure(PDO $pdo, string $email): void
+{
+    $pdo->prepare('INSERT INTO login_attempts (ip, email, attempt_time) VALUES (?,?,?)')
+        ->execute([login_client_ip(), mb_substr($email, 0, 190), time()]);
+    $pdo->prepare('DELETE FROM login_attempts WHERE attempt_time < ?')
+        ->execute([time() - LOGIN_WINDOW_SECONDS]);
+}
+
+/** Clear an IP's failed attempts after a successful login. */
+function login_clear_failures(PDO $pdo): void
+{
+    $pdo->prepare('DELETE FROM login_attempts WHERE ip = ?')->execute([login_client_ip()]);
+}
+
 /** Recompute an invoice's payment_status from amount_paid / due_date. */
 function refresh_invoice_status(PDO $pdo, int $invoiceId, string $today): void
 {

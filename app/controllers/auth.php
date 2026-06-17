@@ -17,14 +17,23 @@ switch ($action) {
             redirect('auth.login');
         }
         Csrf::verify();
+
+        $locked = login_lockout_minutes($pdo);
+        if ($locked > 0) {
+            view('auth.login', ['error' => sprintf(t('login_locked'), $locked)], false);
+            break;
+        }
+
         $email    = trim((string) input('email', ''));
         $password = (string) input('password', '');
 
         if ($auth->attempt($email, $password)) {
+            login_clear_failures($pdo);
             flash(t('welcome_back') . '，' . ($auth->user()['name'] ?? ''));
             redirect('dashboard.index');
         }
-        view('auth.login', ['error' => '邮箱或密码不正确。'], false);
+        login_record_failure($pdo, $email);
+        view('auth.login', ['error' => t('login_failed')], false);
         break;
 
     case 'logout':

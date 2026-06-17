@@ -9,6 +9,7 @@ CREATE TABLE users (
     password_hash TEXT    NOT NULL,
     role          TEXT    NOT NULL DEFAULT 'sales',  -- admin|sales|supervisor|manager|warehouse
     title         TEXT,                              -- display job title
+    must_change_password INTEGER NOT NULL DEFAULT 0, -- force a password change on next login
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -208,6 +209,15 @@ CREATE TABLE app_meta (
     k TEXT PRIMARY KEY,
     v TEXT
 );
+
+-- ── Failed login attempts (brute-force throttle) ──
+CREATE TABLE login_attempts (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip           TEXT,
+    email        TEXT,
+    attempt_time INTEGER NOT NULL DEFAULT 0   -- unix epoch of the failed attempt
+);
+CREATE INDEX idx_login_ip ON login_attempts(ip, attempt_time);
 
 CREATE INDEX idx_deals_customer  ON deals(customer_id);
 CREATE INDEX idx_tasks_customer  ON tasks(customer_id);

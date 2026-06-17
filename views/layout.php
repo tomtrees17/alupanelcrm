@@ -57,6 +57,7 @@ $sub   = $pageSub ?? (I18N[$lang]['sub_' . $module] ?? '');
                 <div>
                     <div class="user-name"><?= e($user['name'] ?? '') ?></div>
                     <div class="user-role"><?= e($user['title'] ?? role_label($user['role'] ?? '')) ?></div>
+                    <a class="user-logout" href="<?= url('account.password') ?>"><?= t('change_password') ?></a>
                     <a class="user-logout" href="<?= url('auth.logout') ?>"><?= t('logout') ?></a>
                 </div>
             </div>

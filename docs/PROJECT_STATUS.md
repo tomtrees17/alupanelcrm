@@ -35,7 +35,7 @@
 - `data/` 目录需 `www` 用户可写：`chown -R www:www data && chmod -R 755 data`
 - 更新代码：`cd /www/wwwroot/www.alupanel.cc && git pull`
 
-## 4. 默认账号（密码均 `admin123`，登录后请改）
+## 4. 默认账号（初始密码均 `admin123`，**首次登录强制改密**，见 6c）
 
 | 邮箱 | 角色 |
 |---|---|
@@ -93,6 +93,14 @@
 
 **③ 线上库自动升级**（`Database::ensureSchema()` + `app_meta` 标记一次性迁移）：自动建/补 role_permissions、加 customers.owner 并按历史订单回填、加 products.reserved、补 performance 与新角色默认权限——均不覆盖管理员后续手动调整。
 
+## 6c. 安全加固（2026-06-17）
+
+**① 会话 Cookie 加固**（`app/bootstrap.php`）：`session_start()` 前设置 HttpOnly + SameSite=Lax + Secure（自动识别 HTTPS / 反代 `X-Forwarded-Proto`）+ 命名 `ALUPANELSESS` + `use_strict_mode`/`use_only_cookies`。
+
+**② 登录防爆破**（`app/domain.php` 的 `login_*` 助手 + `login_attempts` 表）：按客户端 IP 滑动窗口限速——15 分钟内失败 8 次即锁定（`LOGIN_MAX_ATTEMPTS`/`LOGIN_WINDOW_SECONDS`），提示剩余分钟数；登录成功清零、旧记录自动清理。登录页不再泄露默认账号/密码（移除 `admin123` 提示与预填邮箱）。
+
+**③ 强制改默认密码**（`users.must_change_password` 列 + 前端控制器 `account` 模块）：仍用默认密码 `admin123` 的账号首次登录被强制跳转 `account.password` 改密（≥8 位且不同于旧密码），改完才放行其它页面（豁免 `account.*`/`auth.logout`/`lang.set`）。自助改密入口在侧边栏用户卡（全员可用）。线上库 `git pull` 后由 `ensureSchema` 自动加列，并把所有仍用 `admin123` 的账号标记为必须改密（一次性迁移 `pwd_policy_v1`；已本地验证迁移命中 6/6 且幂等、端到端 8 项全过）。
+
 ## 7. 目录结构
 
 ```
@@ -121,11 +129,20 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-users, customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments。
+users(+must_change_password), customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, role_permissions, app_meta, login_attempts。
 
 ## 10. 提交历史（main）
 
 ```
+(待提交) Harden auth: session cookies, login brute-force throttle, forced default-password change
+957817d Let orders enter a new customer and auto-save to customer module
+08eee58 Allow free-text salesperson name with suggestions in order form
+ae9f33b Add assign-salesperson (submitter) option in order form
+a0c4fe0 Localize remaining UI strings (finance detail, topbar titles, 404, banners)
+af8ea56 Fully localize finance invoice detail page (zh/id)
+b0f012a Order draft + edit-before-approval + reject-back-to-draft workflow
+c83a4f9 Enable SQLite WAL + busy_timeout for safe concurrent access
+fa7a4ea Document Excel export in PROJECT_STATUS
 a729e69 Make Excel export a configurable 'export' permission
 a7ad0ab Add Excel export for inventory, finance report and customers (managers only)
 683d883 Document roles & access-control rules in PROJECT_STATUS
@@ -154,4 +171,6 @@ c3ad488 Initial commit: AluPanel CRM (PHP + SQLite)
 
 ## 12. 可能的后续
 
-真实 logo.png 上传、发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全、修改默认密码。
+真实 logo.png 上传、发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。
+
+**安全/运维后续**（Op2 的 cookie 加固 / 强制改密 / 登录限速已完成）：审计日志（谁改了什么）、数据备份（宝塔定时 copy `crm.sqlite`）、金额用 REAL 存在舍入风险（可改整数分）、列表分页、看板日期范围、移动端布局、自动化测试。

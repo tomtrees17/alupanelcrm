@@ -21,6 +21,14 @@ if (!in_array("{$controller}.{$action}", $publicRoutes, true) && !$auth->check()
     redirect('auth.login');
 }
 
+// Force a password change for accounts still on a default/temporary password.
+if ($auth->check() && (int) ($auth->user()['must_change_password'] ?? 0) === 1) {
+    $pwExempt = ['account.password', 'account.update_password', 'auth.logout', 'lang.set'];
+    if (!in_array("{$controller}.{$action}", $pwExempt, true)) {
+        redirect('account.password');
+    }
+}
+
 // Module access control by role (configurable by admin under 权限设置).
 $moduleForAccess = ['delivery' => 'orders'][$controller] ?? $controller;
 if (in_array($moduleForAccess, controllable_modules(), true) && !can_access($moduleForAccess)) {

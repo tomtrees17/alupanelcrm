@@ -93,6 +93,13 @@ const I18N = [
         'f_shipping' => '运费 (Rp)', 'f_payment_term' => '付款条件', 'f_custom_days' => '账期天数', 'f_address' => '客户地址',
         // login
         'login_title' => '登录', 'login_email' => '邮箱', 'login_password' => '密码', 'login_btn' => '登录',
+        'login_failed' => '邮箱或密码不正确。', 'login_locked' => '登录尝试过多，请 %d 分钟后再试。',
+        // account / security
+        'change_password' => '修改密码', 'pwd_current' => '当前密码', 'pwd_new' => '新密码', 'pwd_confirm' => '确认新密码',
+        'pwd_hint' => '至少 8 位，且与当前密码不同。', 'pwd_changed' => '密码已更新。',
+        'pwd_err_current' => '当前密码不正确。', 'pwd_err_short' => '新密码至少 8 位。',
+        'pwd_err_mismatch' => '两次输入的新密码不一致。', 'pwd_err_same' => '新密码不能与当前密码相同。',
+        'pwd_force_title' => '请先修改默认密码', 'pwd_force_msg' => '为了账户安全，首次登录请设置一个新密码后再继续。',
         // print
         'print_invoice' => '发票 / INVOICE', 'print_do' => '送货单 / SURAT JALAN',
     ],
@@ -169,6 +176,13 @@ const I18N = [
         'f_client_type' => 'Tipe Klien', 'f_delivery_service' => 'Jasa Kirim', 'f_delivery_date' => 'Tgl Kirim',
         'f_shipping' => 'Ongkir (Rp)', 'f_payment_term' => 'Termin Bayar', 'f_custom_days' => 'Hari Termin', 'f_address' => 'Alamat Klien',
         'login_title' => 'Masuk', 'login_email' => 'Email', 'login_password' => 'Kata Sandi', 'login_btn' => 'Masuk',
+        'login_failed' => 'Email atau kata sandi salah.', 'login_locked' => 'Terlalu banyak percobaan login. Coba lagi dalam %d menit.',
+        // account / security
+        'change_password' => 'Ubah Kata Sandi', 'pwd_current' => 'Kata Sandi Saat Ini', 'pwd_new' => 'Kata Sandi Baru', 'pwd_confirm' => 'Konfirmasi Kata Sandi Baru',
+        'pwd_hint' => 'Minimal 8 karakter dan berbeda dari yang lama.', 'pwd_changed' => 'Kata sandi berhasil diperbarui.',
+        'pwd_err_current' => 'Kata sandi saat ini salah.', 'pwd_err_short' => 'Kata sandi baru minimal 8 karakter.',
+        'pwd_err_mismatch' => 'Konfirmasi kata sandi tidak cocok.', 'pwd_err_same' => 'Kata sandi baru tidak boleh sama dengan yang lama.',
+        'pwd_force_title' => 'Harap ubah kata sandi default', 'pwd_force_msg' => 'Demi keamanan, silakan atur kata sandi baru sebelum melanjutkan.',
         'print_invoice' => 'INVOICE', 'print_do' => 'SURAT JALAN',
     ],
 ];

@@ -7,6 +7,20 @@ declare(strict_types=1);
  */
 
 if (session_status() === PHP_SESSION_NONE) {
+    // Harden the session cookie before the session is created.
+    $isHttps = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')   // behind reverse proxy (Baota / Nginx)
+        || ((int) ($_SERVER['SERVER_PORT'] ?? 0) === 443);
+    ini_set('session.use_strict_mode', '1');   // reject attacker-fixated session ids
+    ini_set('session.use_only_cookies', '1');  // never accept the id from the URL
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'httponly' => true,        // not reachable from JavaScript (mitigates XSS theft)
+        'secure'   => $isHttps,    // HTTPS-only when served over TLS
+        'samesite' => 'Lax',       // mitigates CSRF on top of the token check
+    ]);
+    session_name('ALUPANELSESS');
     session_start();
 }
 
