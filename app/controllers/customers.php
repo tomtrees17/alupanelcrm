@@ -35,7 +35,11 @@ switch ($action) {
         break;
 
     case 'create':
-        view('customers.form', ['pageTitle' => '新建客户', 'pageSub' => '', 'customer' => null]);
+        view('customers.form', [
+            'pageTitle' => '新建客户', 'pageSub' => '', 'customer' => null,
+            'canAssign' => !sees_only_own(),
+            'staff' => assignable_staff($pdo),
+        ]);
         break;
 
     case 'store':
@@ -45,10 +49,15 @@ switch ($action) {
             flash('客户姓名必填。', 'error');
             redirect('customers.create');
         }
+        // Privileged users may assign the owner; sales always own what they create.
+        $owner = own_name();
+        if (!sees_only_own() && trim((string) input('owner', '')) !== '') {
+            $owner = trim((string) input('owner'));
+        }
         $cols = implode(',', $fields);
         $ph = implode(',', array_fill(0, count($fields), '?'));
         $pdo->prepare("INSERT INTO customers ($cols, owner) VALUES ($ph, ?)")
-            ->execute([...array_values($data), own_name()]);
+            ->execute([...array_values($data), $owner]);
         flash('客户已创建。');
         redirect('customers.show', ['id' => (int) $pdo->lastInsertId()]);
         break;
@@ -66,7 +75,11 @@ switch ($action) {
         break;
 
     case 'edit':
-        view('customers.form', ['pageTitle' => '编辑客户', 'pageSub' => '', 'customer' => find_customer($pdo, (int) input('id', 0))]);
+        view('customers.form', [
+            'pageTitle' => '编辑客户', 'pageSub' => '', 'customer' => find_customer($pdo, (int) input('id', 0)),
+            'canAssign' => !sees_only_own(),
+            'staff' => assignable_staff($pdo),
+        ]);
         break;
 
     case 'update':
@@ -78,7 +91,14 @@ switch ($action) {
             redirect('customers.edit', ['id' => $customer['id']]);
         }
         $set = implode(',', array_map(fn($f) => "$f = ?", $fields));
-        $pdo->prepare("UPDATE customers SET $set WHERE id = ?")->execute([...array_values($data), $customer['id']]);
+        if (!sees_only_own()) {
+            // Privileged users may (re)assign the owner.
+            $pdo->prepare("UPDATE customers SET $set, owner = ? WHERE id = ?")
+                ->execute([...array_values($data), trim((string) input('owner', '')), $customer['id']]);
+        } else {
+            $pdo->prepare("UPDATE customers SET $set WHERE id = ?")
+                ->execute([...array_values($data), $customer['id']]);
+        }
         flash('客户已更新。');
         redirect('customers.show', ['id' => $customer['id']]);
         break;
@@ -94,6 +114,12 @@ switch ($action) {
     default:
         http_response_code(404);
         echo 'Not found';
+}
+
+/** Staff who can be assigned as a customer owner. */
+function assignable_staff(PDO $pdo): array
+{
+    return $pdo->query('SELECT name, role FROM users ORDER BY name')->fetchAll();
 }
 
 function collect_customer(array $fields): array

@@ -19,15 +19,16 @@
 <div class="card">
     <div class="table-wrap">
         <table>
-            <thead><tr><th><?= t('th_name') ?></th><th><?= t('th_company') ?></th><th><?= t('th_phone') ?></th><th><?= t('th_city') ?></th><th><?= t('th_tag') ?></th><th class="right"><?= t('th_value') ?></th></tr></thead>
+            <thead><tr><th><?= t('th_name') ?></th><th><?= t('th_company') ?></th><th><?= t('th_phone') ?></th><th><?= t('th_city') ?></th><?php if (!sees_only_own()): ?><th><?= t('owner') ?></th><?php endif; ?><th><?= t('th_tag') ?></th><th class="right"><?= t('th_value') ?></th></tr></thead>
             <tbody>
-            <?php if (!$customers): ?><tr><td colspan="6" class="empty"><?= t('no_customer') ?></td></tr><?php endif; ?>
+            <?php if (!$customers): ?><tr><td colspan="<?= sees_only_own() ? 6 : 7 ?>" class="empty"><?= t('no_customer') ?></td></tr><?php endif; ?>
             <?php foreach ($customers as $c): ?>
                 <tr class="clickable" onclick="location.href='<?= url('customers.show', ['id' => $c['id']]) ?>'">
                     <td><strong><?= e($c['name']) ?></strong></td>
                     <td><?= e($c['company']) ?></td>
                     <td><?= e($c['phone']) ?></td>
                     <td><?= e($c['city']) ?></td>
+                    <?php if (!sees_only_own()): ?><td><?= e($c['owner'] ?? '') ?: '<span class="muted">—</span>' ?></td><?php endif; ?>
                     <td><span class="tag <?= customer_tag_class($c['tag']) ?>"><?= e(tr_tag($c['tag'])) ?></span></td>
                     <td class="right"><?= idr($c['value']) ?></td>
                 </tr>
