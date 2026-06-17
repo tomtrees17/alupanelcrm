@@ -14,7 +14,7 @@
 ## 2. 技术栈
 
 - 后端：**纯 PHP + PDO**（无框架、无 Composer）
-- 数据库：**SQLite**（`data/crm.sqlite`，已 gitignore，首次访问自动建库+示例数据）
+- 数据库：**SQLite**（`data/crm.sqlite`，已 gitignore，首次访问自动建库+示例数据）。连接启用 **WAL + busy_timeout=5s + synchronous=NORMAL**，支持多人并发读写不锁库（`Database::connect`）。会生成 `crm.sqlite-wal/-shm` 临时文件（已 gitignore）
 - 前端：服务端渲染 PHP 模板 + 原生 JS/CSS，无构建步骤
 - 路由：前端控制器 `public/index.php?r=controller.action`
 - 货币：印尼盾 IDR（Rp）
