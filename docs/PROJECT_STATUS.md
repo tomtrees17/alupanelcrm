@@ -77,8 +77,8 @@
 
 **① 模块级权限**（`role_permissions` 表 + `can_access($module)`）
 - bootstrap 载入 `$GLOBALS['permissions']`；前端控制器(`public/index.php`)拦截越权模块、导航按权限隐藏。
-- 可配置模块：customers/pipeline/tasks/finance/orders/inventory；另有视图权限 `performance`(看板全员业绩)。
-- 默认：sales/supervisor/warehouse/hr/clerk **无 finance**；admin 始终全权。
+- 可配置模块：customers/pipeline/tasks/finance/orders/inventory；另有视图权限 `performance`(看板全员业绩) 和 `export`(导出 Excel)。
+- 默认：sales/supervisor/warehouse/hr/clerk **无 finance**；`export` 默认仅 manager；admin 始终全权。
 - 管理员在 **权限设置(roles.index)** 用「角色×权限」勾选矩阵实时配置。
 - 看板财务卡片(营收/逾期)按 `can_access('finance')` 显示；全员业绩卡按 `can_access('performance')`，无此权限者改看「我的业绩」(仅本人 submitter 的订单)。
 
@@ -86,6 +86,8 @@
 - **库存**：增删改产品/调库存仅 admin + warehouse；其他有库存权限者**只读**（控制器拦写操作 + 列表隐藏按钮）。
 - **销售(sales)**：只看/改**自己的订单**(`orders.submitter == 本人姓名`，列表/详情/计数/看板最近订单均过滤、`find_order` 校验)与**自己的客户**(`customers.owner` 字段，列表/详情过滤，`find_customer` 校验)；下单时客户下拉也只列自己的客户。
 - **客户归属**：`customers.owner` 在新建时记为创建者；管理员/经理可在客户表单的「负责销售」下拉**改派**，客户列表显示归属列；销售本人不可改派。
+
+**④ Excel 导出**（`app/Export.php`，`can_export()`=`can_access('export')`）：库存(inventory.export)、财务报表(finance.export)、客户列表(customers.export) 三个列表页右上「导出 Excel」按钮（仅有 export 权限者可见，动作服务端二次校验）。无依赖生成真 `.xlsx`(ZipArchive 写 OOXML)；服务器无 zip 扩展时自动降级带 BOM 的 CSV。数字列写为数值型。
 
 **③ 线上库自动升级**（`Database::ensureSchema()` + `app_meta` 标记一次性迁移）：自动建/补 role_permissions、加 customers.owner 并按历史订单回填、加 products.reserved、补 performance 与新角色默认权限——均不覆盖管理员后续手动调整。
 
@@ -101,6 +103,7 @@ app/
   domain.php                业务逻辑：库存增减、预留重算、可用/库存校验、单号生成、发票状态、terbilang
   helpers.php               视图辅助：e/url/redirect/idr/num/各label与tr_*翻译
   i18n.php                  中印双语字典 + t() + current_lang()
+  Export.php                无依赖 Excel 导出（.xlsx via ZipArchive，CSV 兜底）
   Auth.php / Csrf.php
   controllers/              dashboard customers pipeline tasks finance orders inventory delivery users auth lang
 views/                      按模块分目录 + layout.php + print/ + errors/
@@ -121,6 +124,9 @@ users, customers, deals, tasks, products(+reserved), stock_txn, orders, order_it
 ## 10. 提交历史（main）
 
 ```
+a729e69 Make Excel export a configurable 'export' permission
+a7ad0ab Add Excel export for inventory, finance report and customers (managers only)
+683d883 Document roles & access-control rules in PROJECT_STATUS
 f4eb663 Let admins/managers assign customer owner (sales PIC)
 bd2863a Inventory edit limited to admin/warehouse; sales see only own orders & customers
 43dba6e Add HR, operations-supervisor and clerk roles
