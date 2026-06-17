@@ -53,6 +53,26 @@ switch ($action) {
         ]);
         break;
 
+    case 'export':
+        if (!can_export()) {
+            http_response_code(403);
+            flash('无导出权限 / Tidak punya akses ekspor.', 'error');
+            redirect('inventory.index');
+        }
+        $rows = [];
+        foreach ($pdo->query('SELECT * FROM products ORDER BY category, sku') as $p) {
+            $reserved = (int) $p['reserved'];
+            $rows[] = [
+                $p['sku'], $p['name'], $p['color_zh'], $p['color_en'], $p['spec'], $p['size'],
+                $p['category'], $p['unit'], (float) $p['price'], (int) $p['stock'], $reserved,
+                (int) $p['stock'] - $reserved, (int) $p['min_stock'],
+            ];
+        }
+        send_spreadsheet('inventory_' . date('Ymd'), '库存',
+            ['SKU', '名称', '颜色(中)', '颜色(英)', '规格', '尺寸', '分类', '单位', '单价', '库存', '预留', '可用', '安全库存'],
+            $rows);
+        break;
+
     case 'txns':
         $rows = $pdo->query(
             'SELECT x.*, p.sku, p.name FROM stock_txn x JOIN products p ON p.id = x.product_id

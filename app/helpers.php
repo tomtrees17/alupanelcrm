@@ -238,6 +238,16 @@ function can_edit_inventory(): bool
     return ($auth->user()['role'] ?? '') === 'warehouse';
 }
 
+/** Only managers (admin + manager) may export spreadsheets. */
+function can_export(): bool
+{
+    $auth = $GLOBALS['auth'] ?? null;
+    if ($auth === null) {
+        return false;
+    }
+    return $auth->isAdmin() || ($auth->user()['role'] ?? '') === 'manager';
+}
+
 /** Restricted users (sales) only see/modify their own orders & customers. */
 function sees_only_own(): bool
 {

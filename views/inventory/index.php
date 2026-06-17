@@ -3,6 +3,7 @@
     <h1><?= t('page_inventory') ?></h1>
     <div class="head-actions">
         <a class="btn btn-ghost" href="<?= url('inventory.txns') ?>"><?= t('btn_stock_txns') ?></a>
+        <?php if (can_export()): ?><a class="btn btn-ghost" href="<?= url('inventory.export') ?>"><?= t('btn_export') ?></a><?php endif; ?>
         <?php if (can_edit_inventory()): ?><a class="btn btn-primary" href="<?= url('inventory.create') ?>"><?= t('btn_add_product') ?></a><?php endif; ?>
     </div>
 </div>

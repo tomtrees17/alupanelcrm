@@ -34,6 +34,24 @@ switch ($action) {
         view('customers.index', ['customers' => $stmt->fetchAll(), 'q' => $q, 'tag' => $tag]);
         break;
 
+    case 'export':
+        if (!can_export()) {
+            http_response_code(403);
+            flash('无导出权限 / Tidak punya akses ekspor.', 'error');
+            redirect('customers.index');
+        }
+        $rows = [];
+        foreach ($pdo->query('SELECT * FROM customers ORDER BY id DESC') as $c) {
+            $rows[] = [
+                $c['name'], $c['company'], $c['phone'], $c['email'], $c['city'],
+                $c['tag'], (float) $c['value'], $c['owner'], $c['last_contact'],
+            ];
+        }
+        send_spreadsheet('customers_' . date('Ymd'), '客户列表',
+            ['客户', '公司', '联系方式', '邮箱', '城市', '标签', '潜在价值', '负责销售', '最后跟进'],
+            $rows);
+        break;
+
     case 'create':
         view('customers.form', [
             'pageTitle' => '新建客户', 'pageSub' => '', 'customer' => null,

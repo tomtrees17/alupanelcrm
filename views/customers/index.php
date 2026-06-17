@@ -1,7 +1,10 @@
 <?php /** @var array $customers */ /** @var string $q */ /** @var string $tag */ ?>
 <div class="page-head">
     <h1><?= t('page_customers') ?></h1>
-    <a class="btn btn-primary" href="<?= url('customers.create') ?>"><?= t('btn_add_customer') ?></a>
+    <div class="head-actions">
+        <?php if (can_export()): ?><a class="btn btn-ghost" href="<?= url('customers.export') ?>"><?= t('btn_export') ?></a><?php endif; ?>
+        <a class="btn btn-primary" href="<?= url('customers.create') ?>"><?= t('btn_add_customer') ?></a>
+    </div>
 </div>
 
 <form class="searchbar" method="get" action="index.php">

@@ -1,6 +1,7 @@
 <?php /** @var array $invoices */ /** @var array $stats */ /** @var string $statusFilter */ ?>
 <div class="page-head">
     <h1><?= t('page_finance') ?></h1>
+    <?php if (can_export()): ?><a class="btn btn-ghost" href="<?= url('finance.export') ?>"><?= t('btn_export') ?></a><?php endif; ?>
 </div>
 
 <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">

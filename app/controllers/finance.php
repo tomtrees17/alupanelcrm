@@ -35,6 +35,30 @@ switch ($action) {
         ]);
         break;
 
+    case 'export':
+        if (!can_export()) {
+            http_response_code(403);
+            flash('无导出权限 / Tidak punya akses ekspor.', 'error');
+            redirect('finance.index');
+        }
+        foreach ($pdo->query('SELECT id FROM invoices') as $r) {
+            refresh_invoice_status($pdo, (int) $r['id'], $today);
+        }
+        $rows = [];
+        $sql = 'SELECT iv.*, (SELECT order_no FROM orders WHERE id = iv.order_id) AS order_no FROM invoices iv ORDER BY iv.invoice_date DESC';
+        foreach ($pdo->query($sql) as $iv) {
+            $rows[] = [
+                $iv['invoice_no'], $iv['order_no'], $iv['customer'], $iv['bill_to_name'], $iv['npwp'],
+                $iv['invoice_date'], $iv['due_date'], invoice_status_label($iv['payment_status']),
+                (float) $iv['subtotal'], (float) $iv['ppn'], (float) $iv['total'], (float) $iv['amount_paid'],
+                (float) $iv['total'] - (float) $iv['amount_paid'], $iv['payment_method'], $iv['receipt_no'],
+            ];
+        }
+        send_spreadsheet('finance_' . date('Ymd'), '财务报表',
+            ['发票号', '订单号', '客户', '开票对象', 'NPWP', '开票日', '到期日', '状态', '小计', 'PPN', '合计', '已收', '未收', '收款方式', '收据号'],
+            $rows);
+        break;
+
     case 'show':
         $invoice = find_invoice($pdo, (int) input('id', 0));
         $items = $pdo->prepare('SELECT * FROM invoice_items WHERE invoice_id = ?');
