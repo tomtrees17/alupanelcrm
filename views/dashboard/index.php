@@ -57,3 +57,47 @@
         </div>
     </div>
 </div>
+
+<?php if (can_access('finance')): ?>
+<div class="card">
+    <div class="card-header"><span class="card-title"><?= t('sales_perf') ?></span></div>
+    <div class="table-wrap"><table>
+        <thead><tr><th><?= t('th_submitter') ?></th><th class="right"><?= t('col_orders') ?></th><th class="right"><?= t('col_won') ?></th><th class="right"><?= t('col_won_amt') ?></th></tr></thead>
+        <tbody>
+        <?php if (!$salesPerf): ?><tr><td colspan="4" class="empty"><?= t('no_data') ?></td></tr><?php endif; ?>
+        <?php $maxAmt = max(1, ...array_map(fn($s) => (float) $s['amount'], $salesPerf ?: [['amount' => 0]])); ?>
+        <?php foreach ($salesPerf as $sp): ?>
+            <tr>
+                <td style="min-width:160px"><strong><?= e($sp['name']) ?></strong>
+                    <div class="bar"><div class="bar-fill" style="width:<?= round($sp['amount'] / $maxAmt * 100) ?>%;background:var(--accent)"></div></div>
+                </td>
+                <td class="right"><?= (int) $sp['orders'] ?></td>
+                <td class="right"><?= (int) $sp['won'] ?></td>
+                <td class="right"><strong><?= idr_short($sp['amount']) ?></strong></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table></div>
+</div>
+<?php endif; ?>
+
+<div class="card">
+    <div class="card-header"><span class="card-title"><?= t('hot_products') ?></span></div>
+    <div class="table-wrap"><table>
+        <thead><tr><th><?= t('th_sku') ?></th><th><?= t('th_color') ?></th><th class="right"><?= t('th_qty') ?></th><?php if (can_access('finance')): ?><th class="right"><?= t('th_amount') ?></th><?php endif; ?></tr></thead>
+        <tbody>
+        <?php if (!$hotProducts): ?><tr><td colspan="4" class="empty"><?= t('no_data') ?></td></tr><?php endif; ?>
+        <?php $maxQty = max(1, ...array_map(fn($h) => (float) $h['qty'], $hotProducts ?: [['qty' => 0]])); ?>
+        <?php foreach ($hotProducts as $h): ?>
+            <tr>
+                <td><code><?= e($h['sku']) ?></code></td>
+                <td style="min-width:200px"><?= e($h['color']) ?> <span class="muted"><?= e($h['spec']) ?></span>
+                    <div class="bar"><div class="bar-fill" style="width:<?= round($h['qty'] / $maxQty * 100) ?>%;background:var(--accent3)"></div></div>
+                </td>
+                <td class="right"><strong><?= (int) $h['qty'] ?></strong></td>
+                <?php if (can_access('finance')): ?><td class="right"><?= idr_short($h['amount']) ?></td><?php endif; ?>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table></div>
+</div>

@@ -63,6 +63,7 @@ const I18N = [
         'stat_received' => '已收款总额', 'stat_customers' => '客户总数', 'stat_active_deals' => '进行中商机',
         'stat_task_rate' => '任务完成率', 'funnel' => '销售漏斗', 'recent_orders' => '最近订单',
         'view_more' => '查看 →', 'credit_alert_1' => '有', 'credit_alert_2' => '张发票已逾期，应收',
+        'sales_perf' => '销售业绩', 'hot_products' => '热销产品', 'col_orders' => '单数', 'col_won' => '成交', 'col_won_amt' => '成交额',
         // tasks
         'filter_today' => '今天', 'filter_high' => '高优先级', 'filter_pending' => '待办', 'filter_done' => '已完成',
         'week_stats' => '本周统计', 'completion_rate' => '完成率', 'done_count' => '已完成', 'high_pending' => '高优先级待办',
@@ -141,6 +142,7 @@ const I18N = [
         'stat_received' => 'Total Diterima', 'stat_customers' => 'Total Pelanggan', 'stat_active_deals' => 'Peluang Aktif',
         'stat_task_rate' => 'Penyelesaian Tugas', 'funnel' => 'Pipeline Penjualan', 'recent_orders' => 'Pesanan Terbaru',
         'view_more' => 'Lihat →', 'credit_alert_1' => 'Ada', 'credit_alert_2' => 'invoice jatuh tempo, piutang',
+        'sales_perf' => 'Kinerja Sales', 'hot_products' => 'Produk Terlaris', 'col_orders' => 'Pesanan', 'col_won' => 'Closing', 'col_won_amt' => 'Nilai Closing',
         'filter_today' => 'Hari Ini', 'filter_high' => 'Prioritas Tinggi', 'filter_pending' => 'Tertunda', 'filter_done' => 'Selesai',
         'week_stats' => 'Statistik Minggu Ini', 'completion_rate' => 'Tingkat Selesai', 'done_count' => 'Selesai', 'high_pending' => 'Prioritas Tinggi Tertunda',
         'add_task' => 'Tambah Tugas',

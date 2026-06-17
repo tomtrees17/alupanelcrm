@@ -35,6 +35,34 @@ $overdue = $pdo->query(
 
 $pendingOrders = (int) $pdo->query("SELECT COUNT(*) FROM orders WHERE status LIKE 'pending_%'")->fetchColumn();
 
+// Per-salesperson performance (excludes rejected; 成交 = approved orders)
+$salesPerf = $pdo->query(
+    "SELECT o.submitter AS name,
+            COUNT(*) AS orders,
+            SUM(CASE WHEN o.status = 'approved' THEN 1 ELSE 0 END) AS won,
+            COALESCE(SUM(CASE WHEN o.status = 'approved'
+                THEN (SELECT COALESCE(SUM(qty * price), 0) FROM order_items WHERE order_id = o.id) + o.shipping_cost
+                ELSE 0 END), 0) AS amount
+       FROM orders o
+      WHERE o.status <> 'rejected' AND COALESCE(o.submitter, '') <> ''
+   GROUP BY o.submitter
+   ORDER BY amount DESC, orders DESC"
+)->fetchAll();
+
+// Hot products by ordered quantity (placed orders, excluding draft/rejected)
+$hotProducts = $pdo->query(
+    "SELECT oi.sku,
+            MAX(oi.color) AS color, MAX(oi.spec) AS spec,
+            SUM(oi.qty) AS qty,
+            SUM(oi.qty * oi.price) AS amount
+       FROM order_items oi
+       JOIN orders o ON o.id = oi.order_id
+      WHERE o.status NOT IN ('rejected', 'draft')
+   GROUP BY oi.sku
+   ORDER BY qty DESC
+      LIMIT 8"
+)->fetchAll();
+
 view('dashboard.index', [
     'revenue'   => $revenue,
     'custCount' => $custCount,
@@ -44,4 +72,6 @@ view('dashboard.index', [
     'recent'    => $recent,
     'overdue'   => $overdue,
     'pendingOrders' => $pendingOrders,
+    'salesPerf' => $salesPerf,
+    'hotProducts' => $hotProducts,
 ]);
