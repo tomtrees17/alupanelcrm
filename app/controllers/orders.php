@@ -170,6 +170,12 @@ function order_product_list(PDO $pdo): array
 function order_sales_list(PDO $pdo, ?string $keep = null): array
 {
     $names = array_column($pdo->query("SELECT name FROM users WHERE role = 'sales' ORDER BY name")->fetchAll(), 'name');
+    // Also suggest names already used as submitters (even if not 'sales' users).
+    foreach ($pdo->query("SELECT DISTINCT submitter FROM orders WHERE COALESCE(submitter,'') <> '' ORDER BY submitter") as $r) {
+        if (!in_array($r['submitter'], $names, true)) {
+            $names[] = $r['submitter'];
+        }
+    }
     if ($keep !== null && $keep !== '' && !in_array($keep, $names, true)) {
         array_unshift($names, $keep);
     }

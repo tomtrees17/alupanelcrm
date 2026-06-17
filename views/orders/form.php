@@ -29,12 +29,11 @@ $itemsJson = json_encode(array_map(fn($it) => [
     <div class="card"><div class="card-body">
         <?php if (!empty($canAssignSales)): ?>
         <div class="form-group"><label class="form-label"><?= t('assign_sales') ?></label>
-            <select class="form-select" name="submitter">
-                <option value="">—</option>
-                <?php foreach (($salesStaff ?? []) as $sname): ?>
-                    <option value="<?= e($sname) ?>" <?= ($order['submitter'] ?? '') === $sname ? 'selected' : '' ?>><?= e($sname) ?></option>
-                <?php endforeach; ?>
-            </select>
+            <input class="form-input" type="text" name="submitter" list="sales-list" autocomplete="off"
+                   value="<?= e($order['submitter'] ?? '') ?>" placeholder="<?= t('assign_sales_ph') ?>">
+            <datalist id="sales-list">
+                <?php foreach (($salesStaff ?? []) as $sname): ?><option value="<?= e($sname) ?>"></option><?php endforeach; ?>
+            </datalist>
         </div>
         <?php endif; ?>
         <div class="form-row">
