@@ -70,6 +70,7 @@ switch ($action) {
         view('orders.form', [
             'pageTitle' => t('btn_add_order'), 'pageSub' => '', 'order' => null, 'items' => [],
             'customers' => order_customer_list($pdo), 'products' => order_product_list($pdo),
+            'canAssignSales' => !sees_only_own(), 'salesStaff' => order_sales_list($pdo),
         ]);
         break;
 
@@ -91,6 +92,7 @@ switch ($action) {
             'pageTitle' => t('btn_edit') . ' ' . $order['order_no'], 'pageSub' => '',
             'order' => $order, 'items' => $its->fetchAll(),
             'customers' => order_customer_list($pdo), 'products' => order_product_list($pdo),
+            'canAssignSales' => !sees_only_own(), 'salesStaff' => order_sales_list($pdo, $order['submitter']),
         ]);
         break;
 
@@ -164,6 +166,16 @@ function order_product_list(PDO $pdo): array
     return $pdo->query('SELECT id, sku, color_en, color_zh, spec, size, price, stock, reserved, min_stock FROM products ORDER BY sku LIMIT 400')->fetchAll();
 }
 
+/** Salespeople that an order can be assigned to (role=sales); include $keep if not listed. */
+function order_sales_list(PDO $pdo, ?string $keep = null): array
+{
+    $names = array_column($pdo->query("SELECT name FROM users WHERE role = 'sales' ORDER BY name")->fetchAll(), 'name');
+    if ($keep !== null && $keep !== '' && !in_array($keep, $names, true)) {
+        array_unshift($names, $keep);
+    }
+    return $names;
+}
+
 /**
  * Create or update an order from the form. $existing = current row (update) or null (create).
  * The "do" field decides: "submit" → pending_sup (with stock check); else → draft.
@@ -214,6 +226,13 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
         redirect($back[0], $back[1]);
     }
 
+    // Assigned salesperson (submitter): privileged roles (clerk/admin/manager…) may pick; sales = self.
+    $submitter = own_name();
+    if (!sees_only_own()) {
+        $picked = trim((string) input('submitter', ''));
+        $submitter = $picked !== '' ? $picked : ($isEdit ? (string) ($existing['submitter'] ?? own_name()) : own_name());
+    }
+
     // Only check stock when actually submitting for approval.
     if ($submit) {
         $short = available_shortages($pdo, array_map(
@@ -240,6 +259,10 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
                 (float) input('shipping_cost', 0), (string) input('delivery_date', ''), trim((string) input('note', '')),
                 (string) input('payment_term', 'CBD'), (int) input('custom_days', 0), $status,
             ];
+            if (!sees_only_own()) {
+                $sql .= ', submitter=?';
+                $params[] = $submitter;
+            }
             if ($submit) {
                 // Fresh approval cycle: clear rejection + prior approvals.
                 $sql .= ', reject_note=NULL, reject_by=NULL, reject_date=NULL, sup_note=NULL, sup_approver=NULL, sup_date=NULL, mgr_note=NULL, mgr_approver=NULL, mgr_date=NULL, wh_note=NULL, wh_approver=NULL, wh_date=NULL';
@@ -256,7 +279,7 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
                 next_order_no($pdo), $customerId, $custName, trim((string) input('company', '')),
                 trim((string) input('address', '')), trim((string) input('phone', '')),
                 (string) input('client_type', 'End User'), (string) input('delivery_service', 'Self Pickup'),
-                trim((string) input('delivery_address', '')), $auth->user()['name'] ?? '',
+                trim((string) input('delivery_address', '')), $submitter,
                 (float) input('shipping_cost', 0), (string) input('delivery_date', ''),
                 trim((string) input('note', '')), (string) input('payment_term', 'CBD'),
                 (int) input('custom_days', 0), $status,

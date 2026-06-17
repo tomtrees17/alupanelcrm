@@ -27,6 +27,16 @@ $itemsJson = json_encode(array_map(fn($it) => [
     <?= Csrf::field() ?>
     <?php if ($isEdit): ?><input type="hidden" name="id" value="<?= (int) $order['id'] ?>"><?php endif; ?>
     <div class="card"><div class="card-body">
+        <?php if (!empty($canAssignSales)): ?>
+        <div class="form-group"><label class="form-label"><?= t('assign_sales') ?></label>
+            <select class="form-select" name="submitter">
+                <option value="">—</option>
+                <?php foreach (($salesStaff ?? []) as $sname): ?>
+                    <option value="<?= e($sname) ?>" <?= ($order['submitter'] ?? '') === $sname ? 'selected' : '' ?>><?= e($sname) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <?php endif; ?>
         <div class="form-row">
             <div class="form-group"><label class="form-label"><?= t('th_customer') ?> *</label>
                 <select class="form-select" name="customer_id" id="customer-select" required>
