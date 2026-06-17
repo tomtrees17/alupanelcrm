@@ -71,6 +71,7 @@ const I18N = [
         // finance
         'fin_received' => '已收款', 'fin_pending' => '待收款', 'fin_overdue' => '逾期',
         'related_deals' => '关联商机', 'order_records' => '订单记录', 'product_items' => '产品明细', 'approval_opinions' => '审批意见',
+        'invoice' => '发票', 'bill_to' => '开票对象', 'npwp_label' => 'NPWP 税号', 'related_order' => '关联订单', 'view' => '查看', 'delivery_order' => '送货单', 'tax_invoice_no' => '税票号', 'details' => '明细', 'payment_records' => '收款记录', 'record_payment' => '登记收款', 'pay_method' => '收款方式', 'auto_gen' => '留空自动生成',
         // inventory
         'inv_skus' => 'SKU 数', 'inv_total_stock' => '总库存（张）', 'inv_low' => '低库存预警', 'inv_out' => '缺货',
         'only_low' => '仅看低库存', 'stock_adjust' => '±库存', 'all_specs' => '全部规格', 'all_tags' => '全部标签',
@@ -148,6 +149,7 @@ const I18N = [
         'add_task' => 'Tambah Tugas',
         'fin_received' => 'Lunas', 'fin_pending' => 'Belum Dibayar', 'fin_overdue' => 'Jatuh Tempo',
         'related_deals' => 'Peluang Terkait', 'order_records' => 'Riwayat Pesanan', 'product_items' => 'Rincian Produk', 'approval_opinions' => 'Catatan Persetujuan',
+        'invoice' => 'Invoice', 'bill_to' => 'Tagih ke', 'npwp_label' => 'NPWP', 'related_order' => 'Pesanan Terkait', 'view' => 'Lihat', 'delivery_order' => 'Surat Jalan', 'tax_invoice_no' => 'No. Faktur Pajak', 'details' => 'Rincian', 'payment_records' => 'Catatan Pembayaran', 'record_payment' => 'Catat Pembayaran', 'pay_method' => 'Metode Bayar', 'auto_gen' => 'Kosongkan = auto',
         'inv_skus' => 'Jumlah SKU', 'inv_total_stock' => 'Total Stok', 'inv_low' => 'Stok Rendah', 'inv_out' => 'Habis',
         'only_low' => 'Hanya stok rendah', 'stock_adjust' => '±Stok', 'all_specs' => 'Semua Spesifikasi', 'all_tags' => 'Semua Label',
         'stock_insufficient' => 'Stok tidak cukup', 'need' => 'butuh', 'have' => 'stok', 'available' => 'Tersedia', 'stock_block_submit' => 'Ada produk stok tidak cukup, pesanan tidak dapat dikirim', 'owner' => 'Sales PIC',
