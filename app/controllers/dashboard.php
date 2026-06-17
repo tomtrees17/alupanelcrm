@@ -63,6 +63,22 @@ $hotProducts = $pdo->query(
       LIMIT 8"
 )->fetchAll();
 
+// Personal performance for users without the 全员业绩 permission (e.g. sales see only their own).
+$myPerf = null;
+$myName = $auth->user()['name'] ?? '';
+if (!can_access('performance') && $myName !== '') {
+    $stmt = $pdo->prepare(
+        "SELECT COUNT(*) AS orders,
+                SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS won,
+                COALESCE(SUM(CASE WHEN status = 'approved'
+                    THEN (SELECT COALESCE(SUM(qty * price), 0) FROM order_items WHERE order_id = orders.id) + shipping_cost
+                    ELSE 0 END), 0) AS amount
+           FROM orders WHERE submitter = ? AND status <> 'rejected'"
+    );
+    $stmt->execute([$myName]);
+    $myPerf = $stmt->fetch();
+}
+
 view('dashboard.index', [
     'revenue'   => $revenue,
     'custCount' => $custCount,
@@ -74,4 +90,5 @@ view('dashboard.index', [
     'pendingOrders' => $pendingOrders,
     'salesPerf' => $salesPerf,
     'hotProducts' => $hotProducts,
+    'myPerf'    => $myPerf,
 ]);

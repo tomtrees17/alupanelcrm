@@ -81,6 +81,19 @@
 </div>
 <?php endif; ?>
 
+<?php if (!can_access('performance') && !empty($myPerf) && (int) $myPerf['orders'] > 0): ?>
+<div class="card">
+    <div class="card-header"><span class="card-title"><?= t('my_perf') ?></span></div>
+    <div class="card-body">
+        <div class="cards" style="grid-template-columns:repeat(3,1fr);margin-bottom:0">
+            <div class="stat-card c2"><div class="stat-label"><?= t('col_orders') ?></div><div class="stat-value c2"><?= (int) $myPerf['orders'] ?></div></div>
+            <div class="stat-card c1"><div class="stat-label"><?= t('col_won') ?></div><div class="stat-value c1"><?= (int) $myPerf['won'] ?></div></div>
+            <div class="stat-card c3"><div class="stat-label"><?= t('col_won_amt') ?></div><div class="stat-value c3"><?= idr_short($myPerf['amount']) ?></div></div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="card">
     <div class="card-header"><span class="card-title"><?= t('hot_products') ?></span></div>
     <div class="table-wrap"><table>
