@@ -183,7 +183,7 @@ function invoice_status_class(string $s): string
 
 function all_roles(): array
 {
-    return ['admin', 'manager', 'finance_manager', 'supervisor', 'sales', 'warehouse'];
+    return ['admin', 'manager', 'finance_manager', 'ops_supervisor', 'supervisor', 'sales', 'warehouse', 'hr', 'clerk'];
 }
 
 function role_label(string $r): string
@@ -215,9 +215,12 @@ function default_permissions(): array
     return [
         'manager'         => ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'performance'],
         'finance_manager' => ['customers', 'finance', 'orders', 'inventory', 'performance'],
+        'ops_supervisor'  => ['customers', 'pipeline', 'tasks', 'orders', 'inventory', 'performance'],
         'supervisor'      => ['customers', 'pipeline', 'tasks', 'orders', 'inventory'],
         'sales'           => ['customers', 'pipeline', 'tasks', 'orders', 'inventory'],
         'warehouse'       => ['orders', 'inventory'],
+        'hr'              => ['customers', 'tasks'],
+        'clerk'           => ['customers', 'tasks', 'orders'],
         // admin is omitted on purpose → always full access.
     ];
 }
