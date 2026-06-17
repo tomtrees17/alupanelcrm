@@ -30,7 +30,7 @@ const I18N = [
         'btn_add_customer' => '＋ 新建客户', 'btn_add_deal' => '＋ 新增商机', 'btn_add_order' => '＋ 新建订单',
         'btn_add_product' => '＋ 新建产品', 'btn_add_user' => '＋ 新建用户', 'btn_add_row' => '＋ 添加行',
         'btn_save_customer' => '保存客户', 'btn_save_deal' => '保存商机', 'btn_save_task' => '保存任务',
-        'btn_save_product' => '保存产品', 'btn_save_user' => '保存用户', 'btn_save_order' => '提交订单（进入主管审批）',
+        'btn_save_product' => '保存产品', 'btn_save_user' => '保存用户', 'btn_save_order' => '提交审批', 'btn_save_draft' => '保存草稿',
         'btn_record_payment' => '登记收款', 'btn_stock_txns' => '出入库流水', 'btn_back_inventory' => '返回库存',
         'btn_submit' => '提交', 'btn_export' => '导出 Excel',
         // table headers
@@ -113,7 +113,7 @@ const I18N = [
         'btn_add_customer' => '＋ Tambah Pelanggan', 'btn_add_deal' => '＋ Tambah Peluang', 'btn_add_order' => '＋ Buat Pesanan',
         'btn_add_product' => '＋ Tambah Produk', 'btn_add_user' => '＋ Tambah Pengguna', 'btn_add_row' => '＋ Tambah Baris',
         'btn_save_customer' => 'Simpan Pelanggan', 'btn_save_deal' => 'Simpan Peluang', 'btn_save_task' => 'Simpan Tugas',
-        'btn_save_product' => 'Simpan Produk', 'btn_save_user' => 'Simpan Pengguna', 'btn_save_order' => 'Kirim Pesanan (ke Supervisor)',
+        'btn_save_product' => 'Simpan Produk', 'btn_save_user' => 'Simpan Pengguna', 'btn_save_order' => 'Kirim ke Persetujuan', 'btn_save_draft' => 'Simpan Draft',
         'btn_record_payment' => 'Catat Pembayaran', 'btn_stock_txns' => 'Riwayat Stok', 'btn_back_inventory' => 'Kembali ke Stok',
         'btn_submit' => 'Kirim', 'btn_export' => 'Ekspor Excel',
         'th_name' => 'Nama', 'th_company' => 'Perusahaan', 'th_phone' => 'Kontak', 'th_city' => 'Kota',

@@ -35,9 +35,22 @@ $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['ro
     <div class="head-actions">
         <?php if (!empty($deliveryId)): ?><a class="btn btn-ghost" href="<?= url('delivery.print', ['id' => $deliveryId]) ?>" target="_blank"><?= t('btn_print') ?> · DO</a><?php endif; ?>
         <?php if (!empty($invoice)): ?><a class="btn btn-ghost" href="<?= url('finance.print', ['id' => $invoice['id']]) ?>" target="_blank"><?= t('btn_print') ?> · Invoice</a><?php endif; ?>
+        <?php if (order_editable($order)): ?>
+            <a class="btn btn-ghost" href="<?= url('orders.edit', ['id' => $order['id']]) ?>"><?= t('btn_edit') ?></a>
+            <form method="post" action="<?= url('orders.submit') ?>" style="display:inline">
+                <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $order['id'] ?>">
+                <button class="btn btn-primary" type="submit"><?= t('btn_save_order') ?></button>
+            </form>
+        <?php endif; ?>
         <a class="btn btn-ghost" href="<?= url('orders.index') ?>"><?= t('btn_back') ?></a>
     </div>
 </div>
+
+<?php if (!empty($order['reject_note']) || (!empty($order['reject_by']) && $order['status'] === 'draft')): ?>
+    <div class="alert alert-error">
+        ⚠ 已被 <strong><?= e($order['reject_by']) ?></strong>（<?= e($order['reject_date']) ?>）驳回退回草稿<?= $order['reject_note'] ? '：' . e($order['reject_note']) : '' ?>
+    </div>
+<?php endif; ?>
 
 <div class="card"><div class="card-body">
     <div class="approval-flow">
@@ -113,7 +126,7 @@ $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['ro
     <div class="card"><div class="card-body muted"><?= t('wait_for') ?> <strong><?= e(role_label(order_action_role($status) ?? '')) ?></strong><?= t('no_permission_stage') ?></div></div>
 <?php endif; ?>
 
-<?php if ($auth->isAdmin()): ?>
+<?php if ($auth->isAdmin() || order_editable($order)): ?>
     <form method="post" action="<?= url('orders.delete') ?>" onsubmit="return confirm('?')" class="no-print">
         <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $order['id'] ?>">
         <button class="btn btn-ghost btn-sm" type="submit" style="color:var(--danger)"><?= t('btn_delete') ?></button>

@@ -52,9 +52,11 @@
 ## 6. 关键业务逻辑
 
 **订单四级审批流**：销售→主管(supervisor)→经理(manager)→仓库(warehouse)。
-- 状态：`draft / pending_sup / pending_mgr / pending_wh / approved / rejected`
-- 仅对应角色（或 admin）能在该阶段审批（`order_action_role()`）
+- 状态：`draft / pending_sup / pending_mgr / pending_wh / approved`（旧 rejected 仅历史数据）
+- 新建订单可**保存草稿**或**提交审批**（表单两按钮 do=draft|submit）。草稿/被驳回订单可由本人或 admin **编辑**(`order_editable()`)；草稿不占库存，提交时才校验可用库存并预留
+- 仅对应角色（或 admin）能在该阶段审批（`order_action_role()`）。**驳回 = 退回草稿**：记录 `reject_note/by/date`、清空已有审批、释放预留，销售改后可重新提交
 - 仓库「确认出货」(`fulfill_order`) 自动：扣库存(out_auto) + 生成送货单DO + 生成发票
+- `save_order()` 统一处理建/改；`submit_order()` 草稿→pending_sup；`orders.reject_note/by/date` 字段由 ensureSchema 自动加
 
 **税务（印尼 2025，价格含税）**：
 - 订单输入单价为**含税价**；开票时反算 pre-tax = 含税价 / 1.11

@@ -95,6 +95,14 @@ final class Database
             );
         }
 
+        // orders rejection columns (added later) — add on existing DBs.
+        $ocols = array_column($pdo->query('PRAGMA table_info(orders)')->fetchAll(), 'name');
+        foreach (['reject_note', 'reject_by', 'reject_date'] as $col) {
+            if (!in_array($col, $ocols, true)) {
+                $pdo->exec("ALTER TABLE orders ADD COLUMN $col TEXT");
+            }
+        }
+
         // role_permissions table (added later) — create + seed defaults on existing DBs.
         $pdo->exec(
             'CREATE TABLE IF NOT EXISTS role_permissions (role TEXT NOT NULL, module TEXT NOT NULL, PRIMARY KEY (role, module))'

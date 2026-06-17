@@ -104,6 +104,7 @@ CREATE TABLE orders (
     sup_note     TEXT, sup_approver TEXT, sup_date TEXT,
     mgr_note     TEXT, mgr_approver TEXT, mgr_date TEXT,
     wh_note      TEXT, wh_approver  TEXT, wh_date  TEXT,
+    reject_note  TEXT, reject_by    TEXT, reject_date TEXT,   -- last rejection (sent back to draft)
     do_number        TEXT,
     invoice_number   TEXT,
     created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
