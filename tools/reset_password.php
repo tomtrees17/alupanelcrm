@@ -59,7 +59,18 @@ if (!$user) {
     exit(1);
 }
 
-$pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?')
-    ->execute([password_hash($pass, PASSWORD_DEFAULT), (int) $user['id']]);
+// The must_change_password column may be absent if the web app hasn't run its
+// auto-migration since the last deploy. Update it only when it exists; either
+// way the new password takes effect immediately.
+$cols = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+$hash = password_hash($pass, PASSWORD_DEFAULT);
+
+if (in_array('must_change_password', $cols, true)) {
+    $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?')
+        ->execute([$hash, (int) $user['id']]);
+} else {
+    $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+        ->execute([$hash, (int) $user['id']]);
+}
 
 echo "Password reset for {$user['name']} <{$email}>. You can log in now.\n";
