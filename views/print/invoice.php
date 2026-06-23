@@ -8,12 +8,6 @@ $total = (float) $invoice['total'];
 $fdate = fn($d) => $d ? date('j/M/y', strtotime($d)) : '';
 $fdate2 = fn($d) => $d ? date('j-M-y', strtotime($d)) : '';
 $rp = fn($n) => 'Rp' . num($n);
-$logoDir = dirname(__DIR__, 2) . '/public/assets/img/';
-$logoFile = null;
-foreach (['logo.png', 'logo.svg', 'logo.jpg'] as $cand) {
-    if (is_file($logoDir . $cand)) { $logoFile = $cand; break; }
-}
-$logo = $cfg['company_logo'] ?? 'ALUSIGNPANEL';
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -32,14 +26,10 @@ $logo = $cfg['company_logo'] ?? 'ALUSIGNPANEL';
     <!-- Header -->
     <table class="inv-top"><tr>
         <td class="inv-logo">
-            <?php if ($logoFile): ?>
-                <img src="assets/img/<?= e($logoFile) ?>" alt="logo" style="max-width:200px;max-height:64px">
-            <?php else: ?>
-                <div class="mark"><span class="r"><?= e(mb_substr($logo, 0, 1)) ?></span><?= e(mb_substr($logo, 1, max(0, mb_strlen($logo) - 2))) ?><span class="b"><?= e(mb_substr($logo, -1)) ?></span></div>
-            <?php endif; ?>
+            <div class="inv-coname"><?= e($cfg['company_full']) ?></div>
         </td>
         <td>
-            <div class="inv-co"><b><?= e($cfg['company_full']) ?></b><br>:<?= e($cfg['company_addr']) ?></div>
+            <div class="inv-co"><?= e($cfg['company_addr']) ?></div>
         </td>
         <td class="inv-title"><h1>Invoice</h1></td>
     </tr></table>
