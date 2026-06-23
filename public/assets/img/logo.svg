@@ -3,7 +3,7 @@
     <!-- stylized red arrow 'A' -->
     <path d="M4 52 L30 6 L56 52 L42 52 L30 28 L18 52 Z" fill="#e2231a"/>
     <text x="54" y="48" letter-spacing="-1.5">
-      <tspan fill="#e2231a">LUSIGNPANE</tspan><tspan fill="#16335c">L</tspan>
+      <tspan fill="#e2231a">LU</tspan><tspan fill="#1c46a8">SIGNPAN</tspan><tspan fill="#e2231a">EL</tspan>
     </text>
   </g>
 </svg>

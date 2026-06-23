@@ -9,6 +9,12 @@ $module = explode('.', $cur)[0];
 $active = fn(string $p) => str_starts_with($cur, $p) ? ' active' : '';
 $lang = current_lang();
 
+// Brand logo image (png overrides the committed svg); falls back to the text mark.
+$logoFile = null;
+foreach (['logo.png', 'logo.svg', 'logo.jpg'] as $cand) {
+    if (is_file(__DIR__ . '/../public/assets/img/' . $cand)) { $logoFile = $cand; break; }
+}
+
 $pendingTasks  = (int) $pdo->query('SELECT COUNT(*) FROM tasks WHERE done = 0')->fetchColumn();
 $pendingOrders = (int) $pdo->query("SELECT COUNT(*) FROM orders WHERE status LIKE 'pending_%'")->fetchColumn();
 $initial = mb_substr($user['name'] ?? '?', 0, 1);
@@ -29,7 +35,11 @@ $sub   = $pageSub ?? (I18N[$lang]['sub_' . $module] ?? '');
 <div class="app">
     <aside class="sidebar">
         <div class="logo">
-            <div class="logo-mark"><?= e($cfg['brand']) ?><span>CRM</span></div>
+            <?php if ($logoFile): ?>
+                <img class="logo-img" src="assets/img/<?= e($logoFile) ?>" alt="<?= e($cfg['company_logo'] ?? $cfg['brand']) ?>">
+            <?php else: ?>
+                <div class="logo-mark"><?= e($cfg['brand']) ?><span>CRM</span></div>
+            <?php endif; ?>
             <div class="logo-sub"><?= e($cfg['tagline']) ?></div>
         </div>
         <div class="lang-toggle">
