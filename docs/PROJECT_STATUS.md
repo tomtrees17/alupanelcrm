@@ -101,6 +101,21 @@
 
 **③ 强制改默认密码**（`users.must_change_password` 列 + 前端控制器 `account` 模块）：仍用默认密码 `admin123` 的账号首次登录被强制跳转 `account.password` 改密（≥8 位且不同于旧密码），改完才放行其它页面（豁免 `account.*`/`auth.logout`/`lang.set`）。自助改密入口在侧边栏用户卡（全员可用）。线上库 `git pull` 后由 `ensureSchema` 自动加列，并把所有仍用 `admin123` 的账号标记为必须改密（一次性迁移 `pwd_policy_v1`；已本地验证迁移命中 6/6 且幂等、端到端 8 项全过）。
 
+## 6d. 忘记密码 / 重置（运维）
+
+服务器上用 CLI 工具重置任意账号密码（`tools/reset_password.php`，绕过登录直接改库）：
+```bash
+cd /www/wwwroot/www.alupanel.cc && git pull
+/www/server/php/82/bin/php tools/reset_password.php                              # 不带参数 = 列出所有账号
+/www/server/php/82/bin/php tools/reset_password.php admin@alupanel.local '新密码'   # ≥8 位
+chown -R www:www data && chmod -R 755 data                                       # 修正属主（必做）
+```
+- 重置 `password_hash` 并清 `must_change_password`，新密码当场生效。
+- 对 `must_change_password` 列做**存在性判断**，故线上库尚未经 web 迁移（刚 git pull、还没人访问网站）时也能用（否则会报 `no such column`）。
+- **应急免 git pull 版**（只改密码、不依赖新列）：
+  `/www/server/php/82/bin/php -r '$p=new PDO("sqlite:data/crm.sqlite");$p->prepare("UPDATE users SET password_hash=? WHERE email=?")->execute([password_hash("新密码",PASSWORD_DEFAULT),"admin@alupanel.local"]);echo "ok\n";'`
+- 坑：宝塔 PHP CLI 路径随版本变（`ls /www/server/php/` 查实际版本号）；密码用单引号包住更安全；两条命令分行别粘成一行。
+
 ## 7. 目录结构
 
 ```
@@ -115,10 +130,11 @@ app/
   i18n.php                  中印双语字典 + t() + current_lang()
   Export.php                无依赖 Excel 导出（.xlsx via ZipArchive，CSV 兜底）
   Auth.php / Csrf.php
-  controllers/              dashboard customers pipeline tasks finance orders inventory delivery users auth lang
-views/                      按模块分目录 + layout.php + print/ + errors/
+  controllers/              dashboard customers pipeline tasks finance orders inventory delivery users roles account auth lang
+views/                      按模块分目录 + layout.php + print/ + errors/（account/password.php 改密页）
 database/schema.sql         表结构
 database/seed_products.sql  269 个产品（由 tools/gen_products.php 从原型抽取）
+tools/reset_password.php    CLI 重置账号密码（运维，见 6d）
 data/                       运行时 SQLite（gitignore）
 config.php                  应用与公司配置
 ```
@@ -134,7 +150,9 @@ users(+must_change_password), customers, deals, tasks, products(+reserved), stoc
 ## 10. 提交历史（main）
 
 ```
-(待提交) Harden auth: session cookies, login brute-force throttle, forced default-password change
+169b0da Make reset tool work before web migration adds must_change_password
+b6cbc57 Add CLI password-reset tool for locked-out accounts
+afa4e76 Harden auth: session cookies, login throttle, forced password change
 957817d Let orders enter a new customer and auto-save to customer module
 08eee58 Allow free-text salesperson name with suggestions in order form
 ae9f33b Add assign-salesperson (submitter) option in order form
