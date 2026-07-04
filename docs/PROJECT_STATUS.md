@@ -128,6 +128,16 @@ chown -R www:www data && chmod -R 755 data                                      
   `/www/server/php/82/bin/php -r '$p=new PDO("sqlite:data/crm.sqlite");$p->prepare("UPDATE users SET password_hash=? WHERE email=?")->execute([password_hash("新密码",PASSWORD_DEFAULT),"admin@alupanel.local"]);echo "ok\n";'`
 - 坑：宝塔 PHP CLI 路径随版本变（`ls /www/server/php/` 查实际版本号）；密码用单引号包住更安全；两条命令分行别粘成一行。
 
+## 6e. 数据备份（运维）
+
+`tools/backup_db.php`：用 `VACUUM INTO` 生成**一致快照**到 `backups/`（WAL 下也安全,不需要 wal/shm),自动滚动保留最近 **14** 份。`backups/` 已 gitignore（不进仓库,也不在 web 根 `public/` 下,外网访问不到）。
+- 宝塔「计划任务 → Shell 脚本」每天执行(PHP 路径按版本调整):
+  ```
+  /www/server/php/82/bin/php /www/wwwroot/www.alupanel.cc/tools/backup_db.php
+  ```
+- 恢复:停站 → 用某份快照覆盖 `data/crm.sqlite`(并删掉 `-wal/-shm`)→ `chown -R www:www data`。
+- 进阶(建议):把 `backups/` 定期同步到异地/对象存储,防整机故障。
+
 ## 7. 目录结构
 
 ```
@@ -203,4 +213,4 @@ c3ad488 Initial commit: AluPanel CRM (PHP + SQLite)
 
 真实 logo.png 上传、发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。
 
-**安全/运维后续**（Op2 的 cookie 加固 / 强制改密 / 登录限速已完成）：审计日志（谁改了什么）、数据备份（宝塔定时 copy `crm.sqlite`）、金额用 REAL 存在舍入风险（可改整数分）、列表分页、看板日期范围、移动端布局、自动化测试。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`)。**待办**：审计日志(谁改了什么)、金额用 REAL 存在舍入风险(可改整数分)、列表分页、看板日期范围、移动端布局、自动化测试、备份异地同步。

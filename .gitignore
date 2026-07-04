@@ -4,6 +4,9 @@
 /data/*.sqlite-wal
 /data/*.sqlite-shm
 
+# Database backups (created by tools/backup_db.php)
+/backups/
+
 # Claude Code local settings
 /.claude/
 
