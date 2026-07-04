@@ -1,4 +1,11 @@
-<?php /** @var array $customers */ /** @var string $q */ /** @var string $tag */ ?>
+<?php
+/** @var array $customers */ /** @var string $q */ /** @var string $tag */
+/** @var string $city */ /** @var string $owner */ /** @var string $sort */
+/** @var array $cities */ /** @var array $owners */
+$curFilters = array_filter(['q' => $q, 'tag' => $tag, 'city' => $city, 'owner' => $owner], fn($v) => $v !== '');
+$valueSortHref = url('customers.index', array_merge($curFilters, ['sort' => $sort === 'value_desc' ? 'value_asc' : 'value_desc']));
+$valueArrow = $sort === 'value_desc' ? '↓' : ($sort === 'value_asc' ? '↑' : '⇅');
+?>
 <div class="page-head">
     <h1><?= t('page_customers') ?></h1>
     <div class="head-actions">
@@ -9,6 +16,7 @@
 
 <form class="searchbar" method="get" action="index.php">
     <input type="hidden" name="r" value="customers.index">
+    <input type="hidden" name="sort" value="<?= e($sort) ?>">
     <input class="form-input" type="text" name="q" value="<?= e($q) ?>" placeholder="<?= t('btn_search') ?>...">
     <select class="form-select filter-select" name="tag" onchange="this.form.submit()">
         <option value=""><?= t('all_tags') ?></option>
@@ -16,13 +24,28 @@
             <option value="<?= $tg ?>" <?= $tag === $tg ? 'selected' : '' ?>><?= e(tr_tag($tg)) ?></option>
         <?php endforeach; ?>
     </select>
+    <?php if ($cities): ?>
+        <select class="form-select filter-select" name="city" onchange="this.form.submit()">
+            <option value=""><?= t('all_cities') ?></option>
+            <?php foreach ($cities as $ct): ?><option value="<?= e($ct) ?>" <?= $city === $ct ? 'selected' : '' ?>><?= e($ct) ?></option><?php endforeach; ?>
+        </select>
+    <?php endif; ?>
+    <?php if ($owners): ?>
+        <select class="form-select filter-select" name="owner" onchange="this.form.submit()">
+            <option value=""><?= t('all_owners') ?></option>
+            <?php foreach ($owners as $ow): ?><option value="<?= e($ow) ?>" <?= $owner === $ow ? 'selected' : '' ?>><?= e($ow) ?></option><?php endforeach; ?>
+        </select>
+    <?php endif; ?>
     <button class="btn btn-ghost" type="submit"><?= t('btn_search') ?></button>
+    <?php if ($q !== '' || $tag !== '' || $city !== '' || $owner !== '' || $sort !== ''): ?>
+        <a class="btn btn-ghost" href="<?= url('customers.index') ?>"><?= t('btn_clear') ?></a>
+    <?php endif; ?>
 </form>
 
 <div class="card">
     <div class="table-wrap">
         <table>
-            <thead><tr><th><?= t('th_name') ?></th><th><?= t('th_company') ?></th><th><?= t('th_phone') ?></th><th><?= t('th_city') ?></th><?php if (!sees_only_own()): ?><th><?= t('owner') ?></th><?php endif; ?><th><?= t('th_tag') ?></th><th class="right"><?= t('th_value') ?></th></tr></thead>
+            <thead><tr><th><?= t('th_name') ?></th><th><?= t('th_company') ?></th><th><?= t('th_phone') ?></th><th><?= t('th_city') ?></th><?php if (!sees_only_own()): ?><th><?= t('owner') ?></th><?php endif; ?><th><?= t('th_tag') ?></th><th class="right"><a class="sort-link" href="<?= e($valueSortHref) ?>"><?= t('th_value') ?> <?= $valueArrow ?></a></th></tr></thead>
             <tbody>
             <?php if (!$customers): ?><tr><td colspan="<?= sees_only_own() ? 6 : 7 ?>" class="empty"><?= t('no_customer') ?></td></tr><?php endif; ?>
             <?php foreach ($customers as $c): ?>

@@ -77,7 +77,7 @@ const I18N = [
         'order' => '订单', 'reserved' => '预留', 'not_found' => '页面不存在', 'back_home' => '返回首页', 'incl_tax' => '含税', 'incl_ppn' => '其中含 PPN 12%', 'pretax_subtotal' => '税前 Subtotal (DPP)', 'search_product' => '搜索 SKU / 颜色 / 规格', 'welcome_back' => '欢迎回来', 'assign_sales' => '指定销售（负责人）', 'assign_sales_ph' => '输入或选择销售姓名', 'cust_name_ph' => '选择已有客户或输入新客户', 'save_new_customer' => '新客户：自动保存到客户管理',
         // inventory
         'inv_skus' => 'SKU 数', 'inv_total_stock' => '总库存（张）', 'inv_low' => '低库存预警', 'inv_out' => '缺货',
-        'only_low' => '仅看低库存', 'stock_adjust' => '±库存', 'all_specs' => '全部规格', 'all_tags' => '全部标签',
+        'only_low' => '仅看低库存', 'stock_adjust' => '±库存', 'all_specs' => '全部规格', 'all_tags' => '全部标签', 'all_cities' => '全部城市', 'all_owners' => '全部负责销售',
         'stock_insufficient' => '库存不足', 'need' => '需', 'have' => '库存', 'available' => '可用', 'stock_block_submit' => '有产品库存不足，无法提交订单', 'owner' => '负责销售',
         // orders / approval
         'approval_flow' => '审批流程', 'order_info' => '订单信息', 'do_invoice' => '送货单 / 发票',
@@ -180,7 +180,7 @@ const I18N = [
         'th_last_contact' => 'Kontak Terakhir', 'rejected_back' => 'ditolak — dikembalikan ke draft', 'tax_inclusive_hint' => 'harga termasuk PPN',
         'order' => 'Pesanan', 'reserved' => 'Dipesan', 'not_found' => 'Halaman tidak ditemukan', 'back_home' => 'Kembali ke Beranda', 'incl_tax' => 'incl. PPN', 'incl_ppn' => 'termasuk PPN 12%', 'pretax_subtotal' => 'Subtotal sebelum pajak (DPP)', 'search_product' => 'Cari SKU / Warna / Spek', 'welcome_back' => 'Selamat datang', 'assign_sales' => 'Tetapkan Sales (PIC)', 'assign_sales_ph' => 'Ketik atau pilih nama sales', 'cust_name_ph' => 'Pilih pelanggan atau ketik baru', 'save_new_customer' => 'Pelanggan baru: simpan ke Manajemen Pelanggan',
         'inv_skus' => 'Jumlah SKU', 'inv_total_stock' => 'Total Stok', 'inv_low' => 'Stok Rendah', 'inv_out' => 'Habis',
-        'only_low' => 'Hanya stok rendah', 'stock_adjust' => '±Stok', 'all_specs' => 'Semua Spesifikasi', 'all_tags' => 'Semua Label',
+        'only_low' => 'Hanya stok rendah', 'stock_adjust' => '±Stok', 'all_specs' => 'Semua Spesifikasi', 'all_tags' => 'Semua Label', 'all_cities' => 'Semua Kota', 'all_owners' => 'Semua PIC',
         'stock_insufficient' => 'Stok tidak cukup', 'need' => 'butuh', 'have' => 'stok', 'available' => 'Tersedia', 'stock_block_submit' => 'Ada produk stok tidak cukup, pesanan tidak dapat dikirim', 'owner' => 'Sales PIC',
         'approval_flow' => 'Alur Persetujuan', 'order_info' => 'Info Pesanan', 'do_invoice' => 'Surat Jalan / Invoice',
         'delivery_addr' => 'Alamat Kirim', 'note' => 'Catatan', 'shipping' => 'Ongkir', 'total' => 'Total',

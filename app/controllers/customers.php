@@ -10,6 +10,10 @@ switch ($action) {
     case 'index':
         $q = trim((string) input('q', ''));
         $tag = trim((string) input('tag', ''));
+        $city = trim((string) input('city', ''));
+        $owner = trim((string) input('owner', ''));
+        $sort = (string) input('sort', '');
+
         $sql = 'SELECT * FROM customers';
         $cond = [];
         $args = [];
@@ -21,17 +25,45 @@ switch ($action) {
             $cond[] = 'tag = ?';
             $args[] = $tag;
         }
+        if ($city !== '') {
+            $cond[] = 'city = ?';
+            $args[] = $city;
+        }
         if (sees_only_own()) {
             $cond[] = 'owner = ?';
             $args[] = own_name();
+        } elseif ($owner !== '') {
+            $cond[] = 'owner = ?';
+            $args[] = $owner;
         }
         if ($cond) {
             $sql .= ' WHERE ' . implode(' AND ', $cond);
         }
-        $sql .= ' ORDER BY id DESC';
+        // Whitelisted sort (never interpolate raw input into ORDER BY).
+        $orderBy = [
+            'value_desc' => 'value DESC, id DESC',
+            'value_asc'  => 'value ASC, id DESC',
+        ][$sort] ?? 'id DESC';
+        $sql .= ' ORDER BY ' . $orderBy;
         $stmt = $pdo->prepare($sql);
         $stmt->execute($args);
-        view('customers.index', ['customers' => $stmt->fetchAll(), 'q' => $q, 'tag' => $tag]);
+
+        // Distinct city / owner options for the filter dropdowns (scoped to visibility).
+        if (sees_only_own()) {
+            $cs = $pdo->prepare("SELECT DISTINCT city FROM customers WHERE COALESCE(city,'') <> '' AND owner = ? ORDER BY city");
+            $cs->execute([own_name()]);
+            $cities = array_column($cs->fetchAll(), 'city');
+            $owners = [];
+        } else {
+            $cities = array_column($pdo->query("SELECT DISTINCT city FROM customers WHERE COALESCE(city,'') <> '' ORDER BY city")->fetchAll(), 'city');
+            $owners = array_column($pdo->query("SELECT DISTINCT owner FROM customers WHERE COALESCE(owner,'') <> '' ORDER BY owner")->fetchAll(), 'owner');
+        }
+
+        view('customers.index', [
+            'customers' => $stmt->fetchAll(), 'q' => $q, 'tag' => $tag,
+            'city' => $city, 'owner' => $owner, 'sort' => $sort,
+            'cities' => $cities, 'owners' => $owners,
+        ]);
         break;
 
     case 'export':
