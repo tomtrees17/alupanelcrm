@@ -5,6 +5,7 @@ $remaining = $invoice['total'] - $invoice['amount_paid'];
     <h1><?= t('invoice') ?> <?= e($invoice['invoice_no']) ?> <span class="tag <?= invoice_status_class($invoice['payment_status']) ?>"><?= e(invoice_status_label($invoice['payment_status'])) ?></span></h1>
     <div class="head-actions">
         <a class="btn btn-primary" href="<?= url('finance.print', ['id' => $invoice['id']]) ?>" target="_blank"><?= t('btn_print') ?> · Invoice</a>
+        <?php if (can_word_export()): ?><a class="btn btn-ghost" href="<?= url('finance.word', ['id' => $invoice['id']]) ?>"><?= t('btn_word') ?></a><?php endif; ?>
         <a class="btn btn-ghost" href="<?= url('finance.index') ?>"><?= t('btn_back') ?></a>
     </div>
 </div>

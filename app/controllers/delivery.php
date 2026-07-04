@@ -26,6 +26,31 @@ switch ($action) {
         view('print.do', ['do' => $do, 'items' => $items], false);
         break;
 
+    case 'word':
+        // Editable Word copy — finance staff / warehouse admin only.
+        if (!can_word_export()) {
+            http_response_code(403);
+            flash('无导出权限 / Tidak punya akses ekspor.', 'error');
+            redirect('delivery.index');
+        }
+        $do = find_do($pdo, (int) input('id', 0));
+        $items = [];
+        if ($do['order_id']) {
+            $st = $pdo->prepare('SELECT * FROM order_items WHERE order_id = ?');
+            $st->execute([$do['order_id']]);
+            $items = $st->fetchAll();
+        }
+        if ($do['order_id']) {
+            $o = $pdo->prepare('SELECT order_no FROM orders WHERE id = ?');
+            $o->execute([$do['order_id']]);
+            $do['order_no'] = (string) ($o->fetchColumn() ?: '');
+        }
+        $cfg = $GLOBALS['config'];
+        ob_start();
+        include __DIR__ . '/../../views/word/do.php';
+        Word::download('SuratJalan_' . $do['do_no'], (string) ob_get_clean());
+        break;
+
     default:
         http_response_code(404);
         echo 'Not found';

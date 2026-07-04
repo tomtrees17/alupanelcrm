@@ -84,6 +84,29 @@ switch ($action) {
         view('print.invoice', ['invoice' => $invoice, 'items' => $items->fetchAll(), 'orderNo' => $orderNo], false);
         break;
 
+    case 'word':
+        // Editable Word copy — finance staff / warehouse admin only.
+        if (!can_word_export()) {
+            http_response_code(403);
+            flash('无导出权限 / Tidak punya akses ekspor.', 'error');
+            redirect('finance.index');
+        }
+        $invoice = find_invoice($pdo, (int) input('id', 0));
+        $st = $pdo->prepare('SELECT * FROM invoice_items WHERE invoice_id = ?');
+        $st->execute([$invoice['id']]);
+        $items = $st->fetchAll();
+        $orderNo = '';
+        if ($invoice['order_id']) {
+            $o = $pdo->prepare('SELECT order_no FROM orders WHERE id = ?');
+            $o->execute([$invoice['order_id']]);
+            $orderNo = (string) ($o->fetchColumn() ?: '');
+        }
+        $cfg = $GLOBALS['config'];
+        ob_start();
+        include __DIR__ . '/../../views/word/invoice.php';
+        Word::download('Invoice_' . $invoice['invoice_no'], (string) ob_get_clean());
+        break;
+
     case 'pay':
         Csrf::verify();
         $invoice = find_invoice($pdo, (int) input('id', 0));

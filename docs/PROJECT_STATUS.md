@@ -71,7 +71,9 @@
 - 新建订单按**可用库存**校验（客户端标红阻止提交 + 服务端拒绝）；每级审批再按物理库存校验
 - `order_items.product_id` 已记录；线上旧库由 `Database::ensureSchema()` 自动加列+回填+重算
 
-**打印**：发票(`print/invoice.php`，公司抬头+Bill To+DPP/VAT+双银行ICBC/BCA+签字+terbilang金额大写) 与送货单(`print/do.php`，SURAT JALAN)，A4 样式 `public/assets/css/print.css`。logo：`public/assets/img/logo.{png,svg}`（已提交 SVG 还原版，放 png 可覆盖）。
+**打印**：发票(`print/invoice.php`，公司抬头+Bill To+DPP/VAT+双银行ICBC/BCA+签字+terbilang金额大写) 与送货单(`print/do.php`，SURAT JALAN)，A4 样式 `public/assets/css/print.css`。抬头用公司名（无 logo；放 `public/assets/img/logo.png` 可让侧边栏自动改用图片）。打印时 `no_cjk()` 剔除所有中文（规格如 `4.0*0.15抗刮木纹` 印成 `4.0*0.15`，单位「张」→Unit,库内数据不动）。
+
+**Word 导出（可手改再打）**：`finance.word` / `delivery.word` 生成可编辑 Word 文档（`app/Word.php`，MSO-HTML `.doc`，零依赖，Word/WPS 直接打开编辑）。权限 `can_word_export()`＝admin + 仓库(can_edit_inventory) + 财务(can_access('finance'))；发票 Word 还需过 finance 模块路由（warehouse 只能导送货单）。入口：发票详情/打印页、送货单列表/打印页的「导出 Word」按钮。内容同打印版（含 terbilang、双银行、签名位），同样零中文。
 
 ## 6b. 角色与访问控制（重点）
 

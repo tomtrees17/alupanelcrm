@@ -255,6 +255,16 @@ function can_export(): bool
     return can_access('export');
 }
 
+/** Editable Word export of invoice / delivery order: finance staff + warehouse admin. */
+function can_word_export(): bool
+{
+    $auth = $GLOBALS['auth'] ?? null;
+    if ($auth === null || !$auth->check()) {
+        return false;
+    }
+    return $auth->isAdmin() || can_edit_inventory() || can_access('finance');
+}
+
 /** Restricted users (sales) only see/modify their own orders & customers. */
 function sees_only_own(): bool
 {

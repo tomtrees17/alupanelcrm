@@ -15,7 +15,10 @@
             <td><strong><?= e($d['customer']) ?></strong><br><span class="muted"><?= e($d['company']) ?></span></td>
             <td><?= e($d['pickup_date']) ?></td>
             <td><?= e($d['delivery_service']) ?></td>
-            <td class="right"><a class="btn btn-ghost btn-sm" href="<?= url('delivery.print', ['id' => $d['id']]) ?>" target="_blank"><?= t('btn_print') ?></a></td>
+            <td class="right">
+                <a class="btn btn-ghost btn-sm" href="<?= url('delivery.print', ['id' => $d['id']]) ?>" target="_blank"><?= t('btn_print') ?></a>
+                <?php if (can_word_export()): ?><a class="btn btn-ghost btn-sm" href="<?= url('delivery.word', ['id' => $d['id']]) ?>"><?= t('btn_word') ?></a><?php endif; ?>
+            </td>
         </tr>
     <?php endforeach; ?>
     </tbody>

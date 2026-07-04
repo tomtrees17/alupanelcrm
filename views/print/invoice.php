@@ -19,6 +19,7 @@ $rp = fn($n) => 'Rp' . num($n);
 <body>
 <div class="toolbar">
     <a class="btn" href="<?= url('finance.show', ['id' => $invoice['id']]) ?>">← <?= t('btn_back') ?></a>
+    <?php if (can_word_export()): ?><a class="btn" href="<?= url('finance.word', ['id' => $invoice['id']]) ?>"><?= t('btn_word') ?></a><?php endif; ?>
     <a class="btn btn-primary" href="javascript:window.print()"><?= t('btn_print') ?> / Cetak</a>
 </div>
 

@@ -13,6 +13,7 @@ $cfg = $GLOBALS['config'];
 <div class="toolbar">
     <a class="btn" href="<?= url('delivery.index') ?>">← <?= t('btn_back') ?></a>
     <?php if ($do['order_id']): ?><a class="btn" href="<?= url('orders.show', ['id' => $do['order_id']]) ?>"><?= t('order_info') ?></a><?php endif; ?>
+    <?php if (can_word_export()): ?><a class="btn" href="<?= url('delivery.word', ['id' => $do['id']]) ?>"><?= t('btn_word') ?></a><?php endif; ?>
     <a class="btn btn-primary" href="javascript:window.print()"><?= t('btn_print') ?> / Cetak</a>
 </div>
 

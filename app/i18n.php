@@ -32,7 +32,7 @@ const I18N = [
         'btn_save_customer' => '保存客户', 'btn_save_deal' => '保存商机', 'btn_save_task' => '保存任务',
         'btn_save_product' => '保存产品', 'btn_save_user' => '保存用户', 'btn_save_order' => '提交审批', 'btn_save_draft' => '保存草稿',
         'btn_record_payment' => '登记收款', 'btn_stock_txns' => '出入库流水', 'btn_back_inventory' => '返回库存',
-        'btn_submit' => '提交', 'btn_export' => '导出 Excel',
+        'btn_submit' => '提交', 'btn_export' => '导出 Excel', 'btn_word' => '导出 Word',
         // table headers
         'th_name' => '客户', 'th_company' => '公司', 'th_phone' => '联系方式', 'th_city' => '城市',
         'th_tag' => '标签', 'th_value' => '潜在价值', 'th_action' => '操作', 'th_contact_way' => '联系方式',
@@ -142,7 +142,7 @@ const I18N = [
         'btn_save_customer' => 'Simpan Pelanggan', 'btn_save_deal' => 'Simpan Peluang', 'btn_save_task' => 'Simpan Tugas',
         'btn_save_product' => 'Simpan Produk', 'btn_save_user' => 'Simpan Pengguna', 'btn_save_order' => 'Kirim ke Persetujuan', 'btn_save_draft' => 'Simpan Draft',
         'btn_record_payment' => 'Catat Pembayaran', 'btn_stock_txns' => 'Riwayat Stok', 'btn_back_inventory' => 'Kembali ke Stok',
-        'btn_submit' => 'Kirim', 'btn_export' => 'Ekspor Excel',
+        'btn_submit' => 'Kirim', 'btn_export' => 'Ekspor Excel', 'btn_word' => 'Ekspor Word',
         'th_name' => 'Nama', 'th_company' => 'Perusahaan', 'th_phone' => 'Kontak', 'th_city' => 'Kota',
         'th_tag' => 'Label', 'th_value' => 'Nilai Potensi', 'th_action' => 'Aksi', 'th_contact_way' => 'Kontak',
         'th_sku' => 'SKU', 'th_color' => 'Warna', 'th_spec' => 'Spesifikasi', 'th_stock' => 'Stok',
