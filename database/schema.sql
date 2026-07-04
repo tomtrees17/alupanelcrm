@@ -200,12 +200,13 @@ CREATE TABLE payments (
 -- ── Administrative requests (business trip / expense / leave) ──
 CREATE TABLE admin_requests (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    req_no      TEXT    UNIQUE,             -- BT-2026-001 / EX-2026-001 / LV-2026-001
-    type        TEXT    NOT NULL DEFAULT 'expense',   -- trip|expense|leave
+    req_no      TEXT    UNIQUE,             -- BT- / EX- / LV- / PY- + YYYY-NNN
+    type        TEXT    NOT NULL DEFAULT 'expense',   -- trip|expense|leave|payment
     applicant   TEXT,                       -- requester name
     title       TEXT,                       -- short subject (事由)
-    destination TEXT,                       -- trip only
-    category    TEXT,                       -- expense category or leave type
+    destination TEXT,                       -- trip destination / payment payee
+    category    TEXT,                       -- expense/payment category or leave type
+    ref_no      TEXT,                       -- linked order / invoice / request number
     start_date  TEXT,
     end_date    TEXT,
     amount      REAL    DEFAULT 0,          -- expense amount / trip budget (IDR)

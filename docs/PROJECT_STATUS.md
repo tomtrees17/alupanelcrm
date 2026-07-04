@@ -106,8 +106,8 @@
 ## 6c2. 行政审批（出差 / 报销 / 请假）
 
 - **表** `admin_requests`，**模块键** `approvals`（进权限矩阵，默认所有角色可用；admin 始终全权）。控制器 `app/controllers/approvals.php`，视图 `views/approvals/{index,form,show}.php`。
-- **类型** `request_types()`：trip(出差 BT-)、expense(报销 EX-)、leave(请假 LV-)；单号 `next_request_no()` 格式 `BT-YYYY-NNN`。类别/假种存 `category` 列（canonical 中文值，`tr_req_cat()` 翻译显示）。
-- **流程**：draft →（提交）→ `pending_mgr`(经理审批) →【仅报销】`pending_fin`(财务经理确认支付) → approved。**驳回=退回草稿**（记录 reject_note/by/date、清空已有审批），申请人改后重新提交。角色路由 `request_action_role()`：pending_mgr→manager、pending_fin→finance_manager（admin 任意阶段可操作）。
+- **类型** `request_types()`：trip(出差 BT-)、expense(报销 EX-)、leave(请假 LV-)、**payment(付款申请 PY-)**；单号 `next_request_no()` 格式 `BT-YYYY-NNN`。类别/假种/付款用途存 `category` 列（canonical 中文值，`tr_req_cat()` 翻译显示）。付款申请：`destination` 列复用为**收款方**，必填 收款方+金额；`ref_no` 列存**关联单号**（订单/发票/其他申请，表单 datalist 提示最近单号，详情页 `resolve_ref_link()` 自动解析为可点链接）。报销单也可填关联单号。
+- **流程**：draft →（提交）→ `pending_mgr`(经理审批) →【报销&付款 `request_needs_finance()`】`pending_fin`(财务经理确认支付) → approved。**驳回=退回草稿**（记录 reject_note/by/date、清空已有审批），申请人改后重新提交。角色路由 `request_action_role()`：pending_mgr→manager、pending_fin→finance_manager（admin 任意阶段可操作）。
 - **职责分离**：非 admin **不能审批/驳回自己提交的申请**（`request_can_act()` 校验 applicant≠本人；否则经理/财务经理会给自己签批）。admin 作为最高权限例外可自签（小企业老板自己报销的兜底）。
 - 已知低危：表单按类型切换字段依赖 JS（禁用隐藏区 input 防重名提交）；禁用 JS 时 `start_date/amount` 重名会串值，导致报销存不上。内部系统 JS 常开,暂未改；如需彻底修则给各类型字段起不同 name。
 - **表单**：类型切换显隐字段（JS 同时 disable 隐藏 input 防重名提交）；草稿/提交两按钮 do=draft|submit；服务端按类型校验必填（trip:目的地+开始日；expense:金额>0+费用日期；leave:起止日期）。

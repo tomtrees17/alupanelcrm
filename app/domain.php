@@ -154,7 +154,7 @@ function next_invoice_no(PDO $pdo): string
 /** Next administrative-request number per type: BT-YYYY-NNN / EX-YYYY-NNN / LV-YYYY-NNN */
 function next_request_no(PDO $pdo, string $type): string
 {
-    $prefix = ['trip' => 'BT', 'expense' => 'EX', 'leave' => 'LV'][$type] ?? 'AR';
+    $prefix = ['trip' => 'BT', 'expense' => 'EX', 'leave' => 'LV', 'payment' => 'PY'][$type] ?? 'AR';
     $max = 0;
     $stmt = $pdo->prepare("SELECT req_no FROM admin_requests WHERE req_no LIKE ?");
     $stmt->execute([$prefix . '-%']);

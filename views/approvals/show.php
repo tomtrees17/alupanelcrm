@@ -2,14 +2,14 @@
 /** @var array $req */
 /** @var Auth $auth */
 $status = $req['status'];
-$isExpense = $req['type'] === 'expense';
+$twoStage = request_needs_finance((string) $req['type']);   // expense & payment go through finance
 
-// Approval timeline: applicant → manager → (finance for expenses).
+// Approval timeline: applicant → manager → (finance for expense / payment).
 $steps = [
     ['key' => 'apply', 'label' => t('applicant'), 'who' => $req['applicant'], 'date' => $req['created_at']],
     ['key' => 'mgr', 'label' => t('manager'), 'who' => $req['mgr_approver'], 'date' => $req['mgr_date']],
 ];
-if ($isExpense) {
+if ($twoStage) {
     $steps[] = ['key' => 'fin', 'label' => t('finance'), 'who' => $req['fin_approver'], 'date' => $req['fin_date']];
 }
 $activeMap = ['pending_mgr' => 'mgr', 'pending_fin' => 'fin'];
@@ -60,6 +60,11 @@ $canAct = request_can_act($auth, $req) && in_array($status, ['pending_mgr', 'pen
         <div><dt><?= t('th_subject') ?></dt><dd><?= e($req['title']) ?></dd></div>
         <?php if ($req['type'] === 'trip'): ?>
             <div><dt><?= t('f_destination') ?></dt><dd><?= e($req['destination']) ?: '—' ?></dd></div>
+        <?php elseif ($req['type'] === 'payment'): ?>
+            <div><dt><?= t('f_payee') ?></dt><dd><strong><?= e($req['destination']) ?: '—' ?></strong></dd></div>
+        <?php endif; ?>
+        <?php if (!empty($req['ref_no'])): ?>
+            <div><dt><?= t('f_ref') ?></dt><dd><?php if (!empty($refLink)): ?><a href="<?= e($refLink['url']) ?>" style="color:var(--accent2)"><code><?= e($refLink['label']) ?></code></a><?php else: ?><code><?= e($req['ref_no']) ?></code><?php endif; ?></dd></div>
         <?php endif; ?>
         <?php if ($req['category']): ?>
             <div><dt><?= $req['type'] === 'leave' ? t('f_leave_type') : t('f_category') ?></dt><dd><?= e(tr_req_cat($req['category'])) ?></dd></div>

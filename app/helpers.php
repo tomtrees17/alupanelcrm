@@ -322,7 +322,13 @@ function can_access(string $module): bool
 
 function request_types(): array
 {
-    return ['trip', 'expense', 'leave'];
+    return ['trip', 'expense', 'leave', 'payment'];
+}
+
+/** Types whose approval continues to finance for payment confirmation. */
+function request_needs_finance(string $type): bool
+{
+    return in_array($type, ['expense', 'payment'], true);
 }
 
 function request_type_label(string $t): string
@@ -389,12 +395,19 @@ function leave_types(): array
     return ['事假', '病假', '年假'];
 }
 
-/** Translate a canonical expense category / leave type for display. */
+/** Payment-request purposes (canonical zh values, translated for display). */
+function payment_categories(): array
+{
+    return ['货款', '运费', '租金', '水电', '其他'];
+}
+
+/** Translate a canonical expense/payment category / leave type for display. */
 function tr_req_cat(string $c): string
 {
     $map = [
         '交通' => 'cat_transport', '住宿' => 'cat_lodging', '餐饮' => 'cat_meals',
         '办公' => 'cat_office', '其他' => 'cat_other',
+        '货款' => 'cat_goods', '运费' => 'cat_freight', '租金' => 'cat_rent', '水电' => 'cat_utility',
         '事假' => 'lv_personal', '病假' => 'lv_sick', '年假' => 'lv_annual',
     ];
     return isset($map[$c]) ? t($map[$c]) : $c;

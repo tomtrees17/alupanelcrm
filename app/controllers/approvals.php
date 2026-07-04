@@ -61,13 +61,14 @@ switch ($action) {
         $req = find_request($pdo, (int) input('id', 0));
         view('approvals.show', [
             'pageTitle' => $req['req_no'], 'pageSub' => request_type_label($req['type']),
-            'req' => $req,
+            'req' => $req, 'refLink' => resolve_ref_link($pdo, (string) ($req['ref_no'] ?? '')),
         ]);
         break;
 
     case 'create':
         view('approvals.form', [
             'pageTitle' => t('btn_add_request'), 'pageSub' => '', 'req' => null,
+            'refOptions' => ref_options($pdo),
         ]);
         break;
 
@@ -85,6 +86,7 @@ switch ($action) {
         }
         view('approvals.form', [
             'pageTitle' => t('btn_edit') . ' ' . $req['req_no'], 'pageSub' => '', 'req' => $req,
+            'refOptions' => ref_options($pdo),
         ]);
         break;
 
@@ -157,15 +159,19 @@ function save_request(PDO $pdo, Auth $auth, ?array $existing): int
         ? (string) input('type')
         : ($isEdit ? (string) $existing['type'] : 'expense');
     $title = trim((string) input('title', ''));
-    $dest = trim((string) input('destination', ''));
+    $dest = trim((string) input('destination', ''));   // trip destination / payment payee
     $reason = trim((string) input('reason', ''));
     $start = trim((string) input('start_date', ''));
     $end = trim((string) input('end_date', ''));
     $amount = (float) input('amount', 0);
+    // Linked order / invoice / request number (payment & expense only).
+    $ref = in_array($type, ['payment', 'expense'], true) ? trim((string) input('ref_no', '')) : '';
 
-    // Category doubles as expense category / leave type; keep only canonical values.
+    // Category doubles as expense/payment category / leave type; keep only canonical values.
     $category = (string) input('category', '');
     if ($type === 'expense' && !in_array($category, expense_categories(), true)) {
+        $category = '其他';
+    } elseif ($type === 'payment' && !in_array($category, payment_categories(), true)) {
         $category = '其他';
     } elseif ($type === 'leave' && !in_array($category, leave_types(), true)) {
         $category = '事假';
@@ -177,15 +183,16 @@ function save_request(PDO $pdo, Auth $auth, ?array $existing): int
     $missing = $title === ''
         || ($type === 'trip' && ($dest === '' || $start === ''))
         || ($type === 'expense' && ($amount <= 0 || $start === ''))
+        || ($type === 'payment' && ($amount <= 0 || $dest === ''))
         || ($type === 'leave' && ($start === '' || $end === ''));
     if ($missing) {
         flash(t('req_fill_required'), 'error');
         redirect($back[0], $back[1]);
     }
-    if ($type !== 'expense' && $end !== '' && $end < $start) {
+    if (in_array($type, ['trip', 'leave'], true) && $end !== '' && $end < $start) {
         $end = $start;
     }
-    if ($type === 'expense') {
+    if (in_array($type, ['expense', 'payment'], true)) {
         $end = '';
     }
     if ($type === 'leave') {
@@ -196,8 +203,8 @@ function save_request(PDO $pdo, Auth $auth, ?array $existing): int
 
     if ($isEdit) {
         // Applicant never changes on edit; a fresh submit clears the previous rejection.
-        $sql = 'UPDATE admin_requests SET type=?, title=?, destination=?, category=?, start_date=?, end_date=?, amount=?, reason=?, status=?';
-        $params = [$type, $title, $dest, $category, $start, $end, $amount, $reason, $status];
+        $sql = 'UPDATE admin_requests SET type=?, title=?, destination=?, category=?, ref_no=?, start_date=?, end_date=?, amount=?, reason=?, status=?';
+        $params = [$type, $title, $dest, $category, $ref, $start, $end, $amount, $reason, $status];
         if ($submit) {
             $sql .= ', reject_note=NULL, reject_by=NULL, reject_date=NULL, mgr_note=NULL, mgr_approver=NULL, mgr_date=NULL, fin_note=NULL, fin_approver=NULL, fin_date=NULL';
         }
@@ -207,10 +214,10 @@ function save_request(PDO $pdo, Auth $auth, ?array $existing): int
         $id = (int) $existing['id'];
     } else {
         $pdo->prepare(
-            'INSERT INTO admin_requests (req_no,type,applicant,title,destination,category,start_date,end_date,amount,reason,status)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+            'INSERT INTO admin_requests (req_no,type,applicant,title,destination,category,ref_no,start_date,end_date,amount,reason,status)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
         )->execute([
-            next_request_no($pdo, $type), $type, own_name(), $title, $dest, $category,
+            next_request_no($pdo, $type), $type, own_name(), $title, $dest, $category, $ref,
             $start, $end, $amount, $reason, $status,
         ]);
         $id = (int) $pdo->lastInsertId();
@@ -245,8 +252,8 @@ function approve_request(PDO $pdo, Auth $auth, array $req, string $note): void
 
     switch ($req['status']) {
         case 'pending_mgr':
-            // Expenses continue to finance for payment confirmation; others are done.
-            $next = $req['type'] === 'expense' ? 'pending_fin' : 'approved';
+            // Expenses & payment requests continue to finance; others are done.
+            $next = request_needs_finance((string) $req['type']) ? 'pending_fin' : 'approved';
             $pdo->prepare('UPDATE admin_requests SET status=?, mgr_note=?, mgr_approver=?, mgr_date=? WHERE id=?')
                 ->execute([$next, $note, $name, $today, $req['id']]);
             flash($next === 'pending_fin' ? t('req_to_fin') : t('req_approved'));
@@ -278,6 +285,43 @@ function reject_request(PDO $pdo, Auth $auth, array $req, string $note): void
          WHERE id=?"
     )->execute([$note, $auth->user()['name'] ?? '', date('Y-m-d'), $req['id']]);
     flash(t('req_rejected'));
+}
+
+/** Recent document numbers offered as suggestions for the 关联单号 field. */
+function ref_options(PDO $pdo): array
+{
+    $opts = [];
+    foreach ([
+        "SELECT req_no AS n FROM admin_requests WHERE COALESCE(req_no,'') <> '' ORDER BY id DESC LIMIT 30",
+        "SELECT order_no AS n FROM orders WHERE COALESCE(order_no,'') <> '' ORDER BY id DESC LIMIT 30",
+        "SELECT invoice_no AS n FROM invoices WHERE COALESCE(invoice_no,'') <> '' ORDER BY id DESC LIMIT 30",
+    ] as $q) {
+        foreach ($pdo->query($q) as $r) {
+            $opts[] = (string) $r['n'];
+        }
+    }
+    return array_values(array_unique($opts));
+}
+
+/** Resolve a linked number to an in-app URL (request / order / invoice), or null. */
+function resolve_ref_link(PDO $pdo, string $ref): ?array
+{
+    if ($ref === '') {
+        return null;
+    }
+    foreach ([
+        ['SELECT id FROM admin_requests WHERE req_no = ?', 'approvals.show'],
+        ['SELECT id FROM orders WHERE order_no = ?', 'orders.show'],
+        ['SELECT id FROM invoices WHERE invoice_no = ?', 'finance.show'],
+    ] as [$sql, $route]) {
+        $st = $pdo->prepare($sql);
+        $st->execute([$ref]);
+        $id = $st->fetchColumn();
+        if ($id) {
+            return ['url' => url($route, ['id' => (int) $id]), 'label' => $ref];
+        }
+    }
+    return null;
 }
 
 function find_request(PDO $pdo, int $id): array

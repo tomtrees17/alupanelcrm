@@ -33,10 +33,24 @@ $act = $isEdit ? url('approvals.update') : url('approvals.store');
             <input class="form-input" name="destination" value="<?= e($req['destination'] ?? '') ?>">
         </div>
 
+        <div class="form-group" data-for="payment">
+            <label class="form-label"><?= t('f_payee') ?></label>
+            <input class="form-input" name="destination" value="<?= e($req['destination'] ?? '') ?>">
+        </div>
+
         <div class="form-group" data-for="expense">
             <label class="form-label"><?= t('f_category') ?></label>
             <select class="form-select" name="category">
                 <?php foreach (expense_categories() as $c): ?>
+                    <option value="<?= e($c) ?>" <?= ($req['category'] ?? '') === $c ? 'selected' : '' ?>><?= e(tr_req_cat($c)) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="form-group" data-for="payment">
+            <label class="form-label"><?= t('f_category') ?></label>
+            <select class="form-select" name="category">
+                <?php foreach (payment_categories() as $c): ?>
                     <option value="<?= e($c) ?>" <?= ($req['category'] ?? '') === $c ? 'selected' : '' ?>><?= e(tr_req_cat($c)) ?></option>
                 <?php endforeach; ?>
             </select>
@@ -56,6 +70,11 @@ $act = $isEdit ? url('approvals.update') : url('approvals.store');
             <input class="form-input" type="date" name="start_date" value="<?= e($req['start_date'] ?? '') ?>">
         </div>
 
+        <div class="form-group" data-for="payment">
+            <label class="form-label"><?= t('f_pay_date') ?></label>
+            <input class="form-input" type="date" name="start_date" value="<?= e($req['start_date'] ?? '') ?>">
+        </div>
+
         <div class="grid-2" data-for="trip leave" style="grid-template-columns:1fr 1fr;gap:12px">
             <div class="form-group">
                 <label class="form-label"><?= t('f_start') ?></label>
@@ -67,13 +86,21 @@ $act = $isEdit ? url('approvals.update') : url('approvals.store');
             </div>
         </div>
 
-        <div class="form-group" data-for="expense">
+        <div class="form-group" data-for="expense payment">
             <label class="form-label"><?= t('f_amount') ?></label>
             <input class="form-input" type="number" step="1" min="0" name="amount" value="<?= e($req['amount'] ?? '') ?>">
         </div>
         <div class="form-group" data-for="trip">
             <label class="form-label"><?= t('f_budget') ?></label>
             <input class="form-input" type="number" step="1" min="0" name="amount" value="<?= e($req['amount'] ?? '') ?>">
+        </div>
+
+        <div class="form-group" data-for="expense payment">
+            <label class="form-label"><?= t('f_ref') ?></label>
+            <input class="form-input" name="ref_no" list="ref-options" value="<?= e($req['ref_no'] ?? '') ?>" autocomplete="off">
+            <datalist id="ref-options">
+                <?php foreach (($refOptions ?? []) as $o): ?><option value="<?= e($o) ?>"><?php endforeach; ?>
+            </datalist>
         </div>
 
         <div class="form-group">

@@ -141,7 +141,7 @@ final class Database
             "CREATE TABLE IF NOT EXISTS admin_requests (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 req_no TEXT UNIQUE, type TEXT NOT NULL DEFAULT 'expense',
-                applicant TEXT, title TEXT, destination TEXT, category TEXT,
+                applicant TEXT, title TEXT, destination TEXT, category TEXT, ref_no TEXT,
                 start_date TEXT, end_date TEXT, amount REAL DEFAULT 0, reason TEXT,
                 status TEXT NOT NULL DEFAULT 'draft',
                 mgr_note TEXT, mgr_approver TEXT, mgr_date TEXT,
@@ -150,6 +150,12 @@ final class Database
                 created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
             )"
         );
+        // admin_requests.ref_no (付款申请关联单号, added later) — add on live tables created before it.
+        $acols = array_column($pdo->query('PRAGMA table_info(admin_requests)')->fetchAll(), 'name');
+        if (!in_array('ref_no', $acols, true)) {
+            $pdo->exec('ALTER TABLE admin_requests ADD COLUMN ref_no TEXT');
+        }
+
         if (!$pdo->query("SELECT 1 FROM app_meta WHERE k = 'perm_approvals'")->fetchColumn()) {
             $ins = $pdo->prepare('INSERT OR IGNORE INTO role_permissions (role, module) VALUES (?, ?)');
             foreach (all_roles() as $role) {
