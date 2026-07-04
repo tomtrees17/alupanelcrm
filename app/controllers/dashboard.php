@@ -72,6 +72,46 @@ $hotProducts = $pdo->query(
       LIMIT 8"
 )->fetchAll();
 
+// Monthly (last 6) & weekly (last 8) sales trend — placed orders (excl. draft/rejected).
+// Management view: gated by the same 'performance' permission as the all-staff card.
+$monthlySales = [];
+$weeklySales  = [];
+if (can_access('performance')) {
+    $since = date('Y-m-d', strtotime('-6 months'));
+    $ts = $pdo->prepare(
+        "SELECT o.created_at AS d,
+                (SELECT COALESCE(SUM(qty*price),0) FROM order_items WHERE order_id=o.id) + o.shipping_cost AS amount
+           FROM orders o
+          WHERE o.status NOT IN ('draft','rejected') AND o.created_at >= ?"
+    );
+    $ts->execute([$since]);
+    $placed = $ts->fetchAll();
+
+    for ($i = 5; $i >= 0; $i--) {
+        $m = strtotime("first day of -$i months");
+        $monthlySales[date('Y-m', $m)] = ['label' => date('M', $m), 'amount' => 0.0, 'orders' => 0];
+    }
+    for ($i = 7; $i >= 0; $i--) {
+        $wk = strtotime('monday this week', strtotime("-$i weeks"));
+        $weeklySales[date('Y-m-d', $wk)] = ['label' => date('n/j', $wk), 'amount' => 0.0, 'orders' => 0];
+    }
+    foreach ($placed as $p) {
+        $amt = (float) $p['amount'];
+        $mk = substr((string) $p['d'], 0, 7);
+        if (isset($monthlySales[$mk])) {
+            $monthlySales[$mk]['amount'] += $amt;
+            $monthlySales[$mk]['orders']++;
+        }
+        $wkKey = date('Y-m-d', strtotime('monday this week', strtotime((string) $p['d'])));
+        if (isset($weeklySales[$wkKey])) {
+            $weeklySales[$wkKey]['amount'] += $amt;
+            $weeklySales[$wkKey]['orders']++;
+        }
+    }
+    $monthlySales = array_values($monthlySales);
+    $weeklySales  = array_values($weeklySales);
+}
+
 // Personal performance for users without the 全员业绩 permission (e.g. sales see only their own).
 $myPerf = null;
 $myName = $auth->user()['name'] ?? '';
@@ -100,4 +140,6 @@ view('dashboard.index', [
     'salesPerf' => $salesPerf,
     'hotProducts' => $hotProducts,
     'myPerf'    => $myPerf,
+    'monthlySales' => $monthlySales,
+    'weeklySales'  => $weeklySales,
 ]);

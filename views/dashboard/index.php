@@ -1,6 +1,7 @@
 <?php
 /** @var float $revenue */ /** @var int $custCount */ /** @var int $activeDeals */
 /** @var int $taskRate */ /** @var array $funnel */ /** @var array $recent */ /** @var array $overdue */
+/** @var array $monthlySales */ /** @var array $weeklySales */
 ?>
 <?php if (can_access('finance') && $overdue): ?>
     <div class="credit-alert">
@@ -59,6 +60,35 @@
 </div>
 
 <?php if (can_access('performance')): ?>
+<div class="card">
+    <div class="card-header"><span class="card-title"><?= t('sales_trend') ?></span></div>
+    <div class="card-body">
+        <div class="grid-2">
+            <?php
+            $renderTrend = function (array $data, string $title) {
+                $max = max(1, ...array_map(fn($x) => (float) $x['amount'], $data ?: [['amount' => 0]]));
+                ?>
+                <div>
+                    <div class="trend-title"><?= e($title) ?></div>
+                    <div class="trend">
+                        <?php foreach ($data as $d): ?>
+                            <div class="trend-col" title="<?= e($d['label']) ?> · <?= idr($d['amount']) ?> · <?= (int) $d['orders'] ?> <?= t('col_orders') ?>">
+                                <div class="trend-val"><?= $d['amount'] > 0 ? idr_short($d['amount']) : '' ?></div>
+                                <div class="trend-bar-wrap"><div class="trend-bar" style="height:<?= round($d['amount'] / $max * 100) ?>%"></div></div>
+                                <div class="trend-label"><?= e($d['label']) ?></div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php
+            };
+            $renderTrend($monthlySales, t('monthly_sales'));
+            $renderTrend($weeklySales, t('weekly_sales'));
+            ?>
+        </div>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-header"><span class="card-title"><?= t('sales_perf') ?></span></div>
     <div class="table-wrap"><table>
