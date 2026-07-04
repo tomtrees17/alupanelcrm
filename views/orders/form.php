@@ -159,9 +159,9 @@ function recalc() {
     document.getElementById('t-subtotal').textContent = fmt(gross - ppn);
 }
 
-// Full designation: SKU · 中文名 / English name · spec · size
+// Full designation: SKU · 中文名 / English name · spec
 const pName = p => (p.zh && p.zh !== p.color) ? `${p.zh} / ${p.color}` : p.color;
-const pLabel = p => `${p.sku} · ${pName(p)} · ${p.spec} · ${p.size} (${AVAIL_LBL} ${p.stock})`;
+const pLabel = p => `${p.sku} · ${pName(p)} · ${p.spec} (${AVAIL_LBL} ${p.stock})`;
 
 function bindRow(row) {
     const input = row.querySelector('.product-search');
@@ -191,7 +191,7 @@ function bindRow(row) {
         if (!matches.length) { list.style.display = 'none'; return; }
         list.innerHTML = matches.map((p, i) => {
             const cls = p.stock <= 0 ? 'st-out' : (p.stock <= p.min ? 'st-low' : '');
-            return `<div class="combo-item" data-i="${i}">${p.sku} · ${pName(p)} · ${p.spec} · ${p.size} <span class="${cls}">(${AVAIL_LBL} ${p.stock})</span></div>`;
+            return `<div class="combo-item" data-i="${i}">${p.sku} · ${pName(p)} · ${p.spec} <span class="${cls}">(${AVAIL_LBL} ${p.stock})</span></div>`;
         }).join('');
         list.style.display = 'block';
     };
