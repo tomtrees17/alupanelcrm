@@ -62,7 +62,49 @@ switch ($action) {
         view('approvals.show', [
             'pageTitle' => $req['req_no'], 'pageSub' => request_type_label($req['type']),
             'req' => $req, 'refLink' => resolve_ref_link($pdo, (string) ($req['ref_no'] ?? '')),
+            'files' => request_files($pdo, (int) $req['id']),
         ]);
+        break;
+
+    case 'file':
+        // Stream an attachment; visibility enforced via find_request on its parent.
+        $st = $pdo->prepare('SELECT * FROM request_files WHERE id = ?');
+        $st->execute([(int) input('fid', 0)]);
+        $f = $st->fetch();
+        if (!$f) {
+            http_response_code(404);
+            exit('Not found');
+        }
+        find_request($pdo, (int) $f['request_id']);
+        $path = request_upload_dir((int) $f['request_id']) . '/' . $f['stored'];
+        if (!is_file($path)) {
+            http_response_code(404);
+            exit('Not found');
+        }
+        header('Content-Type: ' . ($f['mime'] ?: 'application/octet-stream'));
+        header("Content-Disposition: inline; filename*=UTF-8''" . rawurlencode((string) $f['orig_name']));
+        header('Content-Length: ' . (string) filesize($path));
+        readfile($path);
+        exit;
+
+    case 'delfile':
+        Csrf::verify();
+        $st = $pdo->prepare('SELECT * FROM request_files WHERE id = ?');
+        $st->execute([(int) input('fid', 0)]);
+        $f = $st->fetch();
+        if (!$f) {
+            http_response_code(404);
+            exit('Not found');
+        }
+        $req = find_request($pdo, (int) $f['request_id']);
+        if (!request_editable($req)) {
+            flash(t('req_not_editable'), 'error');
+            redirect('approvals.show', ['id' => $req['id']]);
+        }
+        @unlink(request_upload_dir((int) $f['request_id']) . '/' . $f['stored']);
+        $pdo->prepare('DELETE FROM request_files WHERE id = ?')->execute([$f['id']]);
+        flash(t('att_deleted'));
+        redirect('approvals.edit', ['id' => $req['id']]);
         break;
 
     case 'create':
@@ -86,7 +128,7 @@ switch ($action) {
         }
         view('approvals.form', [
             'pageTitle' => t('btn_edit') . ' ' . $req['req_no'], 'pageSub' => '', 'req' => $req,
-            'refOptions' => ref_options($pdo),
+            'refOptions' => ref_options($pdo), 'files' => request_files($pdo, (int) $req['id']),
         ]);
         break;
 
@@ -223,8 +265,78 @@ function save_request(PDO $pdo, Auth $auth, ?array $existing): int
         $id = (int) $pdo->lastInsertId();
     }
 
+    handle_request_uploads($pdo, $id);
+
     flash($submit ? t('req_submitted') : t('req_saved_draft'));
     return $id;
+}
+
+/** Absolute directory holding a request's attachments (outside the web root). */
+function request_upload_dir(int $reqId): string
+{
+    return dirname(__DIR__, 2) . '/data/uploads/req/' . $reqId;
+}
+
+function request_files(PDO $pdo, int $reqId): array
+{
+    $st = $pdo->prepare('SELECT * FROM request_files WHERE request_id = ? ORDER BY id');
+    $st->execute([$reqId]);
+    return $st->fetchAll();
+}
+
+/** Magic-byte content sniffing for the allowed set (no ext-fileinfo dependency). */
+function sniff_upload_mime(string $path): ?string
+{
+    $h = (string) @file_get_contents($path, false, null, 0, 16);
+    if (strncmp($h, "\x89PNG\r\n\x1a\n", 8) === 0) {
+        return 'image/png';
+    }
+    if (strncmp($h, "\xFF\xD8\xFF", 3) === 0) {
+        return 'image/jpeg';
+    }
+    if (strncmp($h, 'RIFF', 4) === 0 && substr($h, 8, 4) === 'WEBP') {
+        return 'image/webp';
+    }
+    if (strncmp($h, '%PDF', 4) === 0) {
+        return 'application/pdf';
+    }
+    return null;
+}
+
+/** Save validated uploads (images / PDF, ≤8MB each) for a request. */
+function handle_request_uploads(PDO $pdo, int $reqId): void
+{
+    if (empty($_FILES['files']['name']) || !is_array($_FILES['files']['name'])) {
+        return;
+    }
+    $allowed = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp', 'pdf' => 'application/pdf'];
+    $dir = request_upload_dir($reqId);
+
+    foreach ($_FILES['files']['name'] as $i => $name) {
+        if (($_FILES['files']['error'][$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            continue;
+        }
+        $size = (int) ($_FILES['files']['size'][$i] ?? 0);
+        if ($size <= 0 || $size > 8 * 1024 * 1024) {
+            flash(t('att_too_big'), 'error');
+            continue;
+        }
+        $ext = strtolower(pathinfo((string) $name, PATHINFO_EXTENSION));
+        $tmp = (string) $_FILES['files']['tmp_name'][$i];
+        // Extension AND actual file content must both be an allowed type.
+        if (!isset($allowed[$ext]) || sniff_upload_mime($tmp) !== $allowed[$ext]) {
+            flash(t('att_bad_type'), 'error');
+            continue;
+        }
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        $stored = bin2hex(random_bytes(8)) . '.' . $ext;
+        if (move_uploaded_file($tmp, $dir . '/' . $stored)) {
+            $pdo->prepare('INSERT INTO request_files (request_id, stored, orig_name, mime, size, uploaded_by) VALUES (?,?,?,?,?,?)')
+                ->execute([$reqId, $stored, (string) $name, $allowed[$ext], $size, own_name()]);
+        }
+    }
 }
 
 /** Check the current user may act on this request's pending stage. */

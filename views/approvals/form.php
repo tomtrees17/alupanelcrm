@@ -10,7 +10,7 @@ $act = $isEdit ? url('approvals.update') : url('approvals.store');
 </div>
 
 <div class="card" style="max-width:640px"><div class="card-body">
-    <form method="post" action="<?= $act ?>" id="req-form">
+    <form method="post" action="<?= $act ?>" id="req-form" enctype="multipart/form-data">
         <?= Csrf::field() ?>
         <?php if ($isEdit): ?><input type="hidden" name="id" value="<?= (int) $req['id'] ?>"><?php endif; ?>
 
@@ -108,12 +108,34 @@ $act = $isEdit ? url('approvals.update') : url('approvals.store');
             <textarea class="form-textarea" name="reason" rows="3"><?= e($req['reason'] ?? '') ?></textarea>
         </div>
 
+        <div class="form-group">
+            <label class="form-label"><?= t('f_attachments') ?></label>
+            <input class="form-input" type="file" name="files[]" multiple accept=".jpg,.jpeg,.png,.webp,.pdf">
+            <div style="font-size:11px;color:var(--text3);margin-top:4px"><?= t('att_hint') ?></div>
+        </div>
+
         <div class="form-actions">
             <button class="btn btn-ghost" type="submit" name="do" value="draft"><?= t('btn_save_draft') ?></button>
             <button class="btn btn-primary" type="submit" name="do" value="submit"><?= t('btn_save_order') ?></button>
         </div>
     </form>
 </div></div>
+
+<?php if (!empty($files)): ?>
+<div class="card" style="max-width:640px"><div class="card-body">
+    <span class="card-title"><?= t('attachments') ?></span>
+    <?php foreach ($files as $f): ?>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+            <a href="<?= url('approvals.file', ['fid' => $f['id']]) ?>" target="_blank" style="color:var(--accent2)">📎 <?= e($f['orig_name']) ?></a>
+            <span class="muted" style="font-size:11px"><?= num(round($f['size'] / 1024)) ?> KB</span>
+            <form method="post" action="<?= url('approvals.delfile') ?>" onsubmit="return confirm('?')" style="margin-left:auto">
+                <?= Csrf::field() ?><input type="hidden" name="fid" value="<?= (int) $f['id'] ?>">
+                <button class="btn btn-ghost btn-sm" type="submit" style="color:var(--danger)">×</button>
+            </form>
+        </div>
+    <?php endforeach; ?>
+</div></div>
+<?php endif; ?>
 
 <script>
 (function () {

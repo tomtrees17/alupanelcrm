@@ -150,6 +150,17 @@ final class Database
                 created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
             )"
         );
+        // request_files table (申请附件, added later).
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS request_files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_id INTEGER NOT NULL REFERENCES admin_requests(id) ON DELETE CASCADE,
+                stored TEXT NOT NULL, orig_name TEXT, mime TEXT, size INTEGER DEFAULT 0,
+                uploaded_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            )"
+        );
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reqfiles_req ON request_files(request_id)');
+
         // admin_requests.ref_no (付款申请关联单号, added later) — add on live tables created before it.
         $acols = array_column($pdo->query('PRAGMA table_info(admin_requests)')->fetchAll(), 'name');
         if (!in_array('ref_no', $acols, true)) {

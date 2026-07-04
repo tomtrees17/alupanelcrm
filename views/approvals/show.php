@@ -78,6 +78,14 @@ $canAct = request_can_act($auth, $req) && in_array($status, ['pending_mgr', 'pen
     <?php if ($req['reason']): ?>
         <div class="notes"><strong><?= t('f_reason') ?>：</strong><?= nl2br(e($req['reason'])) ?></div>
     <?php endif; ?>
+    <?php if (!empty($files)): ?>
+        <div class="notes" style="margin-top:10px">
+            <strong><?= t('attachments') ?>：</strong>
+            <?php foreach ($files as $f): ?>
+                <div style="margin-top:6px"><a href="<?= url('approvals.file', ['fid' => $f['id']]) ?>" target="_blank" style="color:var(--accent2)">📎 <?= e($f['orig_name']) ?></a> <span class="muted" style="font-size:11px"><?= num(round($f['size'] / 1024)) ?> KB · <?= e($f['uploaded_by']) ?></span></div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
 </div></div>
 
 <?php if ($req['mgr_note'] || $req['mgr_approver'] || $req['fin_note'] || $req['fin_approver']): ?>

@@ -112,6 +112,7 @@
 - 已知低危：表单按类型切换字段依赖 JS（禁用隐藏区 input 防重名提交）；禁用 JS 时 `start_date/amount` 重名会串值，导致报销存不上。内部系统 JS 常开,暂未改；如需彻底修则给各类型字段起不同 name。
 - **表单**：类型切换显隐字段（JS 同时 disable 隐藏 input 防重名提交）；草稿/提交两按钮 do=draft|submit；服务端按类型校验必填（trip:目的地+开始日；expense:金额>0+费用日期；leave:起止日期）。
 - **记录级可见性** `approvals_sees_all()`：admin/manager/finance_manager/hr 看全部；其他角色只看/只能访问**自己的申请**（`find_request` 403+重定向）。草稿仅申请人/admin 可编辑/删除（admin 可删任意）。
+- **附件**（`request_files` 表 + `data/uploads/req/<id>/`,在 web 根之外）：表单可多选上传 图片(jpg/png/webp)/PDF,单个 ≤8MB;**魔数检测**文件真实类型(`sniff_upload_mime()`,不依赖 fileinfo 扩展),伪装扩展名拒收;存随机文件名。下载走 `approvals.file&fid=`(经 `find_request` 可见性校验后 readfile 流式输出,外网无法直连文件)。草稿期申请人/admin 可删(`approvals.delfile`)。服务器 PHP `upload_max_filesize` 需 ≥8M(宝塔默认 50M,一般无需动)。
 - **线上升级**：`ensureSchema` 自动建表 + 一次性给所有角色授 `approvals` 权限（app_meta `perm_approvals`）。侧边栏「行政审批」带待审批数徽标。
 - 注意：pending_fin 需要有 `finance_manager` 角色用户处理（或 admin）；种子里没有该角色用户，线上请在用户管理里指派。
 

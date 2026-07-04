@@ -219,6 +219,19 @@ CREATE TABLE admin_requests (
     created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+-- ── Attachments for administrative requests (stored under data/uploads/req/<id>/) ──
+CREATE TABLE request_files (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id  INTEGER NOT NULL REFERENCES admin_requests(id) ON DELETE CASCADE,
+    stored      TEXT    NOT NULL,            -- random server-side filename
+    orig_name   TEXT,                        -- original upload name (display)
+    mime        TEXT,
+    size        INTEGER DEFAULT 0,
+    uploaded_by TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_reqfiles_req ON request_files(request_id);
+
 -- ── Role → module access permissions (editable by admin) ──
 CREATE TABLE role_permissions (
     role   TEXT NOT NULL,
