@@ -60,7 +60,11 @@ $rp = fn($n) => 'Rp' . num($n);
         <?php foreach ($items as $i => $it): ?>
             <tr>
                 <td class="no"><?= $i + 1 ?></td>
-                <td>(<?= e($it['spec']) ?>) <?= e($it['sku']) ?> (<?= e($it['color']) ?>) <?= e($it['size']) ?></td>
+                <td><?php
+                    $spec = no_cjk($it['spec']); $color = no_cjk($it['color']); $size = no_cjk($it['size']);
+                    echo trim(($spec !== '' ? '(' . e($spec) . ') ' : '') . e($it['sku'])
+                        . ($color !== '' ? ' (' . e($color) . ')' : '') . ($size !== '' ? ' ' . e($size) : ''));
+                ?></td>
                 <td class="q"><?= num($it['qty']) ?></td>
                 <td class="up"><?= num($it['price'], 2) ?></td>
                 <td class="amt"><?= num($it['qty'] * $it['price']) ?></td>

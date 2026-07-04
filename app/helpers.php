@@ -37,6 +37,17 @@ function idr($amount): string
     return $cur . ' ' . number_format((float) $amount, 0, ',', '.');
 }
 
+/** Strip CJK characters (Indonesian-facing printed documents must not contain Chinese). */
+function no_cjk($s): string
+{
+    $out = (string) preg_replace(
+        '/[\x{4E00}-\x{9FFF}\x{3400}-\x{4DBF}\x{F900}-\x{FAFF}\x{3000}-\x{303F}\x{FF00}-\x{FFEF}]+/u',
+        '',
+        (string) $s
+    );
+    return trim((string) preg_replace('/\s{2,}/', ' ', $out), " \t\n\r·/,-");
+}
+
 /** Plain Indonesian number format (no currency): 211.711,71 */
 function num($amount, int $dec = 0): string
 {

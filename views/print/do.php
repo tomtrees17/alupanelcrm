@@ -62,16 +62,17 @@ $cfg = $GLOBALS['config'];
             <tr>
                 <td><?= $i + 1 ?></td>
                 <td><strong><?= e($it['sku']) ?></strong></td>
-                <td><?= e($it['color']) ?> · <?= e($it['spec']) ?> · <?= e($it['size']) ?></td>
+                <td><?= e(implode(' · ', array_filter([no_cjk($it['color']), no_cjk($it['spec']), no_cjk($it['size'])], fn($v) => $v !== ''))) ?></td>
                 <td class="r"><?= (int) $it['qty'] ?></td>
-                <td><?= e($it['unit']) ?></td>
+                <td><?= e(no_cjk($it['unit']) ?: 'Unit') ?></td>
             </tr>
         <?php endforeach; ?>
         </tbody>
     </table>
 
-    <?php if ($do['note']): ?><div class="notes">Catatan: <?= e($do['note']) ?></div><?php endif; ?>
-    <div class="notes" style="margin-top:6px">Barang diterima dalam keadaan baik dan cukup. / 货物已如数收到且完好。</div>
+    <?php $doNote = no_cjk($do['note']); ?>
+    <?php if ($doNote !== ''): ?><div class="notes">Catatan: <?= e($doNote) ?></div><?php endif; ?>
+    <div class="notes" style="margin-top:6px">Barang diterima dalam keadaan baik dan cukup.</div>
 
     <div class="signs">
         <div class="sign"><div>Penerima,</div><div class="line"><?= e($do['customer']) ?></div></div>
