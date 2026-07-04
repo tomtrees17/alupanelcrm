@@ -72,42 +72,51 @@ $hotProducts = $pdo->query(
       LIMIT 8"
 )->fetchAll();
 
-// Monthly (last 6) & weekly (last 8) sales trend — placed orders (excl. draft/rejected).
+// Monthly (last 6) & weekly (last 8) sales trend — two series:
+//   已成交 (won)       = value of APPROVED orders, by fulfillment date (fallback placed date)
+//   已回款 (collected) = actual payments received, by pay_date
 // Management view: gated by the same 'performance' permission as the all-staff card.
 $monthlySales = [];
 $weeklySales  = [];
 if (can_access('performance')) {
     $since = date('Y-m-d', strtotime('-6 months'));
-    $ts = $pdo->prepare(
-        "SELECT o.created_at AS d,
+
+    $wonStmt = $pdo->prepare(
+        "SELECT COALESCE(NULLIF(o.wh_date,''), o.created_at) AS d,
                 (SELECT COALESCE(SUM(qty*price),0) FROM order_items WHERE order_id=o.id) + o.shipping_cost AS amount
            FROM orders o
-          WHERE o.status NOT IN ('draft','rejected') AND o.created_at >= ?"
+          WHERE o.status = 'approved' AND COALESCE(NULLIF(o.wh_date,''), o.created_at) >= ?"
     );
-    $ts->execute([$since]);
-    $placed = $ts->fetchAll();
+    $wonStmt->execute([$since]);
+    $won = $wonStmt->fetchAll();
+
+    $payStmt = $pdo->prepare("SELECT pay_date AS d, amount FROM payments WHERE pay_date >= ?");
+    $payStmt->execute([$since]);
+    $paid = $payStmt->fetchAll();
 
     for ($i = 5; $i >= 0; $i--) {
         $m = strtotime("first day of -$i months");
-        $monthlySales[date('Y-m', $m)] = ['label' => date('M', $m), 'amount' => 0.0, 'orders' => 0];
+        $monthlySales[date('Y-m', $m)] = ['label' => date('M', $m), 'won' => 0.0, 'collected' => 0.0];
     }
     for ($i = 7; $i >= 0; $i--) {
         $wk = strtotime('monday this week', strtotime("-$i weeks"));
-        $weeklySales[date('Y-m-d', $wk)] = ['label' => date('n/j', $wk), 'amount' => 0.0, 'orders' => 0];
+        $weeklySales[date('Y-m-d', $wk)] = ['label' => date('n/j', $wk), 'won' => 0.0, 'collected' => 0.0];
     }
-    foreach ($placed as $p) {
-        $amt = (float) $p['amount'];
-        $mk = substr((string) $p['d'], 0, 7);
-        if (isset($monthlySales[$mk])) {
-            $monthlySales[$mk]['amount'] += $amt;
-            $monthlySales[$mk]['orders']++;
+    $bucket = function (array $rows, string $field) use (&$monthlySales, &$weeklySales) {
+        foreach ($rows as $r) {
+            $amt = (float) $r['amount'];
+            $mk = substr((string) $r['d'], 0, 7);
+            if (isset($monthlySales[$mk])) {
+                $monthlySales[$mk][$field] += $amt;
+            }
+            $wkKey = date('Y-m-d', strtotime('monday this week', strtotime((string) $r['d'])));
+            if (isset($weeklySales[$wkKey])) {
+                $weeklySales[$wkKey][$field] += $amt;
+            }
         }
-        $wkKey = date('Y-m-d', strtotime('monday this week', strtotime((string) $p['d'])));
-        if (isset($weeklySales[$wkKey])) {
-            $weeklySales[$wkKey]['amount'] += $amt;
-            $weeklySales[$wkKey]['orders']++;
-        }
-    }
+    };
+    $bucket($won, 'won');
+    $bucket($paid, 'collected');
     $monthlySales = array_values($monthlySales);
     $weeklySales  = array_values($weeklySales);
 }

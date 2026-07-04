@@ -61,20 +61,28 @@
 
 <?php if (can_access('performance')): ?>
 <div class="card">
-    <div class="card-header"><span class="card-title"><?= t('sales_trend') ?></span></div>
+    <div class="card-header">
+        <span class="card-title"><?= t('sales_trend') ?></span>
+        <div class="trend-legend">
+            <span><i class="dot won"></i> <?= t('trend_won') ?></span>
+            <span><i class="dot paid"></i> <?= t('trend_collected') ?></span>
+        </div>
+    </div>
     <div class="card-body">
         <div class="grid-2">
             <?php
             $renderTrend = function (array $data, string $title) {
-                $max = max(1, ...array_map(fn($x) => (float) $x['amount'], $data ?: [['amount' => 0]]));
+                $max = max(1, ...array_map(fn($x) => max((float) $x['won'], (float) $x['collected']), $data ?: [['won' => 0, 'collected' => 0]]));
                 ?>
                 <div>
                     <div class="trend-title"><?= e($title) ?></div>
                     <div class="trend">
                         <?php foreach ($data as $d): ?>
-                            <div class="trend-col" title="<?= e($d['label']) ?> · <?= idr($d['amount']) ?> · <?= (int) $d['orders'] ?> <?= t('col_orders') ?>">
-                                <div class="trend-val"><?= $d['amount'] > 0 ? idr_short($d['amount']) : '' ?></div>
-                                <div class="trend-bar-wrap"><div class="trend-bar" style="height:<?= round($d['amount'] / $max * 100) ?>%"></div></div>
+                            <div class="trend-col" title="<?= e($d['label']) ?> · <?= t('trend_won') ?> <?= idr($d['won']) ?> · <?= t('trend_collected') ?> <?= idr($d['collected']) ?>">
+                                <div class="trend-bar-wrap">
+                                    <div class="trend-bar won" style="height:<?= round($d['won'] / $max * 100) ?>%"></div>
+                                    <div class="trend-bar paid" style="height:<?= round($d['collected'] / $max * 100) ?>%"></div>
+                                </div>
                                 <div class="trend-label"><?= e($d['label']) ?></div>
                             </div>
                         <?php endforeach; ?>
