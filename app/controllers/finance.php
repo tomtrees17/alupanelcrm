@@ -5,7 +5,7 @@ declare(strict_types=1);
 /** @var PDO $pdo */
 /** @var Auth $auth */
 
-$today = '2026-05-26';
+$today = date('Y-m-d');
 
 switch ($action) {
     case 'index':
