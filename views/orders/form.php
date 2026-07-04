@@ -6,8 +6,8 @@ $sel = fn(string $k, string $val) => (($order[$k] ?? '') === $val ? 'selected' :
 $prodJson = json_encode(array_map(function ($p) {
     $avail = max(0, (int) $p['stock'] - (int) $p['reserved']);
     return [
-        'id' => (int) $p['id'], 'sku' => $p['sku'], 'color' => $p['color_en'], 'spec' => $p['spec'],
-        'size' => $p['size'], 'price' => (float) $p['price'], 'stock' => $avail, 'min' => (int) $p['min_stock'],
+        'id' => (int) $p['id'], 'sku' => $p['sku'], 'color' => $p['color_en'], 'zh' => (string) ($p['color_zh'] ?? ''),
+        'spec' => $p['spec'], 'size' => $p['size'], 'price' => (float) $p['price'], 'stock' => $avail, 'min' => (int) $p['min_stock'],
     ];
 }, $products), JSON_UNESCAPED_UNICODE);
 $custJson = json_encode(array_map(fn($c) => [
@@ -159,7 +159,9 @@ function recalc() {
     document.getElementById('t-subtotal').textContent = fmt(gross - ppn);
 }
 
-const pLabel = p => `${p.sku} · ${p.color} · ${p.spec} (${AVAIL_LBL} ${p.stock})`;
+// Full designation: SKU · 中文名 / English name · spec · size
+const pName = p => (p.zh && p.zh !== p.color) ? `${p.zh} / ${p.color}` : p.color;
+const pLabel = p => `${p.sku} · ${pName(p)} · ${p.spec} · ${p.size} (${AVAIL_LBL} ${p.stock})`;
 
 function bindRow(row) {
     const input = row.querySelector('.product-search');
@@ -183,13 +185,13 @@ function bindRow(row) {
     const render = () => {
         const q = input.value.trim().toLowerCase();
         matches = (q === '' ? PRODUCTS : PRODUCTS.filter(p =>
-            (p.sku + ' ' + p.color + ' ' + p.spec).toLowerCase().includes(q)
+            (p.sku + ' ' + (p.zh || '') + ' ' + p.color + ' ' + p.spec + ' ' + p.size).toLowerCase().includes(q)
         )).slice(0, 40);
         hi = -1;
         if (!matches.length) { list.style.display = 'none'; return; }
         list.innerHTML = matches.map((p, i) => {
             const cls = p.stock <= 0 ? 'st-out' : (p.stock <= p.min ? 'st-low' : '');
-            return `<div class="combo-item" data-i="${i}">${p.sku} · ${p.color} · ${p.spec} <span class="${cls}">(${AVAIL_LBL} ${p.stock})</span></div>`;
+            return `<div class="combo-item" data-i="${i}">${p.sku} · ${pName(p)} · ${p.spec} · ${p.size} <span class="${cls}">(${AVAIL_LBL} ${p.stock})</span></div>`;
         }).join('');
         list.style.display = 'block';
     };
