@@ -226,6 +226,10 @@ function request_can_act(Auth $auth, array $req): bool
     if ($auth->isAdmin()) {
         return true;
     }
+    // Separation of duties: you may not approve/reject your own request.
+    if (($req['applicant'] ?? '') === ($auth->user()['name'] ?? '')) {
+        return false;
+    }
     $need = request_action_role($req['status']);
     return $need !== null && ($auth->user()['role'] ?? '') === $need;
 }
