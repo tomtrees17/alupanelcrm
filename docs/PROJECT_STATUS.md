@@ -45,9 +45,9 @@
 | ahmad@alupanel.local | 销售 sales |
 | joko@alupanel.local | 仓库 warehouse |
 
-## 5. 模块（7 + 用户）
+## 5. 模块（8 + 用户）
 
-数据看板、客户管理、销售漏斗(deals)、任务提醒、财务管理(invoices)、订单审批(orders)、库存管理(products) + 用户管理。
+数据看板、客户管理、销售漏斗(deals)、任务提醒、财务管理(invoices)、订单审批(orders)、库存管理(products)、**行政审批(approvals)** + 用户管理。
 
 ## 6. 关键业务逻辑
 
@@ -101,6 +101,16 @@
 
 **③ 强制改默认密码**（`users.must_change_password` 列 + 前端控制器 `account` 模块）：仍用默认密码 `admin123` 的账号首次登录被强制跳转 `account.password` 改密（≥8 位且不同于旧密码），改完才放行其它页面（豁免 `account.*`/`auth.logout`/`lang.set`）。自助改密入口在侧边栏用户卡（全员可用）。线上库 `git pull` 后由 `ensureSchema` 自动加列，并把所有仍用 `admin123` 的账号标记为必须改密（一次性迁移 `pwd_policy_v1`；已本地验证迁移命中 6/6 且幂等、端到端 8 项全过）。
 
+## 6c2. 行政审批（出差 / 报销 / 请假）
+
+- **表** `admin_requests`，**模块键** `approvals`（进权限矩阵，默认所有角色可用；admin 始终全权）。控制器 `app/controllers/approvals.php`，视图 `views/approvals/{index,form,show}.php`。
+- **类型** `request_types()`：trip(出差 BT-)、expense(报销 EX-)、leave(请假 LV-)；单号 `next_request_no()` 格式 `BT-YYYY-NNN`。类别/假种存 `category` 列（canonical 中文值，`tr_req_cat()` 翻译显示）。
+- **流程**：draft →（提交）→ `pending_mgr`(经理审批) →【仅报销】`pending_fin`(财务经理确认支付) → approved。**驳回=退回草稿**（记录 reject_note/by/date、清空已有审批），申请人改后重新提交。角色路由 `request_action_role()`：pending_mgr→manager、pending_fin→finance_manager（admin 任意阶段可操作）。
+- **表单**：类型切换显隐字段（JS 同时 disable 隐藏 input 防重名提交）；草稿/提交两按钮 do=draft|submit；服务端按类型校验必填（trip:目的地+开始日；expense:金额>0+费用日期；leave:起止日期）。
+- **记录级可见性** `approvals_sees_all()`：admin/manager/finance_manager/hr 看全部；其他角色只看/只能访问**自己的申请**（`find_request` 403+重定向）。草稿仅申请人/admin 可编辑/删除（admin 可删任意）。
+- **线上升级**：`ensureSchema` 自动建表 + 一次性给所有角色授 `approvals` 权限（app_meta `perm_approvals`）。侧边栏「行政审批」带待审批数徽标。
+- 注意：pending_fin 需要有 `finance_manager` 角色用户处理（或 admin）；种子里没有该角色用户，线上请在用户管理里指派。
+
 ## 6d. 忘记密码 / 重置（运维）
 
 服务器上用 CLI 工具重置任意账号密码（`tools/reset_password.php`，绕过登录直接改库）：
@@ -130,7 +140,7 @@ app/
   i18n.php                  中印双语字典 + t() + current_lang()
   Export.php                无依赖 Excel 导出（.xlsx via ZipArchive，CSV 兜底）
   Auth.php / Csrf.php
-  controllers/              dashboard customers pipeline tasks finance orders inventory delivery users roles account auth lang
+  controllers/              dashboard customers pipeline tasks finance orders inventory approvals delivery users roles account auth lang
 views/                      按模块分目录 + layout.php + print/ + errors/（account/password.php 改密页）
 database/schema.sql         表结构
 database/seed_products.sql  269 个产品（由 tools/gen_products.php 从原型抽取）
@@ -145,7 +155,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-users(+must_change_password), customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, role_permissions, app_meta, login_attempts。
+users(+must_change_password), customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts。
 
 ## 10. 提交历史（main）
 

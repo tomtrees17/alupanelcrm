@@ -151,6 +151,21 @@ function next_invoice_no(PDO $pdo): string
     return sprintf('%d - AMI - INV - %s - %s', $max + 1, date('m'), date('y'));
 }
 
+/** Next administrative-request number per type: BT-YYYY-NNN / EX-YYYY-NNN / LV-YYYY-NNN */
+function next_request_no(PDO $pdo, string $type): string
+{
+    $prefix = ['trip' => 'BT', 'expense' => 'EX', 'leave' => 'LV'][$type] ?? 'AR';
+    $max = 0;
+    $stmt = $pdo->prepare("SELECT req_no FROM admin_requests WHERE req_no LIKE ?");
+    $stmt->execute([$prefix . '-%']);
+    foreach ($stmt as $r) {
+        if (preg_match('/(\d+)$/', (string) $r['req_no'], $mm)) {
+            $max = max($max, (int) $mm[1]);
+        }
+    }
+    return sprintf('%s-%s-%03d', $prefix, date('Y'), $max + 1);
+}
+
 /** Indonesian "terbilang": spell a Rupiah amount in words. */
 function terbilang($number): string
 {

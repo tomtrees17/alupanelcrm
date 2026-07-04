@@ -197,6 +197,27 @@ CREATE TABLE payments (
     created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+-- ── Administrative requests (business trip / expense / leave) ──
+CREATE TABLE admin_requests (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    req_no      TEXT    UNIQUE,             -- BT-2026-001 / EX-2026-001 / LV-2026-001
+    type        TEXT    NOT NULL DEFAULT 'expense',   -- trip|expense|leave
+    applicant   TEXT,                       -- requester name
+    title       TEXT,                       -- short subject (事由)
+    destination TEXT,                       -- trip only
+    category    TEXT,                       -- expense category or leave type
+    start_date  TEXT,
+    end_date    TEXT,
+    amount      REAL    DEFAULT 0,          -- expense amount / trip budget (IDR)
+    reason      TEXT,                       -- detail note
+    status      TEXT    NOT NULL DEFAULT 'draft',
+                -- draft|pending_mgr|pending_fin|approved  (reject → back to draft)
+    mgr_note    TEXT, mgr_approver TEXT, mgr_date TEXT,
+    fin_note    TEXT, fin_approver TEXT, fin_date TEXT,
+    reject_note TEXT, reject_by    TEXT, reject_date TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 -- ── Role → module access permissions (editable by admin) ──
 CREATE TABLE role_permissions (
     role   TEXT NOT NULL,

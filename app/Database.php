@@ -136,6 +136,30 @@ final class Database
             $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_export', '1')");
         }
 
+        // admin_requests table (行政审批, added later) — create + grant module to all roles once.
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS admin_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                req_no TEXT UNIQUE, type TEXT NOT NULL DEFAULT 'expense',
+                applicant TEXT, title TEXT, destination TEXT, category TEXT,
+                start_date TEXT, end_date TEXT, amount REAL DEFAULT 0, reason TEXT,
+                status TEXT NOT NULL DEFAULT 'draft',
+                mgr_note TEXT, mgr_approver TEXT, mgr_date TEXT,
+                fin_note TEXT, fin_approver TEXT, fin_date TEXT,
+                reject_note TEXT, reject_by TEXT, reject_date TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            )"
+        );
+        if (!$pdo->query("SELECT 1 FROM app_meta WHERE k = 'perm_approvals'")->fetchColumn()) {
+            $ins = $pdo->prepare('INSERT OR IGNORE INTO role_permissions (role, module) VALUES (?, ?)');
+            foreach (all_roles() as $role) {
+                if ($role !== 'admin') {
+                    $ins->execute([$role, 'approvals']);
+                }
+            }
+            $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_approvals', '1')");
+        }
+
         // login_attempts table (brute-force throttle, added later).
         $pdo->exec(
             'CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT, email TEXT, attempt_time INTEGER NOT NULL DEFAULT 0)'
@@ -425,6 +449,21 @@ final class Database
              ), 0)"
         );
 
+        // ── Administrative requests (trip / expense / leave demos) ──
+        $reqs = [
+            ['BT-2026-001', 'trip', 'Ahmad Fauzi', 'Kunjungan pelanggan Surabaya', 'Surabaya', '', '2026-06-10', '2026-06-12', 3500000, 'Kunjungi CV Dagang Makmur & prospek baru', 'approved', 'Disetujui, hati-hati di jalan', '张经理', '2026-06-05', '', '', '', '', '', ''],
+            ['EX-2026-001', 'expense', 'Sari Dewi', '五月客户拜访交通费', '', '交通', '2026-05-28', '', 750000, 'Grab + tol kunjungan pelanggan Jakarta', 'pending_mgr', '', '', '', '', '', '', '', '', ''],
+            ['EX-2026-002', 'expense', 'Ahmad Fauzi', 'Hotel perjalanan dinas Surabaya', '', '住宿', '2026-06-12', '', 1200000, 'Hotel 2 malam sesuai BT-2026-001', 'pending_fin', 'OK sesuai anggaran', '张经理', '2026-06-15', '', '', '', '', '', ''],
+            ['LV-2026-001', 'leave', 'Pak Joko', 'Izin urusan keluarga', '', '事假', '2026-06-20', '2026-06-21', 0, '', 'pending_mgr', '', '', '', '', '', '', '', '', ''],
+        ];
+        $rs = $pdo->prepare(
+            'INSERT INTO admin_requests (req_no,type,applicant,title,destination,category,start_date,end_date,amount,reason,status,mgr_note,mgr_approver,mgr_date,fin_note,fin_approver,fin_date,reject_note,reject_by,reject_date)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+        );
+        foreach ($reqs as $r) {
+            $rs->execute($r);
+        }
+
         // Assign each customer an owner (the salesperson who last ordered for them).
         $pdo->exec(
             "UPDATE customers SET owner = (
@@ -436,7 +475,7 @@ final class Database
 
         self::seedPermissions($pdo);
         $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (k TEXT PRIMARY KEY, v TEXT)');
-        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1'), ('pwd_policy_v1', '1')");
+        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1'), ('pwd_policy_v1', '1'), ('perm_approvals', '1')");
 
         $pdo->commit();
     }

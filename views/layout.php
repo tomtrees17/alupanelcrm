@@ -17,6 +17,16 @@ foreach (['logo.png', 'logo.svg', 'logo.jpg'] as $cand) {
 
 $pendingTasks  = (int) $pdo->query('SELECT COUNT(*) FROM tasks WHERE done = 0')->fetchColumn();
 $pendingOrders = (int) $pdo->query("SELECT COUNT(*) FROM orders WHERE status LIKE 'pending_%'")->fetchColumn();
+$pendingReqs = 0;
+if (can_access('approvals')) {
+    if (approvals_sees_all()) {
+        $pendingReqs = (int) $pdo->query("SELECT COUNT(*) FROM admin_requests WHERE status LIKE 'pending_%'")->fetchColumn();
+    } else {
+        $pr = $pdo->prepare("SELECT COUNT(*) FROM admin_requests WHERE status LIKE 'pending_%' AND applicant = ?");
+        $pr->execute([own_name()]);
+        $pendingReqs = (int) $pr->fetchColumn();
+    }
+}
 $initial = mb_substr($user['name'] ?? '?', 0, 1);
 
 // Title: explicit override (dynamic names) else route-based translation.
@@ -56,6 +66,7 @@ $sub   = $pageSub ?? (I18N[$lang]['sub_' . $module] ?? '');
             <div class="nav-label"><?= t('nav_extra') ?></div>
             <?php if (can_access('orders')): ?><a class="nav-item<?= $active('orders') ?>" href="<?= url('orders.index') ?>"><span class="nav-icon">✦</span> <?= t('nav_orders') ?><?php if ($pendingOrders): ?><span class="nav-badge" style="background:var(--warning)"><?= $pendingOrders ?></span><?php endif; ?></a><?php endif; ?>
             <?php if (can_access('inventory')): ?><a class="nav-item<?= $active('inventory') ?>" href="<?= url('inventory.index') ?>"><span class="nav-icon">▣</span> <?= t('nav_inventory') ?></a><?php endif; ?>
+            <?php if (can_access('approvals')): ?><a class="nav-item<?= $active('approvals') ?>" href="<?= url('approvals.index') ?>"><span class="nav-icon">✎</span> <?= t('nav_approvals') ?><?php if ($pendingReqs): ?><span class="nav-badge" style="background:var(--warning)"><?= $pendingReqs ?></span><?php endif; ?></a><?php endif; ?>
             <?php if ($auth->isAdmin()): ?>
                 <a class="nav-item<?= $active('users') ?>" href="<?= url('users.index') ?>"><span class="nav-icon">⚙</span> <?= t('nav_users') ?></a>
                 <a class="nav-item<?= $active('roles') ?>" href="<?= url('roles.index') ?>"><span class="nav-icon">⛨</span> <?= t('nav_roles') ?></a>

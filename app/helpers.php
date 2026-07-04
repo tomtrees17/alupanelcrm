@@ -194,7 +194,7 @@ function role_label(string $r): string
 /** Modules whose access is route-guarded + configurable per role. */
 function controllable_modules(): array
 {
-    return ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory'];
+    return ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals'];
 }
 
 /** Non-route view permissions (dashboard widgets, export, etc.), configurable per role. */
@@ -213,14 +213,14 @@ function permission_keys(): array
 function default_permissions(): array
 {
     return [
-        'manager'         => ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'performance', 'export'],
-        'finance_manager' => ['customers', 'finance', 'orders', 'inventory', 'performance'],
-        'ops_supervisor'  => ['customers', 'pipeline', 'tasks', 'orders', 'inventory', 'performance'],
-        'supervisor'      => ['customers', 'pipeline', 'tasks', 'orders', 'inventory'],
-        'sales'           => ['customers', 'pipeline', 'tasks', 'orders', 'inventory'],
-        'warehouse'       => ['orders', 'inventory'],
-        'hr'              => ['customers', 'tasks'],
-        'clerk'           => ['customers', 'tasks', 'orders'],
+        'manager'         => ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'export'],
+        'finance_manager' => ['customers', 'finance', 'orders', 'inventory', 'approvals', 'performance'],
+        'ops_supervisor'  => ['customers', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals', 'performance'],
+        'supervisor'      => ['customers', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
+        'sales'           => ['customers', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
+        'warehouse'       => ['orders', 'inventory', 'approvals'],
+        'hr'              => ['customers', 'tasks', 'approvals'],
+        'clerk'           => ['customers', 'tasks', 'orders', 'approvals'],
         // admin is omitted on purpose → always full access.
     ];
 }
@@ -293,6 +293,90 @@ function can_access(string $module): bool
     $role = $auth->user()['role'] ?? '';
     $perms = $GLOBALS['permissions'][$role] ?? [];
     return in_array($module, $perms, true);
+}
+
+// ──────────────────────────────────────────────────────────
+//  Administrative requests (出差 / 报销 / 请假)
+// ──────────────────────────────────────────────────────────
+
+function request_types(): array
+{
+    return ['trip', 'expense', 'leave'];
+}
+
+function request_type_label(string $t): string
+{
+    return in_array($t, request_types(), true) ? t('rt_' . $t) : $t;
+}
+
+function request_statuses(): array
+{
+    return ['draft', 'pending_mgr', 'pending_fin', 'approved'];
+}
+
+function request_status_label(string $s): string
+{
+    return in_array($s, request_statuses(), true) ? t('st_' . $s) : $s;
+}
+
+function request_status_class(string $s): string
+{
+    return [
+        'draft' => 'status-draft', 'pending_mgr' => 'status-pending-mgr',
+        'pending_fin' => 'status-pending-wh', 'approved' => 'status-approved',
+    ][$s] ?? 'status-draft';
+}
+
+/** Which role acts on a request in its current status. */
+function request_action_role(string $status): ?string
+{
+    return ['pending_mgr' => 'manager', 'pending_fin' => 'finance_manager'][$status] ?? null;
+}
+
+/** A request is editable while draft, by its applicant or admin. */
+function request_editable(array $req): bool
+{
+    $auth = $GLOBALS['auth'] ?? null;
+    if ($auth === null || ($req['status'] ?? '') !== 'draft') {
+        return false;
+    }
+    return $auth->isAdmin() || ($req['applicant'] ?? '') === ($auth->user()['name'] ?? '');
+}
+
+/** Who sees every administrative request (others see only their own). */
+function approvals_sees_all(): bool
+{
+    $auth = $GLOBALS['auth'] ?? null;
+    if ($auth === null) {
+        return false;
+    }
+    if ($auth->isAdmin()) {
+        return true;
+    }
+    return in_array($auth->user()['role'] ?? '', ['manager', 'finance_manager', 'hr'], true);
+}
+
+/** Expense categories (canonical zh values, translated for display). */
+function expense_categories(): array
+{
+    return ['交通', '住宿', '餐饮', '办公', '其他'];
+}
+
+/** Leave types (canonical zh values, translated for display). */
+function leave_types(): array
+{
+    return ['事假', '病假', '年假'];
+}
+
+/** Translate a canonical expense category / leave type for display. */
+function tr_req_cat(string $c): string
+{
+    $map = [
+        '交通' => 'cat_transport', '住宿' => 'cat_lodging', '餐饮' => 'cat_meals',
+        '办公' => 'cat_office', '其他' => 'cat_other',
+        '事假' => 'lv_personal', '病假' => 'lv_sick', '年假' => 'lv_annual',
+    ];
+    return isset($map[$c]) ? t($map[$c]) : $c;
 }
 
 function payment_terms(): array
