@@ -276,6 +276,13 @@ tfoot td { padding: 8px 14px; }
   .searchbar input, .searchbar .form-input, .searchbar .form-select, .filter-select { max-width: none; flex: 1 1 140px; }
   .card-body { padding: 14px; }
   .nav-item { padding: 11px 10px; font-size: 14px; }
+  /* order form: product picker readable on small screens */
+  .combo-list { min-width: min(82vw, 400px); right: auto; }
+  .combo-item { white-space: normal; line-height: 1.5; padding: 10px 12px; }
+  #items-table thead th:first-child { width: 45%; }
+  .item-row .qty { width: 62px !important; }
+  .item-row .price { width: 100px !important; }
+  tbody td, thead th { padding-left: 8px; padding-right: 8px; }
 }
 
 @media print {
