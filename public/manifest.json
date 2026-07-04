@@ -1,0 +1,20 @@
+{
+  "name": "AluPanel CRM",
+  "short_name": "AluPanel",
+  "description": "铝塑板销售 CRM / ERP · Sistem CRM ACP",
+  "lang": "zh-CN",
+  "start_url": "index.php?r=dashboard.index",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f5f7fa",
+  "theme_color": "#00a884",
+  "icons": [
+    {
+      "src": "assets/img/app-icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}

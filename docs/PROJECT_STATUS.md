@@ -213,4 +213,6 @@ c3ad488 Initial commit: AluPanel CRM (PHP + SQLite)
 
 真实 logo.png 上传、发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。
 
-**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`)。**待办**：审计日志(谁改了什么)、金额用 REAL 存在舍入风险(可改整数分)、列表分页、看板日期范围、移动端布局、自动化测试、备份异地同步。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA**。**待办**：审计日志(谁改了什么)、金额用 REAL 存在舍入风险(可改整数分)、列表分页、看板日期范围、自动化测试、备份异地同步、WhatsApp 一键联系/自动通知。
+
+**响应式 + PWA**：`app.css` 末尾 `@media (max-width:768px)` 把侧边栏变滑出抽屉(`layout.php` 顶栏加 `☰` `#navToggle` + `#navBackdrop` + 底部切换脚本;`.nav-toggle`/`.sidebar-backdrop` 默认隐藏),栅格(stats/grid-2/detail/form-row)、搜索栏、页头在窄屏自适应堆叠。PWA:`public/manifest.json`(display=standalone,theme #00a884)+ `public/assets/img/app-icon.svg`(青底白 A)+ `layout.php`/`login.php` head 里的 manifest/theme-color/apple-touch-icon,可「添加到主屏幕」。**未做 service worker**(避免缓存旧页;CRM 本就依赖服务器)。iOS 主屏图标想更精细可加 180×180 png 覆盖。

@@ -40,10 +40,17 @@ $sub   = $pageSub ?? (I18N[$lang]['sub_' . $module] ?? '');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= e($cfg['app_name']) ?></title>
     <link rel="stylesheet" href="assets/css/app.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#00a884">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="<?= e($cfg['brand']) ?>">
+    <link rel="apple-touch-icon" href="assets/img/app-icon.svg">
 </head>
 <body>
 <div class="app">
-    <aside class="sidebar">
+    <div class="sidebar-backdrop" id="navBackdrop"></div>
+    <aside class="sidebar" id="sidebar">
         <div class="logo">
             <?php if ($logoFile): ?>
                 <img class="logo-img" src="assets/img/<?= e($logoFile) ?>" alt="<?= e($cfg['company_logo'] ?? $cfg['brand']) ?>">
@@ -87,6 +94,7 @@ $sub   = $pageSub ?? (I18N[$lang]['sub_' . $module] ?? '');
 
     <main class="main">
         <header class="topbar">
+            <button class="nav-toggle" id="navToggle" type="button" aria-label="<?= t('nav_main') ?>" aria-expanded="false">☰</button>
             <div>
                 <div class="topbar-title"><?= e($title) ?></div>
                 <div class="topbar-sub"><?= e($sub) ?></div>
@@ -101,5 +109,21 @@ $sub   = $pageSub ?? (I18N[$lang]['sub_' . $module] ?? '');
         </div>
     </main>
 </div>
+<script>
+(function () {
+    var t = document.getElementById('navToggle');
+    var sb = document.getElementById('sidebar');
+    var bd = document.getElementById('navBackdrop');
+    if (!t || !sb) return;
+    function set(open) {
+        sb.classList.toggle('open', open);
+        if (bd) bd.classList.toggle('show', open);
+        t.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    t.addEventListener('click', function () { set(!sb.classList.contains('open')); });
+    if (bd) bd.addEventListener('click', function () { set(false); });
+    sb.querySelectorAll('a').forEach(function (a) { a.addEventListener('click', function () { set(false); }); });
+})();
+</script>
 </body>
 </html>
