@@ -144,6 +144,7 @@ final class Database
                 applicant TEXT, title TEXT, destination TEXT, category TEXT, ref_no TEXT,
                 start_date TEXT, end_date TEXT, amount REAL DEFAULT 0, reason TEXT,
                 status TEXT NOT NULL DEFAULT 'draft',
+                hr_note TEXT, hr_approver TEXT, hr_date TEXT,
                 mgr_note TEXT, mgr_approver TEXT, mgr_date TEXT,
                 fin_note TEXT, fin_approver TEXT, fin_date TEXT,
                 reject_note TEXT, reject_by TEXT, reject_date TEXT,
@@ -161,10 +162,12 @@ final class Database
         );
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reqfiles_req ON request_files(request_id)');
 
-        // admin_requests.ref_no (付款申请关联单号, added later) — add on live tables created before it.
+        // admin_requests late-added columns: ref_no (关联单号), hr_* (人事审批).
         $acols = array_column($pdo->query('PRAGMA table_info(admin_requests)')->fetchAll(), 'name');
-        if (!in_array('ref_no', $acols, true)) {
-            $pdo->exec('ALTER TABLE admin_requests ADD COLUMN ref_no TEXT');
+        foreach (['ref_no', 'hr_note', 'hr_approver', 'hr_date'] as $col) {
+            if (!in_array($col, $acols, true)) {
+                $pdo->exec("ALTER TABLE admin_requests ADD COLUMN $col TEXT");
+            }
         }
 
         if (!$pdo->query("SELECT 1 FROM app_meta WHERE k = 'perm_approvals'")->fetchColumn()) {
@@ -212,6 +215,7 @@ final class Database
             ['Mutiara Farianda',  'mutiara@alupanel.local', 'manager',  '经理'],
             ['Ahmad Fauzi',       'ahmad@alupanel.local',   'sales',    '销售员'],
             ['Pak Joko',          'joko@alupanel.local',    'warehouse', '仓库管理员'],
+            ['Rina Kusuma',       'rina@alupanel.local',    'hr',       '人事 HRD'],
         ];
         $us = $pdo->prepare('INSERT INTO users (name,email,password_hash,role,title) VALUES (?,?,?,?,?)');
         foreach ($users as $u) {
@@ -468,14 +472,14 @@ final class Database
 
         // ── Administrative requests (trip / expense / leave demos) ──
         $reqs = [
-            ['BT-2026-001', 'trip', 'Ahmad Fauzi', 'Kunjungan pelanggan Surabaya', 'Surabaya', '', '2026-06-10', '2026-06-12', 3500000, 'Kunjungi CV Dagang Makmur & prospek baru', 'approved', 'Disetujui, hati-hati di jalan', '张经理', '2026-06-05', '', '', '', '', '', ''],
-            ['EX-2026-001', 'expense', 'Sari Dewi', '五月客户拜访交通费', '', '交通', '2026-05-28', '', 750000, 'Grab + tol kunjungan pelanggan Jakarta', 'pending_mgr', '', '', '', '', '', '', '', '', ''],
-            ['EX-2026-002', 'expense', 'Ahmad Fauzi', 'Hotel perjalanan dinas Surabaya', '', '住宿', '2026-06-12', '', 1200000, 'Hotel 2 malam sesuai BT-2026-001', 'pending_fin', 'OK sesuai anggaran', '张经理', '2026-06-15', '', '', '', '', '', ''],
-            ['LV-2026-001', 'leave', 'Pak Joko', 'Izin urusan keluarga', '', '事假', '2026-06-20', '2026-06-21', 0, '', 'pending_mgr', '', '', '', '', '', '', '', '', ''],
+            ['BT-2026-001', 'trip', 'Ahmad Fauzi', 'Kunjungan pelanggan Surabaya', 'Surabaya', '', '2026-06-10', '2026-06-12', 3500000, 'Kunjungi CV Dagang Makmur & prospek baru', 'approved', 'Data lengkap', 'Rina Kusuma', '2026-06-04', 'Disetujui, hati-hati di jalan', '张经理', '2026-06-05', '', '', '', '', '', ''],
+            ['EX-2026-001', 'expense', 'Sari Dewi', '五月客户拜访交通费', '', '交通', '2026-05-28', '', 750000, 'Grab + tol kunjungan pelanggan Jakarta', 'pending_mgr', 'Bukti lengkap', 'Rina Kusuma', '2026-05-29', '', '', '', '', '', '', '', '', ''],
+            ['EX-2026-002', 'expense', 'Ahmad Fauzi', 'Hotel perjalanan dinas Surabaya', '', '住宿', '2026-06-12', '', 1200000, 'Hotel 2 malam sesuai BT-2026-001', 'pending_fin', 'OK', 'Rina Kusuma', '2026-06-14', 'OK sesuai anggaran', '张经理', '2026-06-15', '', '', '', '', '', ''],
+            ['LV-2026-001', 'leave', 'Pak Joko', 'Izin urusan keluarga', '', '事假', '2026-06-20', '2026-06-21', 0, '', 'pending_hr', '', '', '', '', '', '', '', '', '', '', '', ''],
         ];
         $rs = $pdo->prepare(
-            'INSERT INTO admin_requests (req_no,type,applicant,title,destination,category,start_date,end_date,amount,reason,status,mgr_note,mgr_approver,mgr_date,fin_note,fin_approver,fin_date,reject_note,reject_by,reject_date)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+            'INSERT INTO admin_requests (req_no,type,applicant,title,destination,category,start_date,end_date,amount,reason,status,hr_note,hr_approver,hr_date,mgr_note,mgr_approver,mgr_date,fin_note,fin_approver,fin_date,reject_note,reject_by,reject_date)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
         );
         foreach ($reqs as $r) {
             $rs->execute($r);

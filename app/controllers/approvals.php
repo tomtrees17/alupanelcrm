@@ -150,8 +150,8 @@ switch ($action) {
             flash(t('req_not_editable'), 'error');
             redirect('approvals.show', ['id' => $req['id']]);
         }
-        $pdo->prepare("UPDATE admin_requests SET status='pending_mgr', reject_note=NULL, reject_by=NULL, reject_date=NULL WHERE id=?")
-            ->execute([$req['id']]);
+        $pdo->prepare("UPDATE admin_requests SET status=?, reject_note=NULL, reject_by=NULL, reject_date=NULL, hr_note=NULL, hr_approver=NULL, hr_date=NULL WHERE id=?")
+            ->execute([request_first_stage((string) $req['type']), $req['id']]);
         flash(t('req_submitted'));
         redirect('approvals.show', ['id' => $req['id']]);
         break;
@@ -241,14 +241,14 @@ function save_request(PDO $pdo, Auth $auth, ?array $existing): int
         $amount = 0;
     }
 
-    $status = $submit ? 'pending_mgr' : 'draft';
+    $status = $submit ? request_first_stage($type) : 'draft';
 
     if ($isEdit) {
         // Applicant never changes on edit; a fresh submit clears the previous rejection.
         $sql = 'UPDATE admin_requests SET type=?, title=?, destination=?, category=?, ref_no=?, start_date=?, end_date=?, amount=?, reason=?, status=?';
         $params = [$type, $title, $dest, $category, $ref, $start, $end, $amount, $reason, $status];
         if ($submit) {
-            $sql .= ', reject_note=NULL, reject_by=NULL, reject_date=NULL, mgr_note=NULL, mgr_approver=NULL, mgr_date=NULL, fin_note=NULL, fin_approver=NULL, fin_date=NULL';
+            $sql .= ', reject_note=NULL, reject_by=NULL, reject_date=NULL, hr_note=NULL, hr_approver=NULL, hr_date=NULL, mgr_note=NULL, mgr_approver=NULL, mgr_date=NULL, fin_note=NULL, fin_approver=NULL, fin_date=NULL';
         }
         $sql .= ' WHERE id = ?';
         $params[] = (int) $existing['id'];
@@ -363,6 +363,11 @@ function approve_request(PDO $pdo, Auth $auth, array $req, string $note): void
     $today = date('Y-m-d');
 
     switch ($req['status']) {
+        case 'pending_hr':
+            $pdo->prepare('UPDATE admin_requests SET status=?, hr_note=?, hr_approver=?, hr_date=? WHERE id=?')
+                ->execute(['pending_mgr', $note, $name, $today, $req['id']]);
+            flash(t('req_hr_ok'));
+            break;
         case 'pending_mgr':
             // Expenses & payment requests continue to finance; others are done.
             $next = request_needs_finance((string) $req['type']) ? 'pending_fin' : 'approved';
@@ -386,12 +391,13 @@ function reject_request(PDO $pdo, Auth $auth, array $req, string $note): void
         flash(t('wait_for') . ' ' . role_label(request_action_role($req['status']) ?? '') . t('no_permission_stage'), 'error');
         return;
     }
-    if (!in_array($req['status'], ['pending_mgr', 'pending_fin'], true)) {
+    if (!in_array($req['status'], ['pending_hr', 'pending_mgr', 'pending_fin'], true)) {
         flash(t('req_not_editable'), 'error');
         return;
     }
     $pdo->prepare(
         "UPDATE admin_requests SET status='draft', reject_note=?, reject_by=?, reject_date=?,
+             hr_note=NULL, hr_approver=NULL, hr_date=NULL,
              mgr_note=NULL, mgr_approver=NULL, mgr_date=NULL,
              fin_note=NULL, fin_approver=NULL, fin_date=NULL
          WHERE id=?"

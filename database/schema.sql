@@ -212,7 +212,9 @@ CREATE TABLE admin_requests (
     amount      REAL    DEFAULT 0,          -- expense amount / trip budget (IDR)
     reason      TEXT,                       -- detail note
     status      TEXT    NOT NULL DEFAULT 'draft',
-                -- draft|pending_mgr|pending_fin|approved  (reject → back to draft)
+                -- draft|pending_hr|pending_mgr|pending_fin|approved  (reject → back to draft)
+                -- trip/expense/leave start at pending_hr; payment starts at pending_mgr
+    hr_note     TEXT, hr_approver  TEXT, hr_date  TEXT,
     mgr_note    TEXT, mgr_approver TEXT, mgr_date TEXT,
     fin_note    TEXT, fin_approver TEXT, fin_date TEXT,
     reject_note TEXT, reject_by    TEXT, reject_date TEXT,

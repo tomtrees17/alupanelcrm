@@ -4,22 +4,25 @@
 $status = $req['status'];
 $twoStage = request_needs_finance((string) $req['type']);   // expense & payment go through finance
 
-// Approval timeline: applicant → manager → (finance for expense / payment).
+// Approval timeline: applicant → (HR for trip/expense/leave) → manager → (finance for expense / payment).
 $steps = [
     ['key' => 'apply', 'label' => t('applicant'), 'who' => $req['applicant'], 'date' => $req['created_at']],
-    ['key' => 'mgr', 'label' => t('manager'), 'who' => $req['mgr_approver'], 'date' => $req['mgr_date']],
 ];
+if (request_needs_hr((string) $req['type'])) {
+    $steps[] = ['key' => 'hr', 'label' => role_label('hr'), 'who' => $req['hr_approver'], 'date' => $req['hr_date']];
+}
+$steps[] = ['key' => 'mgr', 'label' => t('manager'), 'who' => $req['mgr_approver'], 'date' => $req['mgr_date']];
 if ($twoStage) {
     $steps[] = ['key' => 'fin', 'label' => t('finance'), 'who' => $req['fin_approver'], 'date' => $req['fin_date']];
 }
-$activeMap = ['pending_mgr' => 'mgr', 'pending_fin' => 'fin'];
+$activeMap = ['pending_hr' => 'hr', 'pending_mgr' => 'mgr', 'pending_fin' => 'fin'];
 $stateOf = function (string $key) use ($status, $activeMap, $req) {
     if ($key === 'apply') return $status === 'draft' ? 'active' : 'approved';
     if ($status === 'approved') return 'approved';
     if (($activeMap[$status] ?? null) === $key) return 'active';
     return !empty($req[$key . '_date']) ? 'approved' : 'pending';
 };
-$canAct = request_can_act($auth, $req) && in_array($status, ['pending_mgr', 'pending_fin'], true);
+$canAct = request_can_act($auth, $req) && in_array($status, ['pending_hr', 'pending_mgr', 'pending_fin'], true);
 ?>
 <div class="page-head">
     <h1><?= e($req['req_no']) ?> <span class="order-status-badge <?= request_status_class($status) ?>"><?= e(request_status_label($status)) ?></span></h1>
@@ -88,10 +91,10 @@ $canAct = request_can_act($auth, $req) && in_array($status, ['pending_mgr', 'pen
     <?php endif; ?>
 </div></div>
 
-<?php if ($req['mgr_note'] || $req['mgr_approver'] || $req['fin_note'] || $req['fin_approver']): ?>
+<?php if ($req['hr_note'] || $req['hr_approver'] || $req['mgr_note'] || $req['mgr_approver'] || $req['fin_note'] || $req['fin_approver']): ?>
     <div class="card"><div class="card-body">
         <span class="card-title"><?= t('approval_opinions') ?></span>
-        <?php foreach ([[t('manager'), $req['mgr_approver'], $req['mgr_note'], $req['mgr_date']], [t('finance'), $req['fin_approver'], $req['fin_note'], $req['fin_date']]] as $a): ?>
+        <?php foreach ([[role_label('hr'), $req['hr_approver'], $req['hr_note'], $req['hr_date']], [t('manager'), $req['mgr_approver'], $req['mgr_note'], $req['mgr_date']], [t('finance'), $req['fin_approver'], $req['fin_note'], $req['fin_date']]] as $a): ?>
             <?php if ($a[1] || $a[2]): ?>
                 <div class="notes" style="margin-top:8px"><strong><?= $a[0] ?> · <?= e($a[1]) ?> · <?= e($a[3]) ?>：</strong> <?= e($a[2]) ?: '—' ?></div>
             <?php endif; ?>
@@ -111,7 +114,7 @@ $canAct = request_can_act($auth, $req) && in_array($status, ['pending_mgr', 'pen
             </div>
         </form>
     </div></div>
-<?php elseif (in_array($status, ['pending_mgr', 'pending_fin'], true)): ?>
+<?php elseif (in_array($status, ['pending_hr', 'pending_mgr', 'pending_fin'], true)): ?>
     <div class="card"><div class="card-body muted"><?= t('wait_for') ?> <strong><?= e(role_label(request_action_role($status) ?? '')) ?></strong><?= t('no_permission_stage') ?></div></div>
 <?php endif; ?>
 

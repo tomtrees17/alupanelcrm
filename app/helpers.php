@@ -331,6 +331,18 @@ function request_needs_finance(string $type): bool
     return in_array($type, ['expense', 'payment'], true);
 }
 
+/** Types that start with an HR compliance review (trip / expense / leave). */
+function request_needs_hr(string $type): bool
+{
+    return in_array($type, ['trip', 'expense', 'leave'], true);
+}
+
+/** First pending stage after submission, by type. */
+function request_first_stage(string $type): string
+{
+    return request_needs_hr($type) ? 'pending_hr' : 'pending_mgr';
+}
+
 function request_type_label(string $t): string
 {
     return in_array($t, request_types(), true) ? t('rt_' . $t) : $t;
@@ -338,7 +350,7 @@ function request_type_label(string $t): string
 
 function request_statuses(): array
 {
-    return ['draft', 'pending_mgr', 'pending_fin', 'approved'];
+    return ['draft', 'pending_hr', 'pending_mgr', 'pending_fin', 'approved'];
 }
 
 function request_status_label(string $s): string
@@ -349,7 +361,7 @@ function request_status_label(string $s): string
 function request_status_class(string $s): string
 {
     return [
-        'draft' => 'status-draft', 'pending_mgr' => 'status-pending-mgr',
+        'draft' => 'status-draft', 'pending_hr' => 'status-pending-sup', 'pending_mgr' => 'status-pending-mgr',
         'pending_fin' => 'status-pending-wh', 'approved' => 'status-approved',
     ][$s] ?? 'status-draft';
 }
@@ -357,7 +369,7 @@ function request_status_class(string $s): string
 /** Which role acts on a request in its current status. */
 function request_action_role(string $status): ?string
 {
-    return ['pending_mgr' => 'manager', 'pending_fin' => 'finance_manager'][$status] ?? null;
+    return ['pending_hr' => 'hr', 'pending_mgr' => 'manager', 'pending_fin' => 'finance_manager'][$status] ?? null;
 }
 
 /** A request is editable while draft, by its applicant or admin. */
