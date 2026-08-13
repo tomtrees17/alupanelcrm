@@ -107,6 +107,31 @@ switch ($action) {
         Word::download('Invoice_' . $invoice['invoice_no'], (string) ob_get_clean());
         break;
 
+    case 'update_no':
+        // Finance can renumber an invoice (e.g. to match the physical/tax sequence).
+        Csrf::verify();
+        $invoice = find_invoice($pdo, (int) input('id', 0));
+        $no = trim((string) input('invoice_no', ''));
+        if ($no === '') {
+            flash(t('inv_no_required'), 'error');
+            redirect('finance.show', ['id' => $invoice['id']]);
+        }
+        if ($no !== $invoice['invoice_no']) {
+            try {
+                $pdo->prepare('UPDATE invoices SET invoice_no = ? WHERE id = ?')->execute([$no, $invoice['id']]);
+            } catch (PDOException $e) {
+                flash(t('inv_no_taken'), 'error');
+                redirect('finance.show', ['id' => $invoice['id']]);
+            }
+            // Keep the denormalized copy on the linked order in sync.
+            if ($invoice['order_id']) {
+                $pdo->prepare('UPDATE orders SET invoice_number = ? WHERE id = ?')->execute([$no, $invoice['order_id']]);
+            }
+            flash(t('inv_no_updated'));
+        }
+        redirect('finance.show', ['id' => $invoice['id']]);
+        break;
+
     case 'pay':
         Csrf::verify();
         $invoice = find_invoice($pdo, (int) input('id', 0));

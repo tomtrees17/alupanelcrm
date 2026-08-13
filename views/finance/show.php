@@ -23,6 +23,14 @@ $remaining = $invoice['total'] - $invoice['amount_paid'];
             <div><dt><?= t('th_due_date') ?></dt><dd><?= e($invoice['due_date']) ?></dd></div>
             <div><dt><?= t('tax_invoice_no') ?></dt><dd><?= e($invoice['tax_invoice_no']) ?: '—' ?></dd></div>
         </dl>
+        <form method="post" action="<?= url('finance.update_no') ?>" class="no-print" style="margin-top:14px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+            <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $invoice['id'] ?>">
+            <div class="form-group" style="margin-bottom:0;flex:1;min-width:200px">
+                <label class="form-label"><?= t('edit_inv_no') ?></label>
+                <input class="form-input" name="invoice_no" value="<?= e($invoice['invoice_no']) ?>" required>
+            </div>
+            <button class="btn btn-ghost" type="submit" onclick="return confirm('?')"><?= t('btn_save') ?></button>
+        </form>
     </div></div>
 
     <div class="card">
@@ -71,7 +79,7 @@ $remaining = $invoice['total'] - $invoice['amount_paid'];
                 <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $invoice['id'] ?>">
                 <div class="form-row">
                     <div class="form-group"><label class="form-label"><?= t('th_amount') ?> (Rp) *</label><input class="form-input" type="number" name="amount" value="<?= (int) $remaining ?>" required></div>
-                    <div class="form-group"><label class="form-label"><?= t('th_date') ?></label><input class="form-input" type="date" name="pay_date" value="2026-05-26"></div>
+                    <div class="form-group"><label class="form-label"><?= t('th_date') ?></label><input class="form-input" type="date" name="pay_date" value="<?= date('Y-m-d') ?>"></div>
                 </div>
                 <div class="form-row">
                     <div class="form-group"><label class="form-label"><?= t('pay_method') ?></label><input class="form-input" name="method" placeholder="BCA Transfer"></div>
