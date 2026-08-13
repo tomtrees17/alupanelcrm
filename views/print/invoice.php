@@ -26,9 +26,6 @@ $rp = fn($n) => 'Rp' . num($n);
 <div class="sheet inv">
     <!-- Header -->
     <table class="inv-top"><tr>
-        <td class="inv-logo">
-            <div class="inv-coname"><?= e($cfg['company_full']) ?></div>
-        </td>
         <td>
             <div class="inv-co"><?= e($cfg['company_addr']) ?></div>
         </td>

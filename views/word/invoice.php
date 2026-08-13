@@ -11,7 +11,6 @@ $fdate = fn($d) => $d ? date('j/M/y', strtotime($d)) : '';
 $rp = fn($n) => 'Rp' . num($n);
 ?>
 <table style="width:100%"><tr>
-    <td style="width:34%"><b style="font-size:13pt"><?= e($cfg['company_full']) ?></b></td>
     <td style="border:1px solid #000;padding:4pt;font-size:8.5pt"><?= e($cfg['company_addr']) ?></td>
     <td style="width:22%;text-align:right;font-size:20pt;font-family:Georgia,serif"><b>Invoice</b></td>
 </tr></table>
