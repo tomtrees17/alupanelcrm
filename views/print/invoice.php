@@ -8,6 +8,12 @@ $total = (float) $invoice['total'];
 $fdate = fn($d) => $d ? date('j/M/y', strtotime($d)) : '';
 $fdate2 = fn($d) => $d ? date('j-M-y', strtotime($d)) : '';
 $rp = fn($n) => 'Rp' . num($n);
+// Print-only letterhead logo: drop a logo-print.png into public/assets/img/ to
+// override the committed SVG recreation (sidebar branding is unaffected).
+$printLogo = null;
+foreach (['logo-print.png', 'logo-print.svg', 'logo-print.jpg'] as $cand) {
+    if (is_file(dirname(__DIR__, 2) . '/public/assets/img/' . $cand)) { $printLogo = $cand; break; }
+}
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -26,6 +32,9 @@ $rp = fn($n) => 'Rp' . num($n);
 <div class="sheet inv">
     <!-- Header -->
     <table class="inv-top"><tr>
+        <?php if ($printLogo): ?>
+            <td class="inv-logo"><img src="assets/img/<?= e($printLogo) ?>" alt="ALUSIGNPANEL" style="max-width:200px;max-height:56px"></td>
+        <?php endif; ?>
         <td>
             <div class="inv-co"><?= e($cfg['company_addr']) ?></div>
         </td>
