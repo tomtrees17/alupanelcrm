@@ -112,10 +112,8 @@ $rp = fn($n) => 'Rp' . num($n);
             <?php endforeach; ?>
         </td>
         <td class="inv-sign">
-            On Your Behalf<br>
-            <strong><?= e($cfg['company_full']) ?></strong>
+            On Your Behalf
             <div class="gap"></div>
-            <strong><?= e($invoice['issued_by'] ?: $cfg['signer_name']) ?></strong><br>
             <?= e($cfg['signer_title']) ?>
         </td>
     </tr></table>
