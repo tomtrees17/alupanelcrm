@@ -14,6 +14,9 @@ $render = function (array $data) use ($viewFile): string {
         $errors[] = $msg;
         return true;
     });
+    // view() injects these into every template; mirror it or the render diverges.
+    $auth = $GLOBALS['auth'] ?? null;
+    $config = $GLOBALS['config'] ?? [];
     extract($data, EXTR_SKIP);
     ob_start();
     include $viewFile;

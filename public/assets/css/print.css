@@ -91,3 +91,9 @@ table.inv-items td.amt { text-align: right; width: 110px; }
   .sheet { margin: 0; box-shadow: none; width: auto; min-height: auto; padding: 0; }
   @page { size: A4; margin: 12mm; }
 }
+
+/* Voided invoice: unmistakable on paper and on screen. */
+.void-stamp {
+  border: 3px solid #c00; color: #c00; font-weight: 700; font-size: 22px;
+  letter-spacing: 4px; text-align: center; padding: 6px; margin-bottom: 10px;
+}

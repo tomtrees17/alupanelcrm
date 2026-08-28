@@ -11,7 +11,14 @@
 </div>
 
 <div class="task-filters">
-    <?php foreach (['all' => t('filter_all'), 'paid' => t('inv_paid'), 'partial' => t('inv_partial'), 'pending' => t('inv_pending'), 'overdue' => t('inv_overdue')] as $k => $lbl): ?>
+    <?php
+    $tabs = ['all' => t('filter_all'), 'paid' => t('inv_paid'), 'partial' => t('inv_partial'),
+             'pending' => t('inv_pending'), 'overdue' => t('inv_overdue')];
+    if ((int) ($stats['void'] ?? 0) > 0) {
+        $tabs['void'] = t('void_tag') . ' (' . (int) $stats['void'] . ')';
+    }
+    ?>
+    <?php foreach ($tabs as $k => $lbl): ?>
         <a class="filter-btn <?= $statusFilter === $k ? 'active' : '' ?>" href="<?= url('finance.index', ['status' => $k]) ?>"><?= $lbl ?></a>
     <?php endforeach; ?>
 </div>
@@ -21,12 +28,13 @@
     <tbody>
     <?php if (!$invoices): ?><tr><td colspan="7" class="empty"><?= t('no_invoice') ?></td></tr><?php endif; ?>
     <?php foreach ($invoices as $iv): ?>
-        <tr class="clickable" onclick="location.href='<?= url('finance.show', ['id' => $iv['id']]) ?>'">
+        <?php $vd = invoice_is_void($iv); ?>
+        <tr class="clickable<?= $vd ? ' row-void' : '' ?>" onclick="location.href='<?= url('finance.show', ['id' => $iv['id']]) ?>'">
             <td><code><?= e($iv['invoice_no']) ?></code></td>
             <td><strong><?= e($iv['customer']) ?></strong></td>
             <td><?= e($iv['invoice_date']) ?></td>
             <td><?= e($iv['due_date']) ?></td>
-            <td><span class="tag <?= invoice_status_class($iv['payment_status']) ?>"><?= e(invoice_status_label($iv['payment_status'])) ?></span></td>
+            <td><span class="tag <?= $vd ? 'tag-red' : invoice_status_class($iv['payment_status']) ?>"><?= $vd ? t('void_tag') : e(invoice_status_label($iv['payment_status'])) ?></span></td>
             <td class="right"><?= idr($iv['total']) ?></td>
             <td class="right"><?= idr($iv['amount_paid']) ?></td>
         </tr>

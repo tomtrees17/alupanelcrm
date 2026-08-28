@@ -505,6 +505,33 @@ function recompute_invoice_paid(PDO $pdo, int $invoiceId, ?string $today = null)
     return $paid;
 }
 
+/** Has this invoice been voided? */
+function invoice_is_void(array $invoice): bool
+{
+    return ($invoice['voided_at'] ?? null) !== null && (string) $invoice['voided_at'] !== '';
+}
+
+/**
+ * Why this invoice cannot be voided, or null when it can be.
+ *
+ * Money first: an invoice that has collected cash must have that cash reversed
+ * (see payment_reversal_block) before the document itself can be voided —
+ * otherwise the ledger would hold a payment against a document that no longer
+ * claims anything.
+ */
+function invoice_void_block(PDO $pdo, array $invoice): ?string
+{
+    if (invoice_is_void($invoice)) {
+        return t('void_err_already');
+    }
+    $st = $pdo->prepare('SELECT COALESCE(SUM(amount),0) FROM payments WHERE invoice_id = ?');
+    $st->execute([(int) $invoice['id']]);
+    if (abs((float) $st->fetchColumn()) > 0.005) {
+        return t('void_err_has_payment');
+    }
+    return null;
+}
+
 /**
  * Why this payment cannot be reversed, or null when it can be.
  * One place so the confirmation page and the POST handler can never disagree.
@@ -525,10 +552,15 @@ function payment_reversal_block(PDO $pdo, array $payment): ?string
 /** Recompute an invoice's payment_status from amount_paid / due_date. */
 function refresh_invoice_status(PDO $pdo, int $invoiceId, string $today): void
 {
-    $inv = $pdo->prepare('SELECT total, amount_paid, due_date FROM invoices WHERE id = ?');
+    $inv = $pdo->prepare('SELECT total, amount_paid, due_date, voided_at FROM invoices WHERE id = ?');
     $inv->execute([$invoiceId]);
     $row = $inv->fetch();
     if (!$row) {
+        return;
+    }
+    // A voided invoice keeps whatever status it had; it is out of receivables,
+    // so letting the clock turn it "overdue" would be misleading.
+    if (($row['voided_at'] ?? null) !== null) {
         return;
     }
     $paid = (float) $row['amount_paid'];

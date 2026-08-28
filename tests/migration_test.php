@@ -23,13 +23,17 @@ $pdo->exec('DROP TABLE IF EXISTS audit_log');
 $pdo->exec('DROP INDEX IF EXISTS idx_payments_invoice');
 $pdo->exec('ALTER TABLE payments DROP COLUMN created_by');
 $pdo->exec('ALTER TABLE payments DROP COLUMN reversal_of');
-$pdo->exec("INSERT INTO payments (invoice_id,customer,amount,pay_date,receipt_no) VALUES (1,'PT Lama',250000,'2026-07-01','RC-OLD')");
+$pdo->exec("INSERT INTO payments (invoice_id,customer,amount,pay_date,receipt_no) VALUES (9001,'PT Lama',250000,'2026-07-01','RC-OLD')");
 // before WhatsApp notifications: no users.phone/lang, no orders.created_by, no queue.
 $pdo->exec('DROP INDEX IF EXISTS idx_notif_pending');
 $pdo->exec('DROP INDEX IF EXISTS idx_notif_user');
 $pdo->exec('DROP TABLE IF EXISTS notifications');
 $pdo->exec('DROP INDEX IF EXISTS idx_ai_user_day');
 $pdo->exec('DROP TABLE IF EXISTS ai_queries');
+$pdo->exec('ALTER TABLE invoices DROP COLUMN voided_at');
+$pdo->exec('ALTER TABLE invoices DROP COLUMN voided_by');
+$pdo->exec('ALTER TABLE invoices DROP COLUMN void_reason');
+$pdo->exec("INSERT INTO invoices (invoice_no,customer,total,payment_status) VALUES ('INV-LAMA','PT Lama',5000,'pending')");
 $pdo->exec('ALTER TABLE users DROP COLUMN phone');
 $pdo->exec('ALTER TABLE users DROP COLUMN lang');
 $pdo->exec('ALTER TABLE orders DROP COLUMN created_by');
@@ -83,6 +87,11 @@ ok('existing user survives with lang default', $existing && $existing['lang'] ==
 ok('existing user has no phone yet (notifications skip, not crash)', Notify::normalise_phone((string) $existing['phone']) === '');
 
 ok('ai_queries table created', $has('ai_queries'));
+$ivc = array_column($pdo->query('PRAGMA table_info(invoices)')->fetchAll(), 'name');
+ok('invoices gains the void columns', count(array_intersect(['voided_at','voided_by','void_reason'], $ivc)) === 3, implode(',', $ivc));
+$oldInv = $pdo->query("SELECT * FROM invoices WHERE invoice_no='INV-LAMA'")->fetch();
+ok('existing invoice survives and is not void', $oldInv && !invoice_is_void($oldInv));
+ok('existing invoice can be voided after upgrade', invoice_void_block($pdo, $oldInv) === null);
 
 // 'audit' must NOT be granted to anyone by the migration — admin-only by default.
 $granted = $pdo->query("SELECT COUNT(*) FROM role_permissions WHERE module='audit'")->fetchColumn();

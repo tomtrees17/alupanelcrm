@@ -175,6 +175,9 @@ CREATE TABLE invoices (
     payment_method TEXT,
     payment_note  TEXT,
     tax_invoice_no TEXT,
+    voided_at     TEXT,                      -- set = 作废; excluded from receivables
+    voided_by     TEXT,
+    void_reason   TEXT,
     created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 

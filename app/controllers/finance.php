@@ -17,18 +17,22 @@ switch ($action) {
         $statusFilter = (string) input('status', 'all');
         $sql = 'SELECT * FROM invoices';
         $args = [];
-        if ($statusFilter !== 'all' && $statusFilter !== '') {
-            $sql .= ' WHERE payment_status = ?';
+        if ($statusFilter === 'void') {
+            $sql .= ' WHERE voided_at IS NOT NULL';
+        } elseif ($statusFilter !== 'all' && $statusFilter !== '') {
+            $sql .= ' WHERE payment_status = ? AND voided_at IS NULL';
             $args[] = $statusFilter;
         }
         $sql .= ' ORDER BY invoice_date DESC';
         $stmt = $pdo->prepare($sql);
         $stmt->execute($args);
 
+        // Voided invoices are not receivables and must not inflate any total.
         $stats = [
-            'received' => (float) $pdo->query('SELECT COALESCE(SUM(amount_paid),0) FROM invoices')->fetchColumn(),
-            'pending'  => (float) $pdo->query("SELECT COALESCE(SUM(total-amount_paid),0) FROM invoices WHERE payment_status IN ('pending','partial')")->fetchColumn(),
-            'overdue'  => (float) $pdo->query("SELECT COALESCE(SUM(total-amount_paid),0) FROM invoices WHERE payment_status='overdue'")->fetchColumn(),
+            'received' => (float) $pdo->query('SELECT COALESCE(SUM(amount_paid),0) FROM invoices WHERE voided_at IS NULL')->fetchColumn(),
+            'pending'  => (float) $pdo->query("SELECT COALESCE(SUM(total-amount_paid),0) FROM invoices WHERE payment_status IN ('pending','partial') AND voided_at IS NULL")->fetchColumn(),
+            'overdue'  => (float) $pdo->query("SELECT COALESCE(SUM(total-amount_paid),0) FROM invoices WHERE payment_status='overdue' AND voided_at IS NULL")->fetchColumn(),
+            'void'     => (int) $pdo->query('SELECT COUNT(*) FROM invoices WHERE voided_at IS NOT NULL')->fetchColumn(),
         ];
         view('finance.index', [
             'invoices' => $stmt->fetchAll(), 'stats' => $stats, 'statusFilter' => $statusFilter,
@@ -144,6 +148,10 @@ switch ($action) {
     case 'pay':
         Csrf::verify();
         $invoice = find_invoice($pdo, (int) input('id', 0));
+        if (invoice_is_void($invoice)) {
+            flash(t('void_err_no_pay'), 'error');
+            redirect('finance.show', ['id' => $invoice['id']]);
+        }
         $amount = (float) input('amount', 0);
         if ($amount <= 0) {
             flash(t('msg_amount_invalid'), 'error');
@@ -240,6 +248,74 @@ switch ($action) {
             )
         );
         flash(t('reverse_done'));
+        redirect('finance.show', ['id' => $invoice['id']]);
+        break;
+
+    case 'void_form':
+        $invoice = find_invoice($pdo, (int) input('id', 0));
+        $block = invoice_void_block($pdo, $invoice);
+        if ($block !== null) {
+            flash($block, 'error');
+            redirect('finance.show', ['id' => $invoice['id']]);
+        }
+        view('finance.void', [
+            'pageTitle' => t('void_invoice'), 'pageSub' => $invoice['invoice_no'],
+            'invoice' => $invoice,
+        ]);
+        break;
+
+    case 'void':
+        Csrf::verify();
+        $invoice = find_invoice($pdo, (int) input('id', 0));
+        $block = invoice_void_block($pdo, $invoice);
+        if ($block !== null) {
+            flash($block, 'error');
+            redirect('finance.show', ['id' => $invoice['id']]);
+        }
+        $reason = trim((string) input('reason', ''));
+        if ($reason === '') {
+            flash(t('void_need_reason'), 'error');
+            redirect('finance.void_form', ['id' => $invoice['id']]);
+        }
+        $pdo->prepare("UPDATE invoices SET voided_at = datetime('now','localtime'), voided_by = ?, void_reason = ? WHERE id = ?")
+            ->execute([own_name(), $reason, $invoice['id']]);
+        audit(
+            $pdo,
+            'finance',
+            'void',
+            'invoice',
+            (int) $invoice['id'],
+            (string) $invoice['invoice_no'],
+            sprintf('作废发票（%s，客户 %s）；原因: %s', idr((float) $invoice['total']), (string) $invoice['customer'], $reason)
+        );
+        flash(t('void_done'));
+        redirect('finance.show', ['id' => $invoice['id']]);
+        break;
+
+    case 'unvoid':
+        // Undoing a void is an admin-only correction: voiding is meant to be final.
+        Csrf::verify();
+        if (!$auth->isAdmin()) {
+            flash(t('void_err_unvoid_admin'), 'error');
+            redirect('finance.index');
+        }
+        $invoice = find_invoice($pdo, (int) input('id', 0));
+        if (!invoice_is_void($invoice)) {
+            redirect('finance.show', ['id' => $invoice['id']]);
+        }
+        $pdo->prepare('UPDATE invoices SET voided_at = NULL, voided_by = NULL, void_reason = NULL WHERE id = ?')
+            ->execute([$invoice['id']]);
+        refresh_invoice_status($pdo, (int) $invoice['id'], date('Y-m-d'));
+        audit(
+            $pdo,
+            'finance',
+            'unvoid',
+            'invoice',
+            (int) $invoice['id'],
+            (string) $invoice['invoice_no'],
+            sprintf('撤销作废（原作废人 %s，原因 %s）', (string) $invoice['voided_by'], (string) $invoice['void_reason'])
+        );
+        flash(t('unvoid_done'));
         redirect('finance.show', ['id' => $invoice['id']]);
         break;
 

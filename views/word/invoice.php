@@ -10,6 +10,10 @@ $total = (float) $invoice['total'];
 $fdate = fn($d) => $d ? date('j/M/y', strtotime($d)) : '';
 $rp = fn($n) => 'Rp' . num($n);
 ?>
+<?php if (invoice_is_void($invoice)): ?>
+    <?php /* English only: exported documents carry no Chinese (no_cjk rule). */ ?>
+    <p style="border:2pt solid #cc0000;color:#cc0000;font-size:18pt;font-weight:bold;text-align:center;padding:4pt;letter-spacing:3pt">VOID / BATAL</p>
+<?php endif; ?>
 <table style="width:100%"><tr>
     <td style="border:1px solid #000;padding:4pt;font-size:8.5pt"><?= e($cfg['company_addr']) ?></td>
     <td style="width:22%;text-align:right;font-size:20pt;font-family:Georgia,serif"><b>Invoice</b></td>

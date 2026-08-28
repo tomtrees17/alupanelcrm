@@ -195,6 +195,14 @@ final class Database
             $pdo->exec('ALTER TABLE orders ADD COLUMN created_by TEXT');
         }
 
+        // invoices void columns (作废, added later).
+        $ivcols = array_column($pdo->query('PRAGMA table_info(invoices)')->fetchAll(), 'name');
+        foreach (['voided_at', 'voided_by', 'void_reason'] as $col) {
+            if (!in_array($col, $ivcols, true)) {
+                $pdo->exec("ALTER TABLE invoices ADD COLUMN {$col} TEXT");
+            }
+        }
+
         // ai_queries (AI 库存查询用量与限流, added later).
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS ai_queries (

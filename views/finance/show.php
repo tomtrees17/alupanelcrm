@@ -1,11 +1,26 @@
 <?php /** @var array $invoice */ /** @var array $items */ /** @var array $payments */
 $remaining = $invoice['total'] - $invoice['amount_paid'];
+$isVoid = invoice_is_void($invoice);
 ?>
 <div class="page-head">
-    <h1><?= t('invoice') ?> <?= e($invoice['invoice_no']) ?> <span class="tag <?= invoice_status_class($invoice['payment_status']) ?>"><?= e(invoice_status_label($invoice['payment_status'])) ?></span></h1>
+    <h1><?= t('invoice') ?> <?= e($invoice['invoice_no']) ?>
+        <?php if ($isVoid): ?>
+            <span class="tag tag-red"><?= t('void_tag') ?></span>
+        <?php else: ?>
+            <span class="tag <?= invoice_status_class($invoice['payment_status']) ?>"><?= e(invoice_status_label($invoice['payment_status'])) ?></span>
+        <?php endif; ?>
+    </h1>
     <div class="head-actions">
         <a class="btn btn-primary" href="<?= url('finance.print', ['id' => $invoice['id']]) ?>" target="_blank"><?= t('btn_print') ?> · Invoice</a>
         <?php if (can_word_export()): ?><a class="btn btn-ghost" href="<?= url('finance.word', ['id' => $invoice['id']]) ?>"><?= t('btn_word') ?></a><?php endif; ?>
+        <?php if (!$isVoid): ?>
+            <a class="btn btn-ghost" href="<?= url('finance.void_form', ['id' => $invoice['id']]) ?>"><?= t('void_btn') ?></a>
+        <?php elseif ($auth->isAdmin()): ?>
+            <form method="post" action="<?= url('finance.unvoid') ?>" style="display:inline" onsubmit="return confirm('<?= t('unvoid_btn') ?>?')">
+                <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $invoice['id'] ?>">
+                <button class="btn btn-ghost" type="submit"><?= t('unvoid_btn') ?></button>
+            </form>
+        <?php endif; ?>
         <a class="btn btn-ghost" href="<?= url('finance.index') ?>"><?= t('btn_back') ?></a>
     </div>
 </div>
@@ -57,6 +72,14 @@ $remaining = $invoice['total'] - $invoice['amount_paid'];
     </div>
 </div>
 
+<?php if ($isVoid): ?>
+    <div class="alert alert-error">
+        <strong><?= t('void_tag') ?></strong> ·
+        <?= sprintf(t('voided_by_on'), e((string) $invoice['voided_by']), e((string) $invoice['voided_at'])) ?>
+        <?php if (!empty($invoice['void_reason'])): ?> · <?= e($invoice['void_reason']) ?><?php endif; ?>
+    </div>
+<?php endif; ?>
+
 <div class="grid-2">
     <div class="card">
         <div class="card-header"><span class="card-title"><?= t('payment_records') ?></span></div>
@@ -103,7 +126,7 @@ $remaining = $invoice['total'] - $invoice['amount_paid'];
         </table></div>
     </div>
 
-    <?php if ($remaining > 0): ?>
+    <?php if ($remaining > 0 && !$isVoid): ?>
     <div class="card no-print">
         <div class="card-header"><span class="card-title"><?= t('record_payment') ?></span></div>
         <div class="card-body">

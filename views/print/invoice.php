@@ -30,6 +30,11 @@ foreach (['logo-print.png', 'logo-print.svg', 'logo-print.jpg'] as $cand) {
 </div>
 
 <div class="sheet inv">
+    <?php if (invoice_is_void($invoice)): ?>
+        <!-- A voided invoice must never be mistaken for a live one on paper.
+             English only: printed documents carry no Chinese (no_cjk rule). -->
+        <div class="void-stamp">VOID / BATAL</div>
+    <?php endif; ?>
     <!-- Header -->
     <table class="inv-top"><tr>
         <?php if ($printLogo): ?>

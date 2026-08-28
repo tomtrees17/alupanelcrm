@@ -118,6 +118,9 @@ $viewFile = __DIR__ . '/../views/inventory/ask.php';
 $render = function (array $data) use ($viewFile): string {
     $errors = [];
     set_error_handler(function (int $no, string $msg) use (&$errors): bool { $errors[] = $msg; return true; });
+    // view() injects these into every template; mirror it or the render diverges.
+    $auth = $GLOBALS['auth'] ?? null;
+    $config = $GLOBALS['config'] ?? [];
     extract($data, EXTR_SKIP);
     ob_start();
     include $viewFile;
