@@ -321,6 +321,41 @@ function audit_snapshot(PDO $pdo, string $table, int $id): array
     return $stmt->fetch() ?: [];
 }
 
+/**
+ * Recompute invoices.amount_paid from the payment ledger and refresh the status.
+ *
+ * amount_paid is a cached sum, never incremented in place: reversals are stored
+ * as negative rows, so summing is the only way the two stay consistent.
+ */
+function recompute_invoice_paid(PDO $pdo, int $invoiceId, ?string $today = null): float
+{
+    $stmt = $pdo->prepare('SELECT COALESCE(SUM(amount),0) FROM payments WHERE invoice_id = ?');
+    $stmt->execute([$invoiceId]);
+    $paid = (float) $stmt->fetchColumn();
+
+    $pdo->prepare('UPDATE invoices SET amount_paid = ? WHERE id = ?')->execute([$paid, $invoiceId]);
+    refresh_invoice_status($pdo, $invoiceId, $today ?? date('Y-m-d'));
+
+    return $paid;
+}
+
+/**
+ * Why this payment cannot be reversed, or null when it can be.
+ * One place so the confirmation page and the POST handler can never disagree.
+ */
+function payment_reversal_block(PDO $pdo, array $payment): ?string
+{
+    if (($payment['reversal_of'] ?? null) !== null) {
+        return t('reverse_err_is_reversal');   // a reversal cannot itself be reversed
+    }
+    $st = $pdo->prepare('SELECT COUNT(*) FROM payments WHERE reversal_of = ?');
+    $st->execute([(int) $payment['id']]);
+    if ((int) $st->fetchColumn() > 0) {
+        return t('reverse_err_already');
+    }
+    return null;
+}
+
 /** Recompute an invoice's payment_status from amount_paid / due_date. */
 function refresh_invoice_status(PDO $pdo, int $invoiceId, string $today): void
 {

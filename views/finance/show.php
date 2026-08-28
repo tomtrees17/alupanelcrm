@@ -61,11 +61,43 @@ $remaining = $invoice['total'] - $invoice['amount_paid'];
     <div class="card">
         <div class="card-header"><span class="card-title"><?= t('payment_records') ?></span></div>
         <div class="table-wrap"><table>
-            <thead><tr><th><?= t('th_date') ?></th><th><?= t('th_method') ?></th><th><?= t('th_receipt') ?></th><th class="right"><?= t('th_amount') ?></th></tr></thead>
+            <thead><tr><th><?= t('th_date') ?></th><th><?= t('th_method') ?></th><th><?= t('th_receipt') ?></th><th class="right"><?= t('th_amount') ?></th><th class="right no-print"></th></tr></thead>
             <tbody>
-            <?php if (!$payments): ?><tr><td colspan="4" class="empty"><?= t('no_payment') ?></td></tr><?php endif; ?>
+            <?php if (!$payments): ?><tr><td colspan="5" class="empty"><?= t('no_payment') ?></td></tr><?php endif; ?>
+            <?php
+            // A payment already offset by a reversal row cannot be reversed twice.
+            $reversedIds = [];
+            foreach ($payments as $p) {
+                if ($p['reversal_of'] !== null) {
+                    $reversedIds[(int) $p['reversal_of']] = true;
+                }
+            }
+            ?>
             <?php foreach ($payments as $p): ?>
-                <tr><td><?= e($p['pay_date']) ?></td><td><?= e($p['method']) ?: '—' ?></td><td><code><?= e($p['receipt_no']) ?></code></td><td class="right"><?= idr($p['amount']) ?></td></tr>
+                <?php
+                $isReversal = $p['reversal_of'] !== null;
+                $isReversed = isset($reversedIds[(int) $p['id']]);
+                ?>
+                <tr<?= $isReversal || $isReversed ? ' class="row-void"' : '' ?>>
+                    <td><?= e($p['pay_date']) ?></td>
+                    <td>
+                        <?= e($p['method']) ?: '—' ?>
+                        <?php if ($isReversal): ?>
+                            <span class="tag tag-red"><?= t('reverse_tag') ?></span>
+                        <?php elseif ($isReversed): ?>
+                            <span class="tag tag-gray"><?= t('reversed_tag') ?></span>
+                        <?php endif; ?>
+                        <?php if (!empty($p['created_by'])): ?><div class="muted small"><?= e($p['created_by']) ?></div><?php endif; ?>
+                        <?php if ($isReversal && !empty($p['note'])): ?><div class="muted small"><?= e($p['note']) ?></div><?php endif; ?>
+                    </td>
+                    <td><code><?= e($p['receipt_no']) ?></code></td>
+                    <td class="right"><?= idr($p['amount']) ?></td>
+                    <td class="right no-print">
+                        <?php if (!$isReversal && !$isReversed): ?>
+                            <a class="btn btn-ghost btn-sm" href="<?= url('finance.reverse_form', ['pid' => $p['id']]) ?>"><?= t('reverse_btn') ?></a>
+                        <?php endif; ?>
+                    </td>
+                </tr>
             <?php endforeach; ?>
             </tbody>
         </table></div>

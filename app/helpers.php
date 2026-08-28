@@ -455,7 +455,7 @@ function audit_actions(): array
 {
     return [
         'create', 'update', 'delete', 'submit', 'approve', 'reject', 'fulfill',
-        'pay', 'adjust', 'move', 'permission', 'password', 'login', 'logout', 'login_failed',
+        'pay', 'reverse', 'adjust', 'move', 'permission', 'password', 'login', 'logout', 'login_failed',
     ];
 }
 
@@ -476,6 +476,7 @@ function audit_action_class(string $a): string
         'create'  => 'tag-green',  'update'      => 'tag-blue',  'delete' => 'tag-red',
         'approve' => 'tag-green',  'reject'      => 'tag-red',   'fulfill' => 'tag-green',
         'pay'     => 'tag-green',  'adjust'      => 'tag-orange', 'submit' => 'tag-blue',
+        'reverse' => 'tag-red',
         'login'   => 'tag-gray',   'logout'      => 'tag-gray',  'login_failed' => 'tag-red',
         'permission' => 'tag-orange', 'password' => 'tag-orange', 'move' => 'tag-blue',
     ][$a] ?? 'tag-gray';

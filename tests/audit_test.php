@@ -114,5 +114,29 @@ $stmt = $pdo->prepare('SELECT COUNT(*) FROM audit_log WHERE created_at >= ? AND 
 $stmt->execute([$today . ' 00:00:00', $today . ' 23:59:59']);
 ok('date-range filter matches today', (int) $stmt->fetchColumn() === 120);
 
-// 9) The log must be append-only in practice: no UPDATE/DELETE anywhere in app code.
+// 9) Display helpers.
 ok('display helpers resolve', tr_audit_module('orders') !== '' && tr_audit_action('approve') !== '' && audit_action_class('delete') === 'tag-red');
+
+// 10) Every registered module/action needs a label in BOTH dictionaries, or the
+//     filter dropdown shows a raw key like 'audit_act_reverse'. Checked structurally
+//     so adding an action without its i18n entry fails here, not in production.
+$missing = [];
+foreach (audit_modules() as $m) {
+    foreach (['zh', 'id'] as $lang) {
+        if (!isset(I18N[$lang]['audit_mod_' . $m])) {
+            $missing[] = "{$lang}/audit_mod_{$m}";
+        }
+    }
+}
+foreach (audit_actions() as $a) {
+    foreach (['zh', 'id'] as $lang) {
+        if (!isset(I18N[$lang]['audit_act_' . $a])) {
+            $missing[] = "{$lang}/audit_act_{$a}";
+        }
+    }
+}
+ok('every audit module/action is translated in zh + id', $missing === [], implode(' ', $missing));
+
+// Colour map must cover every action too, else tags render with no styling class.
+$noColour = array_values(array_filter(audit_actions(), fn($a) => audit_action_class($a) === 'tag-gray' && !in_array($a, ['login', 'logout'], true)));
+ok('every audit action has a colour', $noColour === [], implode(' ', $noColour));

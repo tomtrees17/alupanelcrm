@@ -154,12 +154,12 @@ switch ($action) {
         $receipt = trim((string) input('receipt_no', '')) ?: ('RC-' . date('Y') . '-' . str_pad((string) random_int(1, 9999), 4, '0', STR_PAD_LEFT));
         $note = trim((string) input('note', ''));
 
-        $newPaid = (float) $invoice['amount_paid'] + $amount;
-        $pdo->prepare('UPDATE invoices SET amount_paid=?, paid_date=?, receipt_no=?, payment_method=?, payment_note=? WHERE id=?')
-            ->execute([$newPaid, $payDate, $receipt, $method, $note, $invoice['id']]);
-        $pdo->prepare('INSERT INTO payments (invoice_id,customer,amount,pay_date,method,receipt_no,note) VALUES (?,?,?,?,?,?,?)')
-            ->execute([$invoice['id'], $invoice['customer'], $amount, $payDate, $method, $receipt, $note]);
-        refresh_invoice_status($pdo, (int) $invoice['id'], date('Y-m-d'));
+        $pdo->prepare('INSERT INTO payments (invoice_id,customer,amount,pay_date,method,receipt_no,note,created_by) VALUES (?,?,?,?,?,?,?,?)')
+            ->execute([$invoice['id'], $invoice['customer'], $amount, $payDate, $method, $receipt, $note, own_name()]);
+        $pdo->prepare('UPDATE invoices SET paid_date=?, receipt_no=?, payment_method=?, payment_note=? WHERE id=?')
+            ->execute([$payDate, $receipt, $method, $note, $invoice['id']]);
+        // amount_paid is always re-derived from the ledger, never incremented.
+        $newPaid = recompute_invoice_paid($pdo, (int) $invoice['id'], date('Y-m-d'));
 
         audit(
             $pdo,
@@ -182,9 +182,82 @@ switch ($action) {
         redirect('finance.show', ['id' => $invoice['id']]);
         break;
 
+    case 'reverse_form':
+        // Confirmation step: a reversal moves money on the books, so make it deliberate.
+        $payment = find_payment($pdo, (int) input('pid', 0));
+        $invoice = find_invoice($pdo, (int) $payment['invoice_id']);
+        if (payment_reversal_block($pdo, $payment) !== null) {
+            flash(payment_reversal_block($pdo, $payment), 'error');
+            redirect('finance.show', ['id' => $invoice['id']]);
+        }
+        view('finance.reverse', [
+            'pageTitle' => t('reverse_payment'), 'pageSub' => $invoice['invoice_no'],
+            'invoice' => $invoice, 'payment' => $payment,
+        ]);
+        break;
+
+    case 'reverse':
+        Csrf::verify();
+        $payment = find_payment($pdo, (int) input('pid', 0));
+        $invoice = find_invoice($pdo, (int) $payment['invoice_id']);
+
+        $block = payment_reversal_block($pdo, $payment);
+        if ($block !== null) {
+            flash($block, 'error');
+            redirect('finance.show', ['id' => $invoice['id']]);
+        }
+        $reason = trim((string) input('reason', ''));
+        if ($reason === '') {
+            flash(t('reverse_need_reason'), 'error');
+            redirect('finance.reverse_form', ['pid' => $payment['id']]);
+        }
+
+        // Append an offsetting row; the original is never edited or deleted.
+        $pdo->prepare(
+            'INSERT INTO payments (invoice_id,customer,amount,pay_date,method,receipt_no,note,created_by,reversal_of)
+             VALUES (?,?,?,?,?,?,?,?,?)'
+        )->execute([
+            $invoice['id'], $invoice['customer'], -1 * (float) $payment['amount'], date('Y-m-d'),
+            $payment['method'], $payment['receipt_no'], $reason, own_name(), (int) $payment['id'],
+        ]);
+        $newPaid = recompute_invoice_paid($pdo, (int) $invoice['id'], date('Y-m-d'));
+
+        audit(
+            $pdo,
+            'finance',
+            'reverse',
+            'invoice',
+            (int) $invoice['id'],
+            (string) $invoice['invoice_no'],
+            sprintf(
+                '冲销收款 %s（原收据 %s，收款日 %s）；累计已收 %s / %s；原因: %s',
+                idr((float) $payment['amount']),
+                (string) ($payment['receipt_no'] ?: '—'),
+                (string) $payment['pay_date'],
+                idr($newPaid),
+                idr((float) $invoice['total']),
+                $reason
+            )
+        );
+        flash(t('reverse_done'));
+        redirect('finance.show', ['id' => $invoice['id']]);
+        break;
+
     default:
         http_response_code(404);
         echo 'Not found';
+}
+
+function find_payment(PDO $pdo, int $id): array
+{
+    $stmt = $pdo->prepare('SELECT * FROM payments WHERE id = ?');
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        http_response_code(404);
+        exit('收款记录不存在');
+    }
+    return $row;
 }
 
 function find_invoice(PDO $pdo, int $id): array

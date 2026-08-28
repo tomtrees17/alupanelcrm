@@ -189,13 +189,16 @@ CREATE TABLE payments (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     invoice_id  INTEGER REFERENCES invoices(id) ON DELETE CASCADE,
     customer    TEXT,
-    amount      REAL    NOT NULL DEFAULT 0,
+    amount      REAL    NOT NULL DEFAULT 0,   -- negative on a reversal row
     pay_date    TEXT,
     method      TEXT,
     receipt_no  TEXT,
     note        TEXT,
+    created_by  TEXT,                          -- who registered / reversed it
+    reversal_of INTEGER REFERENCES payments(id),-- set on the offsetting row only
     created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
+CREATE INDEX idx_payments_invoice ON payments(invoice_id);
 
 -- ── Administrative requests (business trip / expense / leave) ──
 CREATE TABLE admin_requests (

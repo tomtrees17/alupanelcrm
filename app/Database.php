@@ -180,6 +180,17 @@ final class Database
             $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_approvals', '1')");
         }
 
+        // payments: created_by + reversal_of (收款冲销, added later).
+        $pcols = array_column($pdo->query('PRAGMA table_info(payments)')->fetchAll(), 'name');
+        if (!in_array('created_by', $pcols, true)) {
+            $pdo->exec('ALTER TABLE payments ADD COLUMN created_by TEXT');
+        }
+        if (!in_array('reversal_of', $pcols, true)) {
+            // No REFERENCES here: SQLite cannot add a column with a foreign key.
+            $pdo->exec('ALTER TABLE payments ADD COLUMN reversal_of INTEGER');
+        }
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id)');
+
         // audit_log table (审计日志, added later) — append-only trail of who changed what.
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS audit_log (

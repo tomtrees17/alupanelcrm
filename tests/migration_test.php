@@ -19,6 +19,11 @@ $pdo->exec('DROP INDEX IF EXISTS idx_audit_created');
 $pdo->exec('DROP INDEX IF EXISTS idx_audit_user');
 $pdo->exec('DROP INDEX IF EXISTS idx_audit_entity');
 $pdo->exec('DROP TABLE IF EXISTS audit_log');
+// payments before the reversal feature: no created_by / reversal_of, no index.
+$pdo->exec('DROP INDEX IF EXISTS idx_payments_invoice');
+$pdo->exec('ALTER TABLE payments DROP COLUMN created_by');
+$pdo->exec('ALTER TABLE payments DROP COLUMN reversal_of');
+$pdo->exec("INSERT INTO payments (invoice_id,customer,amount,pay_date,receipt_no) VALUES (1,'PT Lama',250000,'2026-07-01','RC-OLD')");
 $pdo->exec("INSERT INTO users (name,email,password_hash,role) VALUES ('Admin','admin@alupanel.local','x','admin')");
 $pdo->exec("INSERT INTO role_permissions (role, module) VALUES ('manager','orders'),('sales','orders')");
 // Production has already run every earlier one-time migration; without these
@@ -49,6 +54,15 @@ $GLOBALS['auth'] = new AuthStub(['id' => 1, 'name' => 'Admin', 'role' => 'admin'
 audit($pdo, 'orders', 'approve', 'order', 1, 'SO-1', 'after migration');
 $row = $pdo->query('SELECT * FROM audit_log ORDER BY id DESC LIMIT 1')->fetch();
 ok('upgraded table accepts writes', ($row['label'] ?? '') === 'SO-1' && ($row['created_at'] ?? '') !== '');
+
+// payments upgrade: columns added, historical rows preserved and left NULL.
+$pcols = array_column($pdo->query('PRAGMA table_info(payments)')->fetchAll(), 'name');
+ok('payments gains created_by + reversal_of', in_array('created_by', $pcols, true) && in_array('reversal_of', $pcols, true), implode(',', $pcols));
+$old = $pdo->query("SELECT * FROM payments WHERE receipt_no = 'RC-OLD'")->fetch();
+ok('historical payment survives untouched', $old && (float) $old['amount'] === 250000.0 && $old['reversal_of'] === null);
+ok('historical payment is reversible', payment_reversal_block($pdo, $old) === null);
+$pidx = array_column($pdo->query("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='payments'")->fetchAll(), 'name');
+ok('payments index created', in_array('idx_payments_invoice', $pidx, true), implode(',', $pidx));
 
 // 'audit' must NOT be granted to anyone by the migration — admin-only by default.
 $granted = $pdo->query("SELECT COUNT(*) FROM role_permissions WHERE module='audit'")->fetchColumn();

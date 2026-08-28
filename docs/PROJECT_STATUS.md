@@ -143,6 +143,22 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 - 恢复:停站 → 用某份快照覆盖 `data/crm.sqlite`(并删掉 `-wal/-shm`)→ `chown -R www:www data`。
 - 进阶(建议):把 `backups/` 定期同步到异地/对象存储,防整机故障。
 
+## 6h. 收款冲销（2026-08-28）
+
+**背景**：财务反馈"已登记收款的发票能不能改"。查下来除发票号外**什么都改不了**——收款记录既不能编辑也不能删除。金额录错(如 500.000 打成 5.000.000)会让发票直接变"已付清"，界面上无法补救，只能改库。
+
+**做法：冲销，不是编辑或删除。** 追加一笔等额负数记录抵销原记录，两条都留在流水里：
+- `payments` 新增 `reversal_of`(指向被冲销记录的 id，只在冲销行上有值) 和 `created_by`(登记人/冲销人)。
+- **`invoices.amount_paid` 改为按流水合计重算**(`recompute_invoice_paid()`)，不再累加。这是冲销能生效的前提，也永久杜绝了缓存值与流水漂移。
+- 入口：发票详情页每条收款右侧「冲销」→ 确认页(显示原记录 + 冲销后已收金额变化) → **必填原因** → 提交。分两步是刻意的：冲销会改动账面金额。
+- 护栏 `payment_reversal_block()`(在 `domain.php`，确认页与 POST 共用同一判断)：冲销记录本身不能再冲销；同一笔不能冲销两次(否则会重复贷记客户)。
+- 已冲销的原记录和冲销行在流水里加删除线 + 标签(`已冲销` / `冲销记录`)，并显示冲销原因和操作人。
+- 审计日志记 `finance/reverse`，含原金额、收据号、冲销后累计已收、原因。
+
+**注意**：权限与「登记收款」相同(有 finance 模块访问权即可)，没有额外限制——小公司里犯错的人通常就是要改的人。控制手段是"不可删除 + 必填原因 + 审计留痕"，而非限制人。
+
+**线上升级**：`ensureSchema()` 幂等加两列 + `idx_payments_invoice` 索引；历史收款记录 `reversal_of` 为 NULL，照常可冲销。已验证既有 40 条流水不受影响。
+
 ## 6g. 审计日志（2026-08-28）
 
 **表** `audit_log`（**只追加**，全站没有任何 UPDATE/DELETE 它的代码路径）。**模块键** `audit`，进权限矩阵但**默认不授予任何角色**——只有 admin 能看，除非在权限设置里显式勾选。控制器 `app/controllers/audit.php` **只有 index 一个动作**（没有编辑/删除入口，被攻破的账号无法从界面抹除自己的痕迹）。
@@ -237,7 +253,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-users(+must_change_password), customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, **audit_log(审计日志)**。
+users(+must_change_password), customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, **audit_log(审计日志)**, payments(+created_by/reversal_of 冲销)。
 
 ## 10. 提交历史（main）
 
@@ -284,12 +300,12 @@ d62d1eb Invoice header: use company name instead of logo image
 
 发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。（~~真实 logo.png 上传~~ 已完成，见 6 打印一节）
 
-**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **自动化测试起步**(`tools/run_tests.php`，57 项)。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **自动化测试**(`tools/run_tests.php`，110 项)。
 
 **待办（按优先级）**：
 1. **关闭 SSH 密码认证 + 装 fail2ban** —— 操作步骤见 6f，是当前最高的实际风险（7,700 次爆破/天）
 2. ~~**审计日志**~~ —— **已完成**（见 6g）
-3. **金额改整数分** —— 现用 REAL 存，含税反算(÷1.11)有累积误差；涉及数据迁移，越晚成本越高
+3. **金额改整数分 / 修发票合计舍入** —— 现用 REAL 存。**线上已实际发生**：3 张发票(1027/1037/1043 - AMI - INV - 08 - 26)的合计比订单含税额少 1 卢比，客户按整数付款后被判定"超额收款"。根因是 `fulfill_order()` 里逐行 `round()` 后 `total = subtotal + ppn` 与原始含税额不完全相等(代码注释写的就是 `≈ original`)。修法：税额改为 `total - subtotal` 反推，让合计严格等于订单含税金额；历史 3 张可一并订正。涉及数据迁移，越晚成本越高
 4. **列表分页** —— 订单/发票持续增长，目前全量渲染
 5. **WhatsApp 一键联系 / 自动通知** —— 印尼市场刚需（审批到达、发票逾期）
 6. 宝塔面板 8888 收口、停用闲置 MySQL/FTP（见 6f）
