@@ -116,3 +116,44 @@ $dbSrc = (string) @file_get_contents(__DIR__ . '/../app/Database.php');
 $seedNames = ['PT Maju Bersama', 'CV Dagang Makmur', 'PT Konstruksi Prima', 'CV Anugerah Jaya', 'PT Grup Sejahtera', 'PT Logistik Prima'];
 $missing = array_values(array_filter($seedNames, fn($nm) => !str_contains($dbSrc, $nm)));
 ok('seed customer names still exist in Database.php', $missing === [], implode(' | ', $missing));
+
+// 8) Stranded stock: an order deleted after shipping leaves its movement behind,
+//    and the invoice link is gone too — so restoring has to work off stock_txn.
+$pdo->exec("DELETE FROM stock_txn");
+$pdo->prepare('UPDATE products SET stock = 100 WHERE id = ?')->execute([$pid]);
+
+// A test shipment in June (order since deleted) and a real one in August.
+$pdo->prepare("INSERT INTO stock_txn (product_id,type,qty,ref,txn_date) VALUES (?,'out_auto',?,?,?)")
+    ->execute([$pid, 20, '0479/AMI-CO/06/26', '2026-06-15 10:00:00']);
+$pdo->prepare("INSERT INTO stock_txn (product_id,type,qty,ref,txn_date) VALUES (?,'out_auto',?,?,?)")
+    ->execute([$pid, 7, '0147/AMI-CO/08/26', '2026-08-28 10:00:00']);
+// And one belonging to an order that still exists — must never be touched.
+$live = $mkOrder('0500/AMI-CO/08/26', 'Real Co');
+$pdo->prepare("INSERT INTO stock_txn (product_id,type,qty,ref,txn_date) VALUES (?,'out_auto',?,?,?)")
+    ->execute([$pid, 3, '0500/AMI-CO/08/26', '2026-08-29 10:00:00']);
+
+$stranded = function (string $before) use ($pdo): array {
+    $st = $pdo->prepare("SELECT st.id, st.ref, st.qty, st.product_id FROM stock_txn st
+                         WHERE st.type='out_auto' AND st.txn_date < ?
+                           AND st.ref NOT IN (SELECT order_no FROM orders WHERE order_no IS NOT NULL)
+                         ORDER BY st.id");
+    $st->execute([$before]);
+    return $st->fetchAll();
+};
+
+$all = $stranded('2099-01-01');
+ok('live orders are never stranded', !in_array('0500/AMI-CO/08/26', array_column($all, 'ref'), true));
+ok('both deleted-order movements are stranded', count($all) === 2, implode(',', array_column($all, 'ref')));
+
+// The date cutoff is what separates a test shipment from a real one.
+$june = $stranded('2026-07-01');
+ok('--before keeps the real August shipment out', count($june) === 1 && $june[0]['ref'] === '0479/AMI-CO/06/26');
+
+foreach ($june as $m) {
+    $pdo->prepare('UPDATE products SET stock = stock + ? WHERE id = ?')->execute([(int) $m['qty'], (int) $m['product_id']]);
+    $pdo->prepare('DELETE FROM stock_txn WHERE id = ?')->execute([(int) $m['id']]);
+}
+ok('only the test deduction is restored', (int) $pdo->query("SELECT stock FROM products WHERE id={$pid}")->fetchColumn() === 120);
+ok('the real August movement survives', (int) $pdo->query("SELECT COUNT(*) FROM stock_txn WHERE ref='0147/AMI-CO/08/26'")->fetchColumn() === 1);
+ok('the live order movement survives', (int) $pdo->query("SELECT COUNT(*) FROM stock_txn WHERE ref='0500/AMI-CO/08/26'")->fetchColumn() === 1);
+ok('restoring twice finds nothing left', $stranded('2026-07-01') === []);

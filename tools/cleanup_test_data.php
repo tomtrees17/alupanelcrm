@@ -12,13 +12,25 @@ declare(strict_types=1);
  *   php tools/cleanup_test_data.php --customer="8888"      # dry run, one customer
  *   php tools/cleanup_test_data.php --seed                 # dry run, the demo customers
  *   php tools/cleanup_test_data.php --invoice="136 - AMI - INV - 06 - 26"
+ *   php tools/cleanup_test_data.php --invoice="INV-1,INV-2"   # comma-separated list
  *   php tools/cleanup_test_data.php --orphans              # invoices whose order is gone
+ *   php tools/cleanup_test_data.php --orphans --before=2026-07-01   # ...only the older ones
  *   php tools/cleanup_test_data.php --customer="8888" --apply
  *
  * Options:
  *   --apply          actually delete (default is dry run)
  *   --restore-stock  add back stock that a deleted shipped order had deducted
  *   --force          also delete records that have payments registered (dangerous)
+ *   --before=DATE    narrow any selector to records dated before DATE
+ *
+ *   php tools/cleanup_test_data.php --orphan-stock --before=2026-07-01
+ *       Stock deducted by orders that no longer exist. Deleting an order never
+ *       put its stock back, so a deleted TEST shipment leaves stock understated
+ *       forever. A deleted REAL shipment must NOT be restored — the goods left
+ *       the warehouse — hence --before is mandatory here.
+ *
+ * --orphans on its own is blunt: a real order deleted by mistake leaves a real
+ * invoice orphaned too. Pair it with --before, or list invoice numbers.
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -40,13 +52,71 @@ const SEED_CUSTOMERS = [
     'Startup Nusantara',
 ];
 
-$opts = getopt('', ['apply', 'restore-stock', 'force', 'customer:', 'invoice:', 'order:', 'seed', 'orphans']);
+$opts = getopt('', ['apply', 'restore-stock', 'force', 'customer:', 'invoice:', 'order:', 'seed', 'orphans', 'before:', 'orphan-stock']);
 $apply   = isset($opts['apply']);
 $restore = isset($opts['restore-stock']);
 $force   = isset($opts['force']);
 
 $pdo = Database::connect($config['db_path']);
 $n = fn($v) => number_format((float) $v, 0, ',', '.');
+
+// ── Stranded stock movements ─────────────────────────────────────────────────
+if (isset($opts['orphan-stock'])) {
+    if (!isset($opts['before'])) {
+        echo "--orphan-stock 必须配 --before=YYYY-MM-DD。\n";
+        echo "已删订单的出货流水里，测试单和真实发货混在一起：真实发货的货已经出库，\n";
+        echo "库存回补会把账做错。用日期把两者分开。\n";
+        exit(1);
+    }
+    $rows = $pdo->prepare(
+        "SELECT st.id, st.ref, st.qty, st.txn_date, pr.id pid, pr.sku, pr.name, pr.stock
+         FROM stock_txn st JOIN products pr ON pr.id = st.product_id
+         WHERE st.type = 'out_auto'
+           AND st.txn_date < ?
+           AND st.ref NOT IN (SELECT order_no FROM orders WHERE order_no IS NOT NULL)
+         ORDER BY st.txn_date, st.id"
+    );
+    $rows->execute([(string) $opts['before']]);
+    $moves = $rows->fetchAll();
+
+    if (!$moves) {
+        echo "没有符合条件的孤立库存流水。\n";
+        exit(0);
+    }
+    echo ($apply ? '' : "【预演，不会改动任何数据】") . "将回补以下库存：\n\n";
+    $tot = 0;
+    foreach ($moves as $m) {
+        printf("  %-26s %s  %-14s %s → %s  (+%d)\n",
+            $m['ref'], substr((string) $m['txn_date'], 0, 10), $m['sku'],
+            $n($m['stock']), $n((int) $m['stock'] + (int) $m['qty']), (int) $m['qty']);
+        $tot += (int) $m['qty'];
+    }
+    printf("\n合计 %d 条流水，回补 %s 张板。\n", count($moves), $n($tot));
+
+    if (!$apply) {
+        echo "\n这是预演。确认无误后加 --apply 执行。\n";
+        echo "强烈建议先备份： php tools/backup_db.php\n";
+        exit(0);
+    }
+    $pdo->beginTransaction();
+    try {
+        foreach ($moves as $m) {
+            $pdo->prepare('UPDATE products SET stock = stock + ? WHERE id = ?')->execute([(int) $m['qty'], (int) $m['pid']]);
+            $pdo->prepare('DELETE FROM stock_txn WHERE id = ?')->execute([(int) $m['id']]);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        echo "\n回补失败，已回滚：\n  " . $e->getMessage() . "\n";
+        exit(1);
+    }
+    audit($pdo, 'inventory', 'adjust', 'product', null, '清理测试数据',
+        sprintf('回补已删测试订单扣减的库存：%d 条流水，共 %s 张板（%s 之前）',
+            count($moves), $n($tot), (string) $opts['before']));
+    printf("\n已回补 %d 条，共 %s 张板。审计日志已记录。\n", count($moves), $n($tot));
+    echo "别忘了： chown -R www:www data\n";
+    exit(0);
+}
 
 // ── Pick the targets ─────────────────────────────────────────────────────────
 $where = '';
@@ -55,8 +125,9 @@ if (isset($opts['customer'])) {
     $where = 'iv.customer LIKE ? OR iv.bill_to_name LIKE ?';
     $args = ['%' . $opts['customer'] . '%', '%' . $opts['customer'] . '%'];
 } elseif (isset($opts['invoice'])) {
-    $where = 'iv.invoice_no = ?';
-    $args = [$opts['invoice']];
+    $list = array_values(array_filter(array_map('trim', explode(',', (string) $opts['invoice'])), fn($v) => $v !== ''));
+    $where = 'iv.invoice_no IN (' . implode(',', array_fill(0, count($list), '?')) . ')';
+    $args = $list;
 } elseif (isset($opts['order'])) {
     $where = 'o.order_no = ?';
     $args = [$opts['order']];
@@ -71,6 +142,8 @@ if (isset($opts['customer'])) {
     echo '  发票总数        ' . $pdo->query('SELECT COUNT(*) FROM invoices')->fetchColumn() . "\n";
     echo '  订单总数        ' . $pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn() . "\n";
     echo '  孤儿发票        ' . $pdo->query('SELECT COUNT(*) FROM invoices WHERE order_id IS NULL')->fetchColumn() . "  (--orphans)\n";
+    echo '  孤立库存流水    ' . $pdo->query("SELECT COUNT(*) FROM stock_txn WHERE type='out_auto'
+        AND ref NOT IN (SELECT order_no FROM orders WHERE order_no IS NOT NULL)")->fetchColumn() . "  (--orphan-stock)\n";
     echo '  种子示例发票    ' . (int) $pdo->query('SELECT COUNT(*) FROM invoices WHERE customer IN (' .
         implode(',', array_map(fn($c) => $pdo->quote($c), SEED_CUSTOMERS)) . ')')->fetchColumn() . "  (--seed)\n\n";
     echo "按客户看（前 20，可用 --customer=\"名字\" 定位）：\n";
@@ -83,9 +156,16 @@ if (isset($opts['customer'])) {
     exit(0);
 }
 
+// --before narrows whatever was selected; the guard against sweeping up a
+// recent real invoice alongside old test data.
+if (isset($opts['before'])) {
+    $where = '(' . $where . ') AND iv.invoice_date < ?';
+    $args[] = (string) $opts['before'];
+}
+
 $sql = 'SELECT iv.*, o.order_no, o.status AS order_status, o.id AS oid
         FROM invoices iv LEFT JOIN orders o ON o.id = iv.order_id
-        WHERE ' . $where . ' ORDER BY iv.id';
+        WHERE ' . $where . ' ORDER BY iv.invoice_date, iv.id';
 $st = $pdo->prepare($sql);
 $st->execute($args);
 $targets = $st->fetchAll();
@@ -134,6 +214,15 @@ foreach ($targets as $t) {
 }
 
 printf("合计：可删 %d 条，因有收款跳过 %d 条。\n", count($deletable), count($blocked));
+
+// Recent invoices are the ones most likely to be real. Say so before deleting.
+$recent = array_values(array_filter($deletable, fn($t) => (string) $t['invoice_date'] >= date('Y-m-d', strtotime('-30 days'))));
+if ($recent) {
+    echo "\n⚠ 其中 " . count($recent) . " 条是最近 30 天开的，确认它们不是真实业务：\n";
+    foreach ($recent as $r) {
+        printf("    %-28s %s  %s\n", $r['invoice_no'], $r['invoice_date'], $r['customer']);
+    }
+}
 
 if (!$apply) {
     echo "\n这是预演。确认无误后加 --apply 执行。\n";
