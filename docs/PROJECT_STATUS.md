@@ -284,7 +284,7 @@ d62d1eb Invoice header: use company name instead of logo image
 
 发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。（~~真实 logo.png 上传~~ 已完成，见 6 打印一节）
 
-**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **自动化测试起步**(`tools/run_tests.php`，38 项)。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **自动化测试起步**(`tools/run_tests.php`，57 项)。
 
 **待办（按优先级）**：
 1. **关闭 SSH 密码认证 + 装 fail2ban** —— 操作步骤见 6f，是当前最高的实际风险（7,700 次爆破/天）
