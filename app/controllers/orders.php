@@ -139,6 +139,16 @@ switch ($action) {
             flash(t('msg_order_del_own'), 'error');
             redirect('orders.show', ['id' => $order['id']]);
         }
+        // A shipped order has an invoice and a delivery note against it. Deleting
+        // the order would only null their order_id, leaving orphaned paperwork on
+        // the finance list forever — refuse, and point at the cleanup tool.
+        $linked = $pdo->prepare('SELECT invoice_no FROM invoices WHERE order_id = ?');
+        $linked->execute([$order['id']]);
+        $invNo = (string) ($linked->fetchColumn() ?: '');
+        if ($invNo !== '') {
+            flash(sprintf(t('msg_order_has_invoice'), $invNo), 'error');
+            redirect('orders.show', ['id' => $order['id']]);
+        }
         $pdo->prepare('DELETE FROM orders WHERE id = ?')->execute([$order['id']]);
         recompute_reservations($pdo);   // release any reserved stock
         audit(

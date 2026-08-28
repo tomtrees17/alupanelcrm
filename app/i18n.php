@@ -159,6 +159,7 @@ const I18N = [
         'msg_user_self_del' => '不能删除当前登录账户。',
         'msg_user_deleted' => '用户已删除。',
         'msg_no_module' => '无权访问该模块。',
+        'msg_order_has_invoice' => '该订单已开票（%s），不能删除；发票和送货单会变成孤儿。如确需清理测试数据，请用 tools/cleanup_test_data.php。',
         // AI inventory lookup
         'nav_ask' => '智能查库存', 'page_ask' => '智能查库存', 'sub_ask' => '用一句话问库存',
         'ask_placeholder' => '例如：4.0 银色拉丝还有多少张？／客户要 50 张 3mm 白色，够吗？',
@@ -370,6 +371,7 @@ const I18N = [
         'msg_user_self_del' => 'Tidak dapat menghapus akun yang sedang login.',
         'msg_user_deleted' => 'Pengguna berhasil dihapus.',
         'msg_no_module' => 'Anda tidak punya akses ke modul ini.',
+        'msg_order_has_invoice' => 'Order ini sudah difakturkan (%s) dan tidak dapat dihapus; faktur & surat jalan akan menjadi yatim. Untuk membersihkan data uji, gunakan tools/cleanup_test_data.php.',
         // AI inventory lookup
         'nav_ask' => 'Tanya Stok', 'page_ask' => 'Tanya Stok', 'sub_ask' => 'Tanya stok dengan satu kalimat',
         'ask_placeholder' => 'mis. Stok 4.0 perak brushed berapa? / Klien mau 50 lembar 3mm putih, cukup?',
