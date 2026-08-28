@@ -256,6 +256,25 @@ CREATE TABLE login_attempts (
 );
 CREATE INDEX idx_login_ip ON login_attempts(ip, attempt_time);
 
+-- ── Audit trail (who changed what, append-only) ──
+CREATE TABLE audit_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    user_id    INTEGER,           -- NULL for anonymous events (failed login)
+    user_name  TEXT,              -- denormalised: survives user deletion
+    user_role  TEXT,
+    module     TEXT NOT NULL,     -- orders / finance / inventory / customers / users / roles / approvals / auth / ...
+    action     TEXT NOT NULL,     -- create / update / delete / approve / reject / pay / adjust / login / ...
+    entity     TEXT,              -- business object type: order / invoice / product / customer / user / request
+    entity_id  INTEGER,
+    label      TEXT,              -- human-readable id: 单号 / 名称
+    detail     TEXT,              -- change summary ("field: old → new; ...") or note
+    ip         TEXT
+);
+CREATE INDEX idx_audit_created ON audit_log(created_at);
+CREATE INDEX idx_audit_user    ON audit_log(user_id);
+CREATE INDEX idx_audit_entity  ON audit_log(entity, entity_id);
+
 CREATE INDEX idx_deals_customer  ON deals(customer_id);
 CREATE INDEX idx_tasks_customer  ON tasks(customer_id);
 CREATE INDEX idx_items_order     ON order_items(order_id);

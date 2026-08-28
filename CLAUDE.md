@@ -165,6 +165,34 @@ php -S localhost:8000 -t public
 - **驳回 = 退回草稿**（订单与行政审批都是）：记录 reject_note/by/date、清空已有审批、释放预留，申请人改后可重新提交。
 - **职责分离**：非 admin 不能审批自己提交的行政申请。
 
+### 5.6 审计日志（新增写操作必做）
+
+**任何新增的写操作都要调用 `audit()`**（`app/domain.php`，详见 PROJECT_STATUS 6g）：
+
+```php
+audit($pdo, 'orders', 'approve', 'order', $id, $orderNo, '经理通过 → 待仓库出货');
+```
+
+- 放在**写库成功之后**；涉及事务的放在 `commit()` 之后——日志只记真正落库的事。
+- 修改类动作用 `audit_diff($before, $after, $fields)` 生成字段级摘要；删除类动作先 `audit_snapshot()` 取快照，好把对象名字记下来。
+- 新的 module/action 值要同时加进 `audit_modules()` / `audit_actions()`（`helpers.php`）和 i18n 的 `audit_mod_*` / `audit_act_*` 词条，否则筛选下拉里没有、界面显示原始英文键。
+- **高频低价值的动作不要记**（如任务勾选完成），纯读取动作也不记，否则日志被刷爆、真正重要的记录被淹没。
+- `audit_log` 是**只追加**表：不要写任何 UPDATE/DELETE 它的代码，也不要给审计模块加编辑/删除入口。
+
+### 5.7 测试
+
+```bash
+php tools/run_tests.php
+```
+
+零依赖，全部跑在内存 SQLite 上，不碰 `data/crm.sqlite`，在服务器上跑也安全。加测试就在 `tests/` 下新建 `*_test.php`，用全局的 `ok($描述, $条件, $实际值)` 断言，runner 会自动发现并汇总。**涉及表结构变更时，除了功能测试还要写一条迁移测试**：模拟线上现状（带 `app_meta` 标记的旧库）跑 `Database::migrate()`，验证只发生预期变更、既有数据未受影响、重复执行幂等。
+
+本机若没有 PHP，可借服务器的 PHP 做语法检查（不在服务器落任何文件）：
+
+```bash
+ssh -p 22022 root@149.129.218.9 '/www/server/php/82/bin/php -l' < app/domain.php
+```
+
 ## 6. Session 结束前：更新 docs/PROJECT_STATUS.md
 
 **每次 session 做完实质改动后，收尾必须更新 [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)**，它是跨 session / 跨上下文的交接文档，下一次开工靠它恢复全貌。

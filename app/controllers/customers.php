@@ -108,8 +108,18 @@ switch ($action) {
         $ph = implode(',', array_fill(0, count($fields), '?'));
         $pdo->prepare("INSERT INTO customers ($cols, owner) VALUES ($ph, ?)")
             ->execute([...array_values($data), $owner]);
+        $newId = (int) $pdo->lastInsertId();
+        audit(
+            $pdo,
+            'customers',
+            'create',
+            'customer',
+            $newId,
+            $data['name'],
+            sprintf('公司: %s; 城市: %s; 负责销售: %s', $data['company'] ?: '(空)', $data['city'] ?: '(空)', $owner ?: '(空)')
+        );
         flash('客户已创建。');
-        redirect('customers.show', ['id' => (int) $pdo->lastInsertId()]);
+        redirect('customers.show', ['id' => $newId]);
         break;
 
     case 'show':
@@ -141,14 +151,29 @@ switch ($action) {
             redirect('customers.edit', ['id' => $customer['id']]);
         }
         $set = implode(',', array_map(fn($f) => "$f = ?", $fields));
+        $after = $data;
         if (!sees_only_own()) {
             // Privileged users may (re)assign the owner.
+            $after['owner'] = trim((string) input('owner', ''));
             $pdo->prepare("UPDATE customers SET $set, owner = ? WHERE id = ?")
-                ->execute([...array_values($data), trim((string) input('owner', '')), $customer['id']]);
+                ->execute([...array_values($data), $after['owner'], $customer['id']]);
         } else {
             $pdo->prepare("UPDATE customers SET $set WHERE id = ?")
                 ->execute([...array_values($data), $customer['id']]);
         }
+        $diff = audit_diff($customer, $after, [
+            'name' => '姓名', 'company' => '公司', 'phone' => '电话', 'email' => '邮箱',
+            'city' => '城市', 'tag' => '标签', 'value' => '潜在价值', 'owner' => '负责销售',
+        ]);
+        audit(
+            $pdo,
+            'customers',
+            'update',
+            'customer',
+            (int) $customer['id'],
+            (string) $data['name'],
+            $diff !== '' ? $diff : '(无字段变化)'
+        );
         flash('客户已更新。');
         redirect('customers.show', ['id' => $customer['id']]);
         break;
@@ -157,6 +182,15 @@ switch ($action) {
         Csrf::verify();
         $customer = find_customer($pdo, (int) input('id', 0));
         $pdo->prepare('DELETE FROM customers WHERE id = ?')->execute([$customer['id']]);
+        audit(
+            $pdo,
+            'customers',
+            'delete',
+            'customer',
+            (int) $customer['id'],
+            (string) $customer['name'],
+            sprintf('公司: %s; 负责销售: %s', (string) ($customer['company'] ?? '') ?: '(空)', (string) ($customer['owner'] ?? '') ?: '(空)')
+        );
         flash('客户已删除。');
         redirect('customers.index');
         break;

@@ -33,6 +33,15 @@ switch ($action) {
         }
         $pdo->prepare('INSERT INTO deals (name,customer_id,value,stage,close_date,note) VALUES (?,?,?,?,?,?)')
             ->execute([$data['name'], $data['customer_id'], $data['value'], $data['stage'], $data['close_date'], $data['note']]);
+        audit(
+            $pdo,
+            'pipeline',
+            'create',
+            'deal',
+            (int) $pdo->lastInsertId(),
+            (string) $data['name'],
+            sprintf('阶段: %s; 金额: %s', tr_stage((string) $data['stage']), idr((float) $data['value']))
+        );
         flash('商机已创建。');
         redirect('pipeline.index');
         break;
@@ -52,6 +61,10 @@ switch ($action) {
         $data = collect_deal();
         $pdo->prepare('UPDATE deals SET name=?,customer_id=?,value=?,stage=?,close_date=?,note=? WHERE id=?')
             ->execute([$data['name'], $data['customer_id'], $data['value'], $data['stage'], $data['close_date'], $data['note'], $deal['id']]);
+        $diff = audit_diff($deal, $data, [
+            'name' => '名称', 'value' => '金额', 'stage' => '阶段', 'close_date' => '预计成交日',
+        ]);
+        audit($pdo, 'pipeline', 'update', 'deal', (int) $deal['id'], (string) $data['name'], $diff !== '' ? $diff : '(无字段变化)');
         flash('商机已更新。');
         redirect('pipeline.index');
         break;
@@ -62,6 +75,15 @@ switch ($action) {
         $stage = (string) input('stage', '');
         if (in_array($stage, deal_stages(), true)) {
             $pdo->prepare('UPDATE deals SET stage = ? WHERE id = ?')->execute([$stage, $deal['id']]);
+            audit(
+                $pdo,
+                'pipeline',
+                'move',
+                'deal',
+                (int) $deal['id'],
+                (string) $deal['name'],
+                sprintf('阶段: %s → %s', tr_stage((string) $deal['stage']), tr_stage($stage))
+            );
         }
         redirect('pipeline.index');
         break;
@@ -70,6 +92,15 @@ switch ($action) {
         Csrf::verify();
         $deal = find_deal($pdo, (int) input('id', 0));
         $pdo->prepare('DELETE FROM deals WHERE id = ?')->execute([$deal['id']]);
+        audit(
+            $pdo,
+            'pipeline',
+            'delete',
+            'deal',
+            (int) $deal['id'],
+            (string) $deal['name'],
+            sprintf('阶段: %s; 金额: %s', tr_stage((string) $deal['stage']), idr((float) $deal['value']))
+        );
         flash('商机已删除。');
         redirect('pipeline.index');
         break;

@@ -41,6 +41,7 @@ switch ($action) {
                 $title, (string) input('due_date', ''), (string) input('priority', '中'),
                 ((int) input('customer_id', 0)) ?: null, trim((string) input('note', '')),
             ]);
+        audit($pdo, 'tasks', 'create', 'task', (int) $pdo->lastInsertId(), $title, '');
         flash('任务已添加。');
         redirect('tasks.index');
         break;
@@ -54,7 +55,10 @@ switch ($action) {
 
     case 'delete':
         Csrf::verify();
-        $pdo->prepare('DELETE FROM tasks WHERE id = ?')->execute([(int) input('id', 0)]);
+        $tid = (int) input('id', 0);
+        $tRow = audit_snapshot($pdo, 'tasks', $tid);
+        $pdo->prepare('DELETE FROM tasks WHERE id = ?')->execute([$tid]);
+        audit($pdo, 'tasks', 'delete', 'task', $tid, (string) ($tRow['title'] ?? ''), '');
         flash('任务已删除。');
         redirect('tasks.index');
         break;

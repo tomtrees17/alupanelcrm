@@ -127,6 +127,15 @@ switch ($action) {
             if ($invoice['order_id']) {
                 $pdo->prepare('UPDATE orders SET invoice_number = ? WHERE id = ?')->execute([$no, $invoice['order_id']]);
             }
+            audit(
+                $pdo,
+                'finance',
+                'update',
+                'invoice',
+                (int) $invoice['id'],
+                $no,
+                sprintf('发票号: %s → %s', (string) $invoice['invoice_no'], $no)
+            );
             flash(t('inv_no_updated'));
         }
         redirect('finance.show', ['id' => $invoice['id']]);
@@ -152,6 +161,23 @@ switch ($action) {
             ->execute([$invoice['id'], $invoice['customer'], $amount, $payDate, $method, $receipt, $note]);
         refresh_invoice_status($pdo, (int) $invoice['id'], date('Y-m-d'));
 
+        audit(
+            $pdo,
+            'finance',
+            'pay',
+            'invoice',
+            (int) $invoice['id'],
+            (string) $invoice['invoice_no'],
+            sprintf(
+                '收款 %s（%s）；累计已收 %s / %s；收据 %s%s',
+                idr($amount),
+                $method !== '' ? $method : '未填方式',
+                idr($newPaid),
+                idr((float) $invoice['total']),
+                $receipt,
+                $note !== '' ? '；备注: ' . $note : ''
+            )
+        );
         flash('收款已登记。');
         redirect('finance.show', ['id' => $invoice['id']]);
         break;

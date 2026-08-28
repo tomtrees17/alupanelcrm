@@ -47,9 +47,9 @@ php -S localhost:8000 -t public
 | joko@alupanel.local | 仓库 warehouse |
 | rina@alupanel.local | 人事 hr |
 
-## 5. 模块（8 + 用户）
+## 5. 模块（9 + 用户）
 
-数据看板、客户管理、销售漏斗(deals)、任务提醒、财务管理(invoices)、订单审批(orders)、库存管理(products)、**行政审批(approvals)** + 用户管理。
+数据看板、客户管理、销售漏斗(deals)、任务提醒、财务管理(invoices)、订单审批(orders)、库存管理(products)、**行政审批(approvals)**、**审计日志(audit)** + 用户管理。
 
 ## 6. 关键业务逻辑
 
@@ -83,7 +83,7 @@ php -S localhost:8000 -t public
 
 **① 模块级权限**（`role_permissions` 表 + `can_access($module)`）
 - bootstrap 载入 `$GLOBALS['permissions']`；前端控制器(`public/index.php`)拦截越权模块、导航按权限隐藏。
-- 可配置模块：customers/pipeline/tasks/finance/orders/inventory；另有视图权限 `performance`(看板全员业绩) 和 `export`(导出 Excel)。
+- 可配置模块：customers/pipeline/tasks/finance/orders/inventory/approvals/**audit**；另有视图权限 `performance`(看板全员业绩) 和 `export`(导出 Excel)。
 - 默认：sales/supervisor/warehouse/hr/clerk **无 finance**；`export` 默认仅 manager；admin 始终全权。
 - 管理员在 **权限设置(roles.index)** 用「角色×权限」勾选矩阵实时配置。
 - 看板财务卡片(营收/逾期)按 `can_access('finance')` 显示；全员业绩卡按 `can_access('performance')`，无此权限者改看「我的业绩」(仅本人 submitter 的订单)。
@@ -143,6 +143,36 @@ chown -R www:www data && chmod -R 755 data                                      
 - 恢复:停站 → 用某份快照覆盖 `data/crm.sqlite`(并删掉 `-wal/-shm`)→ `chown -R www:www data`。
 - 进阶(建议):把 `backups/` 定期同步到异地/对象存储,防整机故障。
 
+## 6g. 审计日志（2026-08-28）
+
+**表** `audit_log`（**只追加**，全站没有任何 UPDATE/DELETE 它的代码路径）。**模块键** `audit`，进权限矩阵但**默认不授予任何角色**——只有 admin 能看，除非在权限设置里显式勾选。控制器 `app/controllers/audit.php` **只有 index 一个动作**（没有编辑/删除入口，被攻破的账号无法从界面抹除自己的痕迹）。
+
+**核心助手**（`app/domain.php`）：
+- `audit($pdo, $module, $action, $entity, $entityId, $label, $detail)` —— 写一条记录。操作人/角色/IP 从 `$GLOBALS['auth']` 与 `login_client_ip()` 自动取；`label` 截断 200 字、`detail` 截断 2000 字。**整个函数包在 try/catch 里**：日志写失败绝不能让已成功的业务操作变成 500（比如库还没迁移、或写锁冲突）。
+- `audit_diff($before, $after, $fields)` —— 生成"单价: 100 → 120; 库存: 5 → 8"，跳过未变字段，空值显示 `(空)`。
+- `audit_snapshot($pdo, $table, $id)` —— 删除前取快照，好把被删对象的名字记进日志。
+
+**已挂钩的写操作**（module/action）：
+| 模块 | 记录的动作 |
+|---|---|
+| orders | create / update / submit / approve（含主管、经理两级）/ reject（记阶段+理由）/ **fulfill**（扣库存+DO+发票，含单号与金额）/ delete |
+| finance | **pay**（收款金额、方式、累计已收/总额、收据号）/ update（改发票号，记 旧→新）/ create（出货自动开票） |
+| inventory | create / update（字段级 diff）/ **adjust**（出入库方向、数量、库存前后值、事由）/ delete |
+| customers | create / update（含**改派负责销售**）/ delete |
+| approvals | create / update / submit / approve（人事、经理、财务三级）/ reject / delete / **删除附件**（报销单据被删是重点监控项） |
+| users | create / update（**角色变更**明文写出、重置密码标记）/ delete |
+| roles | **permission**（逐角色列出"授予 X / 收回 Y"） |
+| auth | login / logout / **login_failed**（无操作人，记尝试的邮箱+IP） |
+| account | password（本人改密） |
+| pipeline | create / update / move（阶段 旧→新）/ delete |
+| tasks | create / delete |
+
+**故意不记的**：任务勾选完成（`tasks.toggle`）——高频低价值，会把日志刷爆；纯读取动作（列表、详情、打印、导出）也不记。
+
+**查看界面**：`audit.index` 支持 模块 / 动作 / 操作人 / 起止日期 / 关键词（对象+变更内容+操作人）筛选，**分页 50 条/页**（这也是项目里第一处分页实现，可作为后续订单/发票列表分页的样板）。动作用颜色标签区分（删除/驳回/登录失败=红，通过/新建=绿，调库存/权限=橙）。
+
+**线上升级**：`ensureSchema()` 自动建表+3 个索引，**不给任何角色授权**。已验证：模拟线上现状（有 app_meta 标记、无 audit_log）跑迁移后只新增 audit_log，既有权限一条没动，重复跑幂等。
+
 ## 6f. 服务器访问与安全审计（2026-08-28）
 
 **仓库已转为 private**。服务器 git remote 相应从 HTTPS 改为 **SSH**（`git@github.com:tomtrees17/alupanelcrm.git`）——private 仓库走 HTTPS 会卡在认证上，**不要改回去**。认证用 `/root/.ssh/id_ed25519`，该公钥已注册在 GitHub 账号 `tomtrees17` 的 SSH keys 下（不是 deploy key，所以服务器实际拥有该账号**所有仓库**的访问权；想收紧就从账号 SSH keys 移除、改加为本仓库的 read-only deploy key）。
@@ -187,12 +217,14 @@ app/
   i18n.php                  中印双语字典 + t() + current_lang()
   Export.php                无依赖 Excel 导出（.xlsx via ZipArchive，CSV 兜底）
   Auth.php / Csrf.php
-  controllers/              dashboard customers pipeline tasks finance orders inventory approvals delivery users roles account auth lang
+  controllers/              dashboard customers pipeline tasks finance orders inventory approvals audit delivery users roles account auth lang
 views/                      按模块分目录 + layout.php + print/ + errors/（account/password.php 改密页）
 database/schema.sql         表结构
 database/seed_products.sql  269 个产品（由 tools/gen_products.php 从原型抽取）
 tools/reset_password.php    CLI 重置账号密码（运维，见 6d）
 tools/backup_db.php         DB 快照 + 附件打包备份（运维，见 6e）
+tools/run_tests.php         零依赖测试运行器（`php tools/run_tests.php`）
+tests/*_test.php            测试用例（内存 SQLite，不碰 data/crm.sqlite）
 data/                       运行时 SQLite + uploads/（gitignore，在 web 根之外）
 config.php                  应用与公司配置
 ```
@@ -205,7 +237,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-users(+must_change_password), customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts。
+users(+must_change_password), customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, **audit_log(审计日志)**。
 
 ## 10. 提交历史（main）
 
@@ -252,16 +284,16 @@ d62d1eb Invoice header: use company name instead of logo image
 
 发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。（~~真实 logo.png 上传~~ 已完成，见 6 打印一节）
 
-**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f)。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **自动化测试起步**(`tools/run_tests.php`，38 项)。
 
 **待办（按优先级）**：
 1. **关闭 SSH 密码认证 + 装 fail2ban** —— 操作步骤见 6f，是当前最高的实际风险（7,700 次爆破/天）
-2. **审计日志**（谁改了什么）—— 多角色 + 审批流 + 财务数据，出争议无从追溯
+2. ~~**审计日志**~~ —— **已完成**（见 6g）
 3. **金额改整数分** —— 现用 REAL 存，含税反算(÷1.11)有累积误差；涉及数据迁移，越晚成本越高
 4. **列表分页** —— 订单/发票持续增长，目前全量渲染
 5. **WhatsApp 一键联系 / 自动通知** —— 印尼市场刚需（审批到达、发票逾期）
 6. 宝塔面板 8888 收口、停用闲置 MySQL/FTP（见 6f）
-7. 备份异地同步、看板日期范围、自动化测试
+7. 备份异地同步、看板日期范围、扩充测试覆盖（目前只覆盖审计日志与迁移路径）
 8. GitHub 密钥收紧：服务器用的是账号级 SSH key（可访问所有仓库），可改为本仓库 read-only deploy key（见 6f）
 
 **响应式 + PWA**：`app.css` 末尾 `@media (max-width:768px)` 把侧边栏变滑出抽屉(`layout.php` 顶栏加 `☰` `#navToggle` + `#navBackdrop` + 底部切换脚本;`.nav-toggle`/`.sidebar-backdrop` 默认隐藏),栅格(stats/grid-2/detail/form-row)、搜索栏、页头在窄屏自适应堆叠。PWA:`public/manifest.json`(display=standalone,theme #00a884)+ `public/assets/img/app-icon.svg`(青底白 A)+ `layout.php`/`login.php` head 里的 manifest/theme-color/apple-touch-icon,可「添加到主屏幕」。**未做 service worker**(避免缓存旧页;CRM 本就依赖服务器)。iOS 主屏图标想更精细可加 180×180 png 覆盖。

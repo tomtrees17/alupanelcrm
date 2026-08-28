@@ -41,6 +41,15 @@ switch ($action) {
             flash('该邮箱已被使用。', 'error');
             redirect('users.create');
         }
+        audit(
+            $pdo,
+            'users',
+            'create',
+            'user',
+            (int) $pdo->lastInsertId(),
+            $name,
+            sprintf('邮箱: %s; 角色: %s; 职位: %s', $email, role_label((string) $role), $title ?: '(空)')
+        );
         flash('用户已创建。');
         redirect('users.index');
         break;
@@ -68,6 +77,17 @@ switch ($action) {
             $pdo->prepare('UPDATE users SET name=?,email=?,role=?,title=? WHERE id=?')
                 ->execute([$name, $email, $role, $title, $user['id']]);
         }
+        // Role changes are the security-relevant part — spell them out in words.
+        $diff = audit_diff(
+            ['name' => $user['name'], 'email' => $user['email'], 'title' => $user['title'],
+             'role' => role_label((string) $user['role'])],
+            ['name' => $name, 'email' => $email, 'title' => $title, 'role' => role_label((string) $role)],
+            ['name' => '姓名', 'email' => '邮箱', 'role' => '角色', 'title' => '职位']
+        );
+        if ($pass !== '') {
+            $diff = ($diff !== '' ? $diff . '; ' : '') . '重置了密码';
+        }
+        audit($pdo, 'users', 'update', 'user', (int) $user['id'], $name, $diff !== '' ? $diff : '(无字段变化)');
         flash('用户已更新。');
         redirect('users.index');
         break;
@@ -80,6 +100,15 @@ switch ($action) {
             redirect('users.index');
         }
         $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$user['id']]);
+        audit(
+            $pdo,
+            'users',
+            'delete',
+            'user',
+            (int) $user['id'],
+            (string) $user['name'],
+            sprintf('邮箱: %s; 角色: %s', (string) $user['email'], role_label((string) $user['role']))
+        );
         flash('用户已删除。');
         redirect('users.index');
         break;

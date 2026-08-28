@@ -141,6 +141,15 @@ switch ($action) {
         }
         $pdo->prepare('DELETE FROM orders WHERE id = ?')->execute([$order['id']]);
         recompute_reservations($pdo);   // release any reserved stock
+        audit(
+            $pdo,
+            'orders',
+            'delete',
+            'order',
+            (int) $order['id'],
+            (string) $order['order_no'],
+            sprintf('客户: %s; 状态: %s', (string) $order['customer_name'], order_status_label((string) $order['status']))
+        );
         flash('订单已删除。');
         redirect('orders.index');
         break;
@@ -314,6 +323,26 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
         throw $ex;
     }
 
+    $orderNo = (string) ($existing['order_no'] ?? '');
+    if ($orderNo === '') {
+        $noStmt = $pdo->prepare('SELECT order_no FROM orders WHERE id = ?');
+        $noStmt->execute([$oid]);
+        $orderNo = (string) $noStmt->fetchColumn();
+    }
+    $totals = order_totals($pdo, $oid);
+    audit(
+        $pdo,
+        'orders',
+        $isEdit ? 'update' : 'create',
+        'order',
+        $oid,
+        $orderNo,
+        sprintf('客户: %s; 明细 %d 项; 合计 %s; 状态: %s', $custName, count($items), idr($totals['total'] ?? 0), order_status_label($status))
+    );
+    if ($submit) {
+        audit($pdo, 'orders', 'submit', 'order', $oid, $orderNo, '提交主管审批');
+    }
+
     flash($submit ? '订单已提交，进入主管审批。' : '草稿已保存。');
     return $oid;
 }
@@ -336,6 +365,7 @@ function submit_order(PDO $pdo, array $order): void
     $pdo->prepare("UPDATE orders SET status='pending_sup', reject_note=NULL, reject_by=NULL, reject_date=NULL WHERE id=?")
         ->execute([$order['id']]);
     recompute_reservations($pdo);
+    audit($pdo, 'orders', 'submit', 'order', (int) $order['id'], (string) $order['order_no'], '草稿提交，进入主管审批');
     flash('订单已提交，进入主管审批。');
 }
 
@@ -368,15 +398,21 @@ function approve_order(PDO $pdo, Auth $auth, array $order, string $note): void
     $name = $auth->user()['name'] ?? '';
     $today = date('Y-m-d');
 
+    $oid = (int) $order['id'];
+    $ono = (string) $order['order_no'];
+    $noteSuffix = $note !== '' ? '；批注: ' . $note : '';
+
     switch ($order['status']) {
         case 'pending_sup':
             $pdo->prepare('UPDATE orders SET status=?, sup_note=?, sup_approver=?, sup_date=? WHERE id=?')
-                ->execute(['pending_mgr', $note, $name, $today, $order['id']]);
+                ->execute(['pending_mgr', $note, $name, $today, $oid]);
+            audit($pdo, 'orders', 'approve', 'order', $oid, $ono, '主管通过 → 待经理审批' . $noteSuffix);
             flash('主管已通过，进入经理审批。');
             break;
         case 'pending_mgr':
             $pdo->prepare('UPDATE orders SET status=?, mgr_note=?, mgr_approver=?, mgr_date=? WHERE id=?')
-                ->execute(['pending_wh', $note, $name, $today, $order['id']]);
+                ->execute(['pending_wh', $note, $name, $today, $oid]);
+            audit($pdo, 'orders', 'approve', 'order', $oid, $ono, '经理通过 → 待仓库出货' . $noteSuffix);
             flash('经理已通过，进入仓库出货。');
             break;
         case 'pending_wh':
@@ -409,6 +445,15 @@ function reject_order(PDO $pdo, Auth $auth, array $order, string $note): void
          WHERE id=?"
     )->execute([$note, $name, $today, $order['id']]);
     recompute_reservations($pdo);   // release reserved stock
+    audit(
+        $pdo,
+        'orders',
+        'reject',
+        'order',
+        (int) $order['id'],
+        (string) $order['order_no'],
+        sprintf('在 %s 阶段驳回，退回草稿；理由: %s', order_status_label((string) $order['status']), $note !== '' ? $note : '(未填)')
+    );
     flash('订单已驳回，退回销售草稿待修改。');
 }
 
@@ -484,6 +529,18 @@ function fulfill_order(PDO $pdo, array $order, string $name, string $note, strin
         $pdo->rollBack();
         throw $ex;
     }
+
+    // Logged after commit: the trail must only record what actually persisted.
+    audit(
+        $pdo,
+        'orders',
+        'fulfill',
+        'order',
+        (int) $order['id'],
+        (string) $order['order_no'],
+        sprintf('确认出货：扣减 %d 项库存，生成送货单 %s、发票 %s（合计 %s）', count($rows), $doNo, $invNo, idr($total))
+    );
+    audit($pdo, 'finance', 'create', 'invoice', $invId, $invNo, sprintf('由订单 %s 自动生成；合计 %s', $order['order_no'], idr($total)));
 }
 
 function find_order(PDO $pdo, int $id): array

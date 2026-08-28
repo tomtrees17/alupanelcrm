@@ -40,6 +40,7 @@ switch ($action) {
 
         $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?')
             ->execute([password_hash($new, PASSWORD_DEFAULT), (int) $user['id']]);
+        audit($pdo, 'account', 'password', 'user', (int) $user['id'], (string) $user['email'], '本人修改密码');
         flash(t('pwd_changed'));
         redirect('dashboard.index');
         break;

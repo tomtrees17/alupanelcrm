@@ -250,6 +250,77 @@ function login_clear_failures(PDO $pdo): void
     $pdo->prepare('DELETE FROM login_attempts WHERE ip = ?')->execute([login_client_ip()]);
 }
 
+// ──────────────────────────────────────────────────────────
+//  Audit trail (审计日志) — who changed what
+// ──────────────────────────────────────────────────────────
+
+/**
+ * Append one entry to the audit trail.
+ *
+ * Never lets a logging failure break the business operation it records:
+ * a missing table (DB not yet migrated) or a locked write must not turn
+ * an approved order into a 500.
+ */
+function audit(
+    PDO $pdo,
+    string $module,
+    string $action,
+    string $entity = '',
+    ?int $entityId = null,
+    string $label = '',
+    string $detail = ''
+): void {
+    $auth = $GLOBALS['auth'] ?? null;
+    $user = ($auth !== null && $auth->check()) ? $auth->user() : null;
+
+    try {
+        $pdo->prepare(
+            'INSERT INTO audit_log (user_id,user_name,user_role,module,action,entity,entity_id,label,detail,ip)
+             VALUES (?,?,?,?,?,?,?,?,?,?)'
+        )->execute([
+            $user['id'] ?? null,
+            $user['name'] ?? '',
+            $user['role'] ?? '',
+            $module,
+            $action,
+            $entity,
+            $entityId,
+            mb_substr($label, 0, 200),
+            mb_substr($detail, 0, 2000),
+            login_client_ip(),
+        ]);
+    } catch (Throwable $e) {
+        // Swallow: the audited action already succeeded and matters more.
+    }
+}
+
+/**
+ * Summarise what changed between two rows: "单价: 100 → 120; 数量: 3 → 5".
+ * $fields maps column name → human label; unchanged columns are skipped.
+ */
+function audit_diff(array $before, array $after, array $fields): string
+{
+    $parts = [];
+    foreach ($fields as $col => $label) {
+        $old = (string) ($before[$col] ?? '');
+        $new = (string) ($after[$col] ?? '');
+        if ($old === $new) {
+            continue;
+        }
+        $parts[] = $label . ': ' . ($old === '' ? '(空)' : $old) . ' → ' . ($new === '' ? '(空)' : $new);
+    }
+    return implode('; ', $parts);
+}
+
+/** Fetch a row by id for before/after diffing; [] when missing. */
+function audit_snapshot(PDO $pdo, string $table, int $id): array
+{
+    // $table is always a literal from call sites, never user input.
+    $stmt = $pdo->prepare("SELECT * FROM {$table} WHERE id = ?");
+    $stmt->execute([$id]);
+    return $stmt->fetch() ?: [];
+}
+
 /** Recompute an invoice's payment_status from amount_paid / due_date. */
 function refresh_invoice_status(PDO $pdo, int $invoiceId, string $today): void
 {

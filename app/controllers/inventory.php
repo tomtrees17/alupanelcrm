@@ -95,6 +95,15 @@ switch ($action) {
         $cols = implode(',', $fields);
         $ph = implode(',', array_fill(0, count($fields), '?'));
         $pdo->prepare("INSERT INTO products ($cols) VALUES ($ph)")->execute(array_values($data));
+        audit(
+            $pdo,
+            'inventory',
+            'create',
+            'product',
+            (int) $pdo->lastInsertId(),
+            trim($data['sku'] . ' ' . $data['name']),
+            sprintf('规格: %s; 初始库存: %s; 单价: %s', $data['spec'], $data['stock'], idr((float) $data['price']))
+        );
         flash('产品已创建。');
         redirect('inventory.index');
         break;
@@ -109,6 +118,19 @@ switch ($action) {
         $data = collect_product($fields);
         $set = implode(',', array_map(fn($f) => "$f = ?", $fields));
         $pdo->prepare("UPDATE products SET $set WHERE id = ?")->execute([...array_values($data), $product['id']]);
+        $diff = audit_diff($product, $data, [
+            'sku' => 'SKU', 'name' => '名称', 'spec' => '规格', 'size' => '尺寸',
+            'category' => '分类', 'price' => '单价', 'stock' => '库存', 'min_stock' => '安全库存',
+        ]);
+        audit(
+            $pdo,
+            'inventory',
+            'update',
+            'product',
+            (int) $product['id'],
+            trim($data['sku'] . ' ' . $data['name']),
+            $diff !== '' ? $diff : '(无字段变化)'
+        );
         flash('产品已更新。');
         redirect('inventory.index');
         break;
@@ -121,6 +143,22 @@ switch ($action) {
         $ref = trim((string) input('ref', $type === 'in' ? '手动入库' : '手动出库'));
         if ($qty > 0) {
             adjust_stock($pdo, (int) $product['id'], $type, $qty, $ref, trim((string) input('note', '')));
+            audit(
+                $pdo,
+                'inventory',
+                'adjust',
+                'product',
+                (int) $product['id'],
+                trim((string) $product['sku'] . ' ' . (string) $product['name']),
+                sprintf(
+                    '%s %d；库存 %s → %s；事由: %s',
+                    $type === 'in' ? '入库' : '出库',
+                    $qty,
+                    (string) $product['stock'],
+                    (string) ((int) $product['stock'] + ($type === 'in' ? $qty : -$qty)),
+                    $ref
+                )
+            );
             flash('库存已调整。');
         }
         redirect('inventory.index');
@@ -130,6 +168,15 @@ switch ($action) {
         Csrf::verify();
         $product = find_product($pdo, (int) input('id', 0));
         $pdo->prepare('DELETE FROM products WHERE id = ?')->execute([$product['id']]);
+        audit(
+            $pdo,
+            'inventory',
+            'delete',
+            'product',
+            (int) $product['id'],
+            trim((string) $product['sku'] . ' ' . (string) $product['name']),
+            sprintf('删除时库存: %s; 规格: %s', (string) $product['stock'], (string) $product['spec'])
+        );
         flash('产品已删除。');
         redirect('inventory.index');
         break;

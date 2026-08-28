@@ -205,7 +205,7 @@ function role_label(string $r): string
 /** Modules whose access is route-guarded + configurable per role. */
 function controllable_modules(): array
 {
-    return ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals'];
+    return ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'audit'];
 }
 
 /** Non-route view permissions (dashboard widgets, export, etc.), configurable per role. */
@@ -438,4 +438,45 @@ function client_types(): array
 function delivery_services(): array
 {
     return ['Self Pickup', 'Lala Move', 'Truck', 'JNE Trucking', 'Gojek', 'Grab'];
+}
+
+// ──────────────────────────────────────────────────────────
+//  Audit trail (审计日志) display helpers
+// ──────────────────────────────────────────────────────────
+
+/** Modules that can appear in the audit log (filter dropdown order). */
+function audit_modules(): array
+{
+    return ['orders', 'finance', 'inventory', 'customers', 'approvals', 'pipeline', 'tasks', 'users', 'roles', 'account', 'auth'];
+}
+
+/** Actions that can appear in the audit log (filter dropdown order). */
+function audit_actions(): array
+{
+    return [
+        'create', 'update', 'delete', 'submit', 'approve', 'reject', 'fulfill',
+        'pay', 'adjust', 'move', 'permission', 'password', 'login', 'logout', 'login_failed',
+    ];
+}
+
+function tr_audit_module(string $m): string
+{
+    return in_array($m, audit_modules(), true) ? t('audit_mod_' . $m) : $m;
+}
+
+function tr_audit_action(string $a): string
+{
+    return in_array($a, audit_actions(), true) ? t('audit_act_' . $a) : $a;
+}
+
+/** Colour class for an audit action tag (destructive = red, approval = green). */
+function audit_action_class(string $a): string
+{
+    return [
+        'create'  => 'tag-green',  'update'      => 'tag-blue',  'delete' => 'tag-red',
+        'approve' => 'tag-green',  'reject'      => 'tag-red',   'fulfill' => 'tag-green',
+        'pay'     => 'tag-green',  'adjust'      => 'tag-orange', 'submit' => 'tag-blue',
+        'login'   => 'tag-gray',   'logout'      => 'tag-gray',  'login_failed' => 'tag-red',
+        'permission' => 'tag-orange', 'password' => 'tag-orange', 'move' => 'tag-blue',
+    ][$a] ?? 'tag-gray';
 }

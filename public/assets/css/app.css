@@ -252,6 +252,11 @@ tfoot td { padding: 8px 14px; }
 .login-card label { font-size: 11px; font-weight: 600; color: var(--text2); display: block; margin: 0 0 6px; }
 .login-hint { text-align: center; color: var(--text3); font-size: 11px; margin-top: 16px; line-height: 1.6; }
 
+/* ─ AUDIT LOG ─ */
+.small { font-size: 11px; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 14px; }
+.audit-detail { max-width: 420px; color: var(--text2); font-size: 12px; word-break: break-word; }
+
 /* ─ RESPONSIVE (mobile) ─ */
 .nav-toggle { display: none; background: none; border: none; font-size: 22px; line-height: 1; color: var(--text); cursor: pointer; padding: 0 2px; }
 .sidebar-backdrop { display: none; }

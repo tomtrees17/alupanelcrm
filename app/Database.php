@@ -180,6 +180,21 @@ final class Database
             $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_approvals', '1')");
         }
 
+        // audit_log table (审计日志, added later) — append-only trail of who changed what.
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                user_id INTEGER, user_name TEXT, user_role TEXT,
+                module TEXT NOT NULL, action TEXT NOT NULL,
+                entity TEXT, entity_id INTEGER, label TEXT, detail TEXT, ip TEXT
+            )"
+        );
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity, entity_id)');
+        // No permission seeding on purpose: 'audit' stays admin-only until granted in 权限设置.
+
         // login_attempts table (brute-force throttle, added later).
         $pdo->exec(
             'CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT, email TEXT, attempt_time INTEGER NOT NULL DEFAULT 0)'

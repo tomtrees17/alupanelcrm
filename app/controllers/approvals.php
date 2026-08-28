@@ -103,6 +103,16 @@ switch ($action) {
         }
         @unlink(request_upload_dir((int) $f['request_id']) . '/' . $f['stored']);
         $pdo->prepare('DELETE FROM request_files WHERE id = ?')->execute([$f['id']]);
+        // Deleting a receipt off an expense claim is exactly what an audit trail is for.
+        audit(
+            $pdo,
+            'approvals',
+            'delete',
+            'request_file',
+            (int) $req['id'],
+            (string) $req['req_no'],
+            sprintf('删除附件: %s', (string) ($f['orig_name'] ?: $f['stored']))
+        );
         flash(t('att_deleted'));
         redirect('approvals.edit', ['id' => $req['id']]);
         break;
@@ -152,6 +162,7 @@ switch ($action) {
         }
         $pdo->prepare("UPDATE admin_requests SET status=?, reject_note=NULL, reject_by=NULL, reject_date=NULL, hr_note=NULL, hr_approver=NULL, hr_date=NULL WHERE id=?")
             ->execute([request_first_stage((string) $req['type']), $req['id']]);
+        audit($pdo, 'approvals', 'submit', 'request', (int) $req['id'], (string) $req['req_no'], '草稿提交审批');
         flash(t('req_submitted'));
         redirect('approvals.show', ['id' => $req['id']]);
         break;
@@ -178,6 +189,15 @@ switch ($action) {
             redirect('approvals.show', ['id' => $req['id']]);
         }
         $pdo->prepare('DELETE FROM admin_requests WHERE id = ?')->execute([$req['id']]);
+        audit(
+            $pdo,
+            'approvals',
+            'delete',
+            'request',
+            (int) $req['id'],
+            (string) $req['req_no'],
+            sprintf('申请人: %s；事由: %s', (string) $req['applicant'], (string) $req['title'])
+        );
         flash(t('req_deleted'));
         redirect('approvals.index');
         break;
@@ -266,6 +286,25 @@ function save_request(PDO $pdo, Auth $auth, ?array $existing): int
     }
 
     handle_request_uploads($pdo, $id);
+
+    $reqNo = (string) ($existing['req_no'] ?? '');
+    if ($reqNo === '') {
+        $noStmt = $pdo->prepare('SELECT req_no FROM admin_requests WHERE id = ?');
+        $noStmt->execute([$id]);
+        $reqNo = (string) $noStmt->fetchColumn();
+    }
+    audit(
+        $pdo,
+        'approvals',
+        $existing !== null ? 'update' : 'create',
+        'request',
+        $id,
+        $reqNo,
+        sprintf('%s；事由: %s%s', t('rt_' . $type), $title, $amount > 0 ? '；金额: ' . idr($amount) : '')
+    );
+    if ($submit) {
+        audit($pdo, 'approvals', 'submit', 'request', $id, $reqNo, '提交审批');
+    }
 
     flash($submit ? t('req_submitted') : t('req_saved_draft'));
     return $id;
@@ -361,11 +400,13 @@ function approve_request(PDO $pdo, Auth $auth, array $req, string $note): void
     }
     $name = $auth->user()['name'] ?? '';
     $today = date('Y-m-d');
+    $noteSuffix = $note !== '' ? '；批注: ' . $note : '';
 
     switch ($req['status']) {
         case 'pending_hr':
             $pdo->prepare('UPDATE admin_requests SET status=?, hr_note=?, hr_approver=?, hr_date=? WHERE id=?')
                 ->execute(['pending_mgr', $note, $name, $today, $req['id']]);
+            audit($pdo, 'approvals', 'approve', 'request', (int) $req['id'], (string) $req['req_no'], '人事通过 → 待经理审批' . $noteSuffix);
             flash(t('req_hr_ok'));
             break;
         case 'pending_mgr':
@@ -373,11 +414,29 @@ function approve_request(PDO $pdo, Auth $auth, array $req, string $note): void
             $next = request_needs_finance((string) $req['type']) ? 'pending_fin' : 'approved';
             $pdo->prepare('UPDATE admin_requests SET status=?, mgr_note=?, mgr_approver=?, mgr_date=? WHERE id=?')
                 ->execute([$next, $note, $name, $today, $req['id']]);
+            audit(
+                $pdo,
+                'approvals',
+                'approve',
+                'request',
+                (int) $req['id'],
+                (string) $req['req_no'],
+                ($next === 'pending_fin' ? '经理通过 → 待财务确认付款' : '经理通过 → 审批完成') . $noteSuffix
+            );
             flash($next === 'pending_fin' ? t('req_to_fin') : t('req_approved'));
             break;
         case 'pending_fin':
             $pdo->prepare("UPDATE admin_requests SET status='approved', fin_note=?, fin_approver=?, fin_date=? WHERE id=?")
                 ->execute([$note, $name, $today, $req['id']]);
+            audit(
+                $pdo,
+                'approvals',
+                'approve',
+                'request',
+                (int) $req['id'],
+                (string) $req['req_no'],
+                sprintf('财务确认付款%s → 审批完成%s', (float) $req['amount'] > 0 ? ' ' . idr((float) $req['amount']) : '', $noteSuffix)
+            );
             flash(t('req_approved'));
             break;
         default:
@@ -402,6 +461,15 @@ function reject_request(PDO $pdo, Auth $auth, array $req, string $note): void
              fin_note=NULL, fin_approver=NULL, fin_date=NULL
          WHERE id=?"
     )->execute([$note, $auth->user()['name'] ?? '', date('Y-m-d'), $req['id']]);
+    audit(
+        $pdo,
+        'approvals',
+        'reject',
+        'request',
+        (int) $req['id'],
+        (string) $req['req_no'],
+        sprintf('在 %s 阶段驳回，退回草稿；理由: %s', request_status_label((string) $req['status']), $note !== '' ? $note : '(未填)')
+    );
     flash(t('req_rejected'));
 }
 
