@@ -103,6 +103,10 @@ php -S localhost:8000 -t public
 
 4. 打开一次网站，让 `Database::ensureSchema()` 跑完自动迁移（见 5.3）。
 
+**仓库是 private**，服务器走 SSH remote（`git@github.com:tomtrees17/alupanelcrm.git`）拉取，认证用 `/root/.ssh/id_ed25519`——该公钥已注册在 GitHub 账号 `tomtrees17` 的 SSH keys 下。**不要把 remote 改回 HTTPS**，private 仓库用 HTTPS 会卡在认证上。
+
+**服务器上永远不要直接改代码**：`git status` 应只有宝塔生成的未跟踪文件（`.htaccess` / `404.html` / `index.html` / `public/.user.ini` / `public/.well-known/`）。这些别提交也别删。
+
 **服务器环境要点**（宝塔面板）：站点 `/www/wwwroot/www.alupanel.cc`，PHP 8.2（`pdo_sqlite`/`sqlite3` 已启用），**网站运行目录必须设为 `/public`**，`data/` 需 `www` 用户可写。宝塔 PHP CLI 路径随版本变（`ls /www/server/php/` 查实际版本号），当前为 `/www/server/php/82/bin/php`。
 
 ### 4.3 运维常用
