@@ -7,9 +7,9 @@
 - **名称**：AluPanel CRM（侧边栏 logo 显示 `AluPanelCRM`）
 - **业务**：铝塑板（ACP）销售 CRM / 轻量 ERP，面向**印尼市场**
 - **真实公司**：PT ALUPANEL MULIA INDONESIA
-- **来源**：按规划原型 `C:\Users\yuans\Downloads\crm-system_25.html`（NexusCRM）实现
+- **来源**：按规划原型 `crm-system_25.html`（NexusCRM）实现（该原型文件在早期的 Windows 开发机上，未进仓库）
 - **仓库**：https://github.com/tomtrees17/alupanelcrm （main 分支，公开）
-- **本地路径**：`D:\AluPanelCRM`
+- **本地路径**：`~/projects/alupanelcrm`（macOS；早期在 Windows `D:\AluPanelCRM`）
 
 ## 2. 技术栈
 
@@ -22,18 +22,19 @@
 
 ## 3. 运行方式
 
-**本地**（Windows，PHP 未加入 PATH）：
+**本地**（macOS，路径 `~/projects/alupanelcrm`）：
 ```
-& "C:\Users\yuans\AppData\Local\Microsoft\WinGet\Packages\PHP.PHP.8.3_Microsoft.Winget.Source_8wekyb3d8bbwe\php.exe" -S localhost:8000 -t public
+php -S localhost:8000 -t public
 ```
-打开 http://localhost:8000 。重置数据：删除 `data/crm.sqlite`（被沙箱保护时用 PHP `unlink` 删）。
+打开 http://localhost:8000 。PHP 不在 PATH 时用 `brew install php` 安装或用绝对路径调用。重置数据：删除 `data/crm.sqlite`（连同 `-wal/-shm`；被沙箱保护时用 PHP `unlink` 删）。
 
 **服务器**（宝塔，已部署）：
 - 域名/站点：`www.alupanel.cc`，路径 `/www/wwwroot/www.alupanel.cc`
+- SSH：`ssh -p 22022 root@149.129.218.9`（**端口 22022，非默认 22**）
 - PHP 8.2（已确认 `pdo_sqlite`/`sqlite3` 启用）
 - **网站运行目录必须设为 `/public`**
 - `data/` 目录需 `www` 用户可写：`chown -R www:www data && chmod -R 755 data`
-- 更新代码：`cd /www/wwwroot/www.alupanel.cc && git pull`
+- 更新代码：`cd /www/wwwroot/www.alupanel.cc && git pull`（发布流程见 CLAUDE.md 第 4 节：本地改 → push GitHub → 服务器 git pull）
 
 ## 4. 默认账号（初始密码均 `admin123`，**首次登录强制改密**，见 6c）
 

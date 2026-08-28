@@ -65,7 +65,7 @@ backups/                    备份产物（gitignore）
 
 ### 4.1 本地运行
 
-需 PHP 8.0+（自带 `pdo_sqlite`）。项目根目录：
+需 PHP 8.0+（自带 `pdo_sqlite`）。本地路径 `~/projects/alupanelcrm`（macOS），在项目根目录：
 
 ```bash
 php -S localhost:8000 -t public
@@ -73,7 +73,7 @@ php -S localhost:8000 -t public
 
 打开 http://localhost:8000 。首次访问自动建库并写入示例数据（269 个产品 + 示例客户/订单/发票）。
 
-**PHP 不在 PATH 时**用绝对路径调用（Windows 曾用 WinGet 安装的 `php.exe`；macOS 可 `brew install php` 或用绝对路径）。
+**PHP 不在 PATH 时**（macOS 系统自带 PHP 已移除）用 `brew install php` 安装，或用绝对路径调用 `php` 二进制。
 
 重置数据库：删除 `data/crm.sqlite`（连同 `-wal/-shm`），下次访问自动重建。
 
@@ -92,7 +92,7 @@ php -S localhost:8000 -t public
 2. SSH 登录服务器（**端口 22022**，不是默认 22）：
 
    ```bash
-   ssh -p 22022 root@www.alupanel.cc
+   ssh -p 22022 root@149.129.218.9
    ```
 
 3. 拉取并修正属主：
