@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 if (!$auth->isAdmin()) {
     http_response_code(403);
-    flash('只有管理员可以管理用户。', 'error');
+    flash(t('msg_user_admin_only'), 'error');
     redirect('dashboard.index');
 }
 
@@ -31,14 +31,14 @@ switch ($action) {
         $title = trim((string) input('title', ''));
         $pass = (string) input('password', '');
         if ($name === '' || $email === '' || strlen($pass) < 6) {
-            flash('姓名、邮箱必填，密码至少 6 位。', 'error');
+            flash(t('msg_user_req_pwd'), 'error');
             redirect('users.create');
         }
         try {
             $pdo->prepare('INSERT INTO users (name,email,password_hash,role,title) VALUES (?,?,?,?,?)')
                 ->execute([$name, $email, password_hash($pass, PASSWORD_DEFAULT), $role, $title]);
         } catch (PDOException $e) {
-            flash('该邮箱已被使用。', 'error');
+            flash(t('msg_user_email_used'), 'error');
             redirect('users.create');
         }
         audit(
@@ -50,7 +50,7 @@ switch ($action) {
             $name,
             sprintf('邮箱: %s; 角色: %s; 职位: %s', $email, role_label((string) $role), $title ?: '(空)')
         );
-        flash('用户已创建。');
+        flash(t('msg_user_created'));
         redirect('users.index');
         break;
 
@@ -67,7 +67,7 @@ switch ($action) {
         $title = trim((string) input('title', ''));
         $pass = (string) input('password', '');
         if ($name === '' || $email === '') {
-            flash('姓名、邮箱必填。', 'error');
+            flash(t('msg_user_req'), 'error');
             redirect('users.edit', ['id' => $user['id']]);
         }
         if ($pass !== '') {
@@ -88,7 +88,7 @@ switch ($action) {
             $diff = ($diff !== '' ? $diff . '; ' : '') . '重置了密码';
         }
         audit($pdo, 'users', 'update', 'user', (int) $user['id'], $name, $diff !== '' ? $diff : '(无字段变化)');
-        flash('用户已更新。');
+        flash(t('msg_user_updated'));
         redirect('users.index');
         break;
 
@@ -96,7 +96,7 @@ switch ($action) {
         Csrf::verify();
         $user = find_user($pdo, (int) input('id', 0));
         if ((int) $user['id'] === (int) ($auth->user()['id'] ?? 0)) {
-            flash('不能删除当前登录账户。', 'error');
+            flash(t('msg_user_self_del'), 'error');
             redirect('users.index');
         }
         $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$user['id']]);
@@ -109,7 +109,7 @@ switch ($action) {
             (string) $user['name'],
             sprintf('邮箱: %s; 角色: %s', (string) $user['email'], role_label((string) $user['role']))
         );
-        flash('用户已删除。');
+        flash(t('msg_user_deleted'));
         redirect('users.index');
         break;
 

@@ -33,7 +33,7 @@ if ($auth->check() && (int) ($auth->user()['must_change_password'] ?? 0) === 1) 
 $moduleForAccess = ['delivery' => 'orders'][$controller] ?? $controller;
 if (in_array($moduleForAccess, controllable_modules(), true) && !can_access($moduleForAccess)) {
     http_response_code(403);
-    flash('无权访问该模块 / Tidak punya akses.', 'error');
+    flash(t('msg_no_module'), 'error');
     redirect('dashboard.index');
 }
 

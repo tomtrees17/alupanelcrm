@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 if (!$auth->isAdmin()) {
     http_response_code(403);
-    flash('只有管理员可以设置权限。', 'error');
+    flash(t('msg_perm_admin_only'), 'error');
     redirect('dashboard.index');
 }
 
@@ -68,7 +68,7 @@ switch ($action) {
             $changes[] = role_label($role) . ': ' . implode('，', $parts);
         }
         audit($pdo, 'roles', 'permission', 'role_permissions', null, '权限矩阵', $changes ? implode('; ', $changes) : '(无变化)');
-        flash('权限已保存。');
+        flash(t('msg_perm_saved'));
         redirect('roles.index');
         break;
 

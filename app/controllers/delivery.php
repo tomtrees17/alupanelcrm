@@ -30,7 +30,7 @@ switch ($action) {
         // Editable Word copy — finance staff / warehouse admin only.
         if (!can_word_export()) {
             http_response_code(403);
-            flash('无导出权限 / Tidak punya akses ekspor.', 'error');
+            flash(t('msg_no_export'), 'error');
             redirect('delivery.index');
         }
         $do = find_do($pdo, (int) input('id', 0));

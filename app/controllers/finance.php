@@ -38,7 +38,7 @@ switch ($action) {
     case 'export':
         if (!can_export()) {
             http_response_code(403);
-            flash('无导出权限 / Tidak punya akses ekspor.', 'error');
+            flash(t('msg_no_export'), 'error');
             redirect('finance.index');
         }
         foreach ($pdo->query('SELECT id FROM invoices') as $r) {
@@ -88,7 +88,7 @@ switch ($action) {
         // Editable Word copy — finance staff / warehouse admin only.
         if (!can_word_export()) {
             http_response_code(403);
-            flash('无导出权限 / Tidak punya akses ekspor.', 'error');
+            flash(t('msg_no_export'), 'error');
             redirect('finance.index');
         }
         $invoice = find_invoice($pdo, (int) input('id', 0));
@@ -146,7 +146,7 @@ switch ($action) {
         $invoice = find_invoice($pdo, (int) input('id', 0));
         $amount = (float) input('amount', 0);
         if ($amount <= 0) {
-            flash('请输入有效金额。', 'error');
+            flash(t('msg_amount_invalid'), 'error');
             redirect('finance.show', ['id' => $invoice['id']]);
         }
         $payDate = (string) input('pay_date', date('Y-m-d'));
@@ -178,7 +178,7 @@ switch ($action) {
                 $note !== '' ? '；备注: ' . $note : ''
             )
         );
-        flash('收款已登记。');
+        flash(t('msg_payment_saved'));
         redirect('finance.show', ['id' => $invoice['id']]);
         break;
 

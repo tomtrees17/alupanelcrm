@@ -83,7 +83,7 @@ switch ($action) {
     case 'edit':
         $order = find_order($pdo, (int) input('id', 0));
         if (!order_editable($order)) {
-            flash('该订单当前不可编辑（仅草稿/被驳回可改）。', 'error');
+            flash(t('msg_order_locked_draft'), 'error');
             redirect('orders.show', ['id' => $order['id']]);
         }
         $its = $pdo->prepare('SELECT * FROM order_items WHERE order_id = ?');
@@ -100,7 +100,7 @@ switch ($action) {
         Csrf::verify();
         $order = find_order($pdo, (int) input('id', 0));
         if (!order_editable($order)) {
-            flash('该订单当前不可编辑。', 'error');
+            flash(t('msg_order_locked'), 'error');
             redirect('orders.show', ['id' => $order['id']]);
         }
         save_order($pdo, $auth, $order);
@@ -111,7 +111,7 @@ switch ($action) {
         Csrf::verify();
         $order = find_order($pdo, (int) input('id', 0));
         if (!order_editable($order)) {
-            flash('该订单不可提交。', 'error');
+            flash(t('msg_order_no_submit'), 'error');
             redirect('orders.show', ['id' => $order['id']]);
         }
         submit_order($pdo, $order);
@@ -136,7 +136,7 @@ switch ($action) {
         Csrf::verify();
         $order = find_order($pdo, (int) input('id', 0));
         if (!$auth->isAdmin() && !order_editable($order)) {
-            flash('只能删除自己的草稿/被驳回订单。', 'error');
+            flash(t('msg_order_del_own'), 'error');
             redirect('orders.show', ['id' => $order['id']]);
         }
         $pdo->prepare('DELETE FROM orders WHERE id = ?')->execute([$order['id']]);
@@ -150,7 +150,7 @@ switch ($action) {
             (string) $order['order_no'],
             sprintf('客户: %s; 状态: %s', (string) $order['customer_name'], order_status_label((string) $order['status']))
         );
-        flash('订单已删除。');
+        flash(t('msg_order_deleted'));
         redirect('orders.index');
         break;
 
@@ -222,7 +222,7 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
         }
     }
     if ($custName === '') {
-        flash('请填写客户。', 'error');
+        flash(t('msg_order_cust_req'), 'error');
         redirect($back[0], $back[1]);
     }
     // First-time customer: create it in the customers module, owned by the assigned sales.
@@ -253,7 +253,7 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
         ];
     }
     if (!$items) {
-        flash('请至少添加一项产品。', 'error');
+        flash(t('msg_order_item_req'), 'error');
         redirect($back[0], $back[1]);
     }
 
@@ -354,7 +354,7 @@ function submit_order(PDO $pdo, array $order): void
     $oi->execute([$order['id']]);
     $rows = $oi->fetchAll();
     if (!$rows) {
-        flash('订单没有明细，无法提交。', 'error');
+        flash(t('msg_order_no_items'), 'error');
         return;
     }
     $short = available_shortages($pdo, $rows);
@@ -366,7 +366,7 @@ function submit_order(PDO $pdo, array $order): void
         ->execute([$order['id']]);
     recompute_reservations($pdo);
     audit($pdo, 'orders', 'submit', 'order', (int) $order['id'], (string) $order['order_no'], '草稿提交，进入主管审批');
-    flash('订单已提交，进入主管审批。');
+    flash(t('msg_order_submitted'));
 }
 
 /** Check the current user may act on this order's pending stage. */
@@ -382,7 +382,7 @@ function can_act(Auth $auth, array $order): bool
 function approve_order(PDO $pdo, Auth $auth, array $order, string $note): void
 {
     if (!can_act($auth, $order)) {
-        flash('当前阶段无权审批。', 'error');
+        flash(t('msg_order_no_appr'), 'error');
         return;
     }
 
@@ -407,31 +407,31 @@ function approve_order(PDO $pdo, Auth $auth, array $order, string $note): void
             $pdo->prepare('UPDATE orders SET status=?, sup_note=?, sup_approver=?, sup_date=? WHERE id=?')
                 ->execute(['pending_mgr', $note, $name, $today, $oid]);
             audit($pdo, 'orders', 'approve', 'order', $oid, $ono, '主管通过 → 待经理审批' . $noteSuffix);
-            flash('主管已通过，进入经理审批。');
+            flash(t('msg_order_sup_ok'));
             break;
         case 'pending_mgr':
             $pdo->prepare('UPDATE orders SET status=?, mgr_note=?, mgr_approver=?, mgr_date=? WHERE id=?')
                 ->execute(['pending_wh', $note, $name, $today, $oid]);
             audit($pdo, 'orders', 'approve', 'order', $oid, $ono, '经理通过 → 待仓库出货' . $noteSuffix);
-            flash('经理已通过，进入仓库出货。');
+            flash(t('msg_order_mgr_ok'));
             break;
         case 'pending_wh':
             fulfill_order($pdo, $order, $name, $note, $today);
-            flash('仓库已确认出货：已扣库存并生成送货单与发票。');
+            flash(t('msg_order_ship_ok'));
             break;
         default:
-            flash('该订单当前无需审批。', 'error');
+            flash(t('msg_order_no_stage'), 'error');
     }
 }
 
 function reject_order(PDO $pdo, Auth $auth, array $order, string $note): void
 {
     if (!can_act($auth, $order)) {
-        flash('当前阶段无权操作。', 'error');
+        flash(t('msg_order_no_act'), 'error');
         return;
     }
     if (!in_array($order['status'], ['pending_sup', 'pending_mgr', 'pending_wh'], true)) {
-        flash('该订单无法驳回。', 'error');
+        flash(t('msg_order_no_reject'), 'error');
         return;
     }
     $name = $auth->user()['name'] ?? '';
@@ -454,7 +454,7 @@ function reject_order(PDO $pdo, Auth $auth, array $order, string $note): void
         (string) $order['order_no'],
         sprintf('在 %s 阶段驳回，退回草稿；理由: %s', order_status_label((string) $order['status']), $note !== '' ? $note : '(未填)')
     );
-    flash('订单已驳回，退回销售草稿待修改。');
+    flash(t('msg_order_rejected'));
 }
 
 /** Warehouse confirmation: deduct stock, create DO + invoice. */
@@ -554,7 +554,7 @@ function find_order(PDO $pdo, int $id): array
     }
     if (sees_only_own() && ($row['submitter'] ?? '') !== own_name()) {
         http_response_code(403);
-        flash('只能访问自己的订单 / Hanya pesanan Anda.', 'error');
+        flash(t('msg_order_own_only'), 'error');
         redirect('orders.index');
     }
     return $row;

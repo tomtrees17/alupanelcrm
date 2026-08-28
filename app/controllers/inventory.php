@@ -9,7 +9,7 @@ $fields = ['sku', 'name', 'color_zh', 'color_en', 'spec', 'size', 'category', 'u
 // Only admin / warehouse may modify; everyone else with inventory access is read-only.
 if (in_array($action, ['create', 'store', 'edit', 'update', 'adjust', 'delete'], true) && !can_edit_inventory()) {
     http_response_code(403);
-    flash('只有管理员和库存管理员可以修改库存 / Hanya admin & gudang yang dapat mengubah stok.', 'error');
+    flash(t('msg_stock_no_perm'), 'error');
     redirect('inventory.index');
 }
 
@@ -56,7 +56,7 @@ switch ($action) {
     case 'export':
         if (!can_export()) {
             http_response_code(403);
-            flash('无导出权限 / Tidak punya akses ekspor.', 'error');
+            flash(t('msg_no_export'), 'error');
             redirect('inventory.index');
         }
         $rows = [];
@@ -89,7 +89,7 @@ switch ($action) {
         Csrf::verify();
         $data = collect_product($fields);
         if ($data['name'] === '') {
-            flash('产品名称必填。', 'error');
+            flash(t('msg_prod_name_req'), 'error');
             redirect('inventory.create');
         }
         $cols = implode(',', $fields);
@@ -104,7 +104,7 @@ switch ($action) {
             trim($data['sku'] . ' ' . $data['name']),
             sprintf('规格: %s; 初始库存: %s; 单价: %s', $data['spec'], $data['stock'], idr((float) $data['price']))
         );
-        flash('产品已创建。');
+        flash(t('msg_prod_created'));
         redirect('inventory.index');
         break;
 
@@ -131,7 +131,7 @@ switch ($action) {
             trim($data['sku'] . ' ' . $data['name']),
             $diff !== '' ? $diff : '(无字段变化)'
         );
-        flash('产品已更新。');
+        flash(t('msg_prod_updated'));
         redirect('inventory.index');
         break;
 
@@ -159,7 +159,7 @@ switch ($action) {
                     $ref
                 )
             );
-            flash('库存已调整。');
+            flash(t('msg_stock_adjusted'));
         }
         redirect('inventory.index');
         break;
@@ -177,7 +177,7 @@ switch ($action) {
             trim((string) $product['sku'] . ' ' . (string) $product['name']),
             sprintf('删除时库存: %s; 规格: %s', (string) $product['stock'], (string) $product['spec'])
         );
-        flash('产品已删除。');
+        flash(t('msg_prod_deleted'));
         redirect('inventory.index');
         break;
 

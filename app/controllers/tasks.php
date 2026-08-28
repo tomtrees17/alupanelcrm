@@ -33,7 +33,7 @@ switch ($action) {
         Csrf::verify();
         $title = trim((string) input('title', ''));
         if ($title === '') {
-            flash('任务标题必填。', 'error');
+            flash(t('msg_task_title_req'), 'error');
             redirect('tasks.index');
         }
         $pdo->prepare('INSERT INTO tasks (title,due_date,priority,customer_id,note) VALUES (?,?,?,?,?)')
@@ -42,7 +42,7 @@ switch ($action) {
                 ((int) input('customer_id', 0)) ?: null, trim((string) input('note', '')),
             ]);
         audit($pdo, 'tasks', 'create', 'task', (int) $pdo->lastInsertId(), $title, '');
-        flash('任务已添加。');
+        flash(t('msg_task_added'));
         redirect('tasks.index');
         break;
 
@@ -59,7 +59,7 @@ switch ($action) {
         $tRow = audit_snapshot($pdo, 'tasks', $tid);
         $pdo->prepare('DELETE FROM tasks WHERE id = ?')->execute([$tid]);
         audit($pdo, 'tasks', 'delete', 'task', $tid, (string) ($tRow['title'] ?? ''), '');
-        flash('任务已删除。');
+        flash(t('msg_task_deleted'));
         redirect('tasks.index');
         break;
 

@@ -28,7 +28,7 @@ switch ($action) {
         Csrf::verify();
         $data = collect_deal();
         if ($data['name'] === '') {
-            flash('商机名称必填。', 'error');
+            flash(t('msg_deal_name_req'), 'error');
             redirect('pipeline.create');
         }
         $pdo->prepare('INSERT INTO deals (name,customer_id,value,stage,close_date,note) VALUES (?,?,?,?,?,?)')
@@ -42,7 +42,7 @@ switch ($action) {
             (string) $data['name'],
             sprintf('阶段: %s; 金额: %s', tr_stage((string) $data['stage']), idr((float) $data['value']))
         );
-        flash('商机已创建。');
+        flash(t('msg_deal_created'));
         redirect('pipeline.index');
         break;
 
@@ -65,7 +65,7 @@ switch ($action) {
             'name' => '名称', 'value' => '金额', 'stage' => '阶段', 'close_date' => '预计成交日',
         ]);
         audit($pdo, 'pipeline', 'update', 'deal', (int) $deal['id'], (string) $data['name'], $diff !== '' ? $diff : '(无字段变化)');
-        flash('商机已更新。');
+        flash(t('msg_deal_updated'));
         redirect('pipeline.index');
         break;
 
@@ -101,7 +101,7 @@ switch ($action) {
             (string) $deal['name'],
             sprintf('阶段: %s; 金额: %s', tr_stage((string) $deal['stage']), idr((float) $deal['value']))
         );
-        flash('商机已删除。');
+        flash(t('msg_deal_deleted'));
         redirect('pipeline.index');
         break;
 

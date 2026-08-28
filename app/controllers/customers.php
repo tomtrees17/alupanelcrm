@@ -69,7 +69,7 @@ switch ($action) {
     case 'export':
         if (!can_export()) {
             http_response_code(403);
-            flash('无导出权限 / Tidak punya akses ekspor.', 'error');
+            flash(t('msg_no_export'), 'error');
             redirect('customers.index');
         }
         $rows = [];
@@ -96,7 +96,7 @@ switch ($action) {
         Csrf::verify();
         $data = collect_customer($fields);
         if ($data['name'] === '') {
-            flash('客户姓名必填。', 'error');
+            flash(t('msg_cust_name_req'), 'error');
             redirect('customers.create');
         }
         // Privileged users may assign the owner; sales always own what they create.
@@ -118,7 +118,7 @@ switch ($action) {
             $data['name'],
             sprintf('公司: %s; 城市: %s; 负责销售: %s', $data['company'] ?: '(空)', $data['city'] ?: '(空)', $owner ?: '(空)')
         );
-        flash('客户已创建。');
+        flash(t('msg_cust_created'));
         redirect('customers.show', ['id' => $newId]);
         break;
 
@@ -147,7 +147,7 @@ switch ($action) {
         $customer = find_customer($pdo, (int) input('id', 0));
         $data = collect_customer($fields);
         if ($data['name'] === '') {
-            flash('客户姓名必填。', 'error');
+            flash(t('msg_cust_name_req'), 'error');
             redirect('customers.edit', ['id' => $customer['id']]);
         }
         $set = implode(',', array_map(fn($f) => "$f = ?", $fields));
@@ -174,7 +174,7 @@ switch ($action) {
             (string) $data['name'],
             $diff !== '' ? $diff : '(无字段变化)'
         );
-        flash('客户已更新。');
+        flash(t('msg_cust_updated'));
         redirect('customers.show', ['id' => $customer['id']]);
         break;
 
@@ -191,7 +191,7 @@ switch ($action) {
             (string) $customer['name'],
             sprintf('公司: %s; 负责销售: %s', (string) ($customer['company'] ?? '') ?: '(空)', (string) ($customer['owner'] ?? '') ?: '(空)')
         );
-        flash('客户已删除。');
+        flash(t('msg_cust_deleted'));
         redirect('customers.index');
         break;
 
@@ -228,7 +228,7 @@ function find_customer(PDO $pdo, int $id): array
     }
     if (sees_only_own() && ($row['owner'] ?? '') !== own_name()) {
         http_response_code(403);
-        flash('只能访问自己的客户 / Hanya pelanggan Anda.', 'error');
+        flash(t('msg_cust_own_only'), 'error');
         redirect('customers.index');
     }
     return $row;
