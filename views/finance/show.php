@@ -1,6 +1,7 @@
-<?php /** @var array $invoice */ /** @var array $items */ /** @var array $payments */
+<?php /** @var array $invoice */ /** @var array $items */ /** @var array $payments */ /** @var ?string $voidBlock */
 $remaining = $invoice['total'] - $invoice['amount_paid'];
 $isVoid = invoice_is_void($invoice);
+$voidBlock = $voidBlock ?? null;
 ?>
 <div class="page-head">
     <h1><?= t('invoice') ?> <?= e($invoice['invoice_no']) ?>
@@ -13,8 +14,10 @@ $isVoid = invoice_is_void($invoice);
     <div class="head-actions">
         <a class="btn btn-primary" href="<?= url('finance.print', ['id' => $invoice['id']]) ?>" target="_blank"><?= t('btn_print') ?> · Invoice</a>
         <?php if (can_word_export()): ?><a class="btn btn-ghost" href="<?= url('finance.word', ['id' => $invoice['id']]) ?>"><?= t('btn_word') ?></a><?php endif; ?>
-        <?php if (!$isVoid): ?>
+        <?php if (!$isVoid && $voidBlock === null): ?>
             <a class="btn btn-ghost" href="<?= url('finance.void_form', ['id' => $invoice['id']]) ?>"><?= t('void_btn') ?></a>
+        <?php elseif (!$isVoid): ?>
+            <span class="btn btn-ghost btn-disabled" title="<?= e($voidBlock) ?>"><?= t('void_btn') ?></span>
         <?php elseif ($auth->isAdmin()): ?>
             <form method="post" action="<?= url('finance.unvoid') ?>" style="display:inline" onsubmit="return confirm('<?= t('unvoid_btn') ?>?')">
                 <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $invoice['id'] ?>">
@@ -71,6 +74,10 @@ $isVoid = invoice_is_void($invoice);
         </table></div>
     </div>
 </div>
+
+<?php if (!$isVoid && $voidBlock !== null): ?>
+    <div class="alert alert-info no-print"><?= e($voidBlock) ?></div>
+<?php endif; ?>
 
 <?php if ($isVoid): ?>
     <div class="alert alert-error">

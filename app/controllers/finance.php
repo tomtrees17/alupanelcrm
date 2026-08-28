@@ -72,6 +72,9 @@ switch ($action) {
         view('finance.show', [
             'pageTitle' => t('invoice') . ' ' . $invoice['invoice_no'], 'pageSub' => $invoice['customer'],
             'invoice' => $invoice, 'items' => $items->fetchAll(), 'payments' => $pays->fetchAll(),
+            // Why voiding is unavailable, so the button can say so instead of
+            // bouncing the user back with an error after they click it.
+            'voidBlock' => invoice_void_block($pdo, $invoice),
         ]);
         break;
 

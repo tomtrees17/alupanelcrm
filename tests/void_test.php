@@ -183,3 +183,30 @@ $leak = array_values(array_filter($keys, fn($k) => str_contains($htmlId, $k)));
 ok('Indonesian void page has no raw keys', $leak === [], implode(' ', $leak));
 ok('Indonesian void page is translated', str_contains($htmlId, I18N['id']['void_tag']));
 $_SESSION['lang'] = 'zh';
+
+// ── The void button must explain itself rather than bounce the user ──
+// A paid invoice cannot be voided; showing a live button that errors on click
+// teaches staff that buttons are unreliable.
+$paid = array_merge($live, ['id' => 8, 'amount_paid' => 476000, 'payment_status' => 'paid']);
+$payRows = [['id' => 1, 'pay_date' => '2026-08-04', 'method' => '', 'receipt_no' => 'RC-1',
+             'amount' => 476000, 'note' => '', 'created_by' => 'Finance', 'reversal_of' => null]];
+
+$blockedHtml = $render($showFile, ['invoice' => $paid, 'items' => $items, 'payments' => $payRows,
+                                   'voidBlock' => t('void_err_has_payment')]);
+ok('paid invoice offers no clickable void link', !str_contains($blockedHtml, 'finance.void_form'));
+ok('the button is shown but disabled', str_contains($blockedHtml, 'btn-disabled'));
+ok('the reason is on the button as a tooltip', str_contains($blockedHtml, 'title="' . t('void_err_has_payment')));
+ok('the reason is also stated in the page', str_contains($blockedHtml, t('void_err_has_payment')));
+ok('reversing is still offered as the way forward', str_contains($blockedHtml, 'finance.reverse_form'));
+
+// An unpaid invoice keeps the working button and shows no hint.
+$freeHtml = $render($showFile, ['invoice' => $live, 'items' => $items, 'payments' => [], 'voidBlock' => null]);
+ok('unpaid invoice keeps a clickable void link', str_contains($freeHtml, 'finance.void_form'));
+ok('unpaid invoice shows no blocked hint', !str_contains($freeHtml, 'btn-disabled'));
+
+// The view must not assume the controller passed voidBlock (older links, direct include).
+$legacy = $render($showFile, ['invoice' => $live, 'items' => $items, 'payments' => []]);
+ok('view tolerates a missing voidBlock', str_contains($legacy, 'finance.void_form'));
+
+// The disabled state must never appear on an already-voided invoice.
+ok('voided invoice shows neither button', !str_contains($htmlDead, 'btn-disabled') && !str_contains($htmlDead, 'finance.void_form'));
