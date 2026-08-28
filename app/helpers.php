@@ -30,11 +30,17 @@ function is_post(): bool
     return ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
 }
 
-/** Format an amount as Indonesian Rupiah: Rp 1.234.567 */
-function idr($amount): string
+/**
+ * Format an amount as Indonesian Rupiah: Rp 1.234.567
+ *
+ * $dec matters for invoice unit prices: those are back-calculated from a
+ * tax-inclusive price and carry two decimals (Rp 214.414,41). Printing them
+ * whole makes qty x price disagree with the line total on screen.
+ */
+function idr($amount, int $dec = 0): string
 {
     $cur = $GLOBALS['config']['currency'] ?? 'Rp';
-    return $cur . ' ' . number_format((float) $amount, 0, ',', '.');
+    return $cur . ' ' . number_format((float) $amount, $dec, ',', '.');
 }
 
 /** Strip CJK characters (Indonesian-facing printed documents must not contain Chinese). */

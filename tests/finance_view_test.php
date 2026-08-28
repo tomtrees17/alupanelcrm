@@ -125,3 +125,27 @@ $zhConfirm = $renderFile($reverseFile, ['invoice' => $invoice, 'payment' => $pay
 ok('Chinese ledger has no raw keys', $leak($zhLedger, $ledgerKeys) === [], implode(' ', $leak($zhLedger, $ledgerKeys)));
 ok('Chinese confirmation has no raw keys', $leak($zhConfirm, $confirmKeys) === [], implode(' ', $leak($zhConfirm, $confirmKeys)));
 $_SESSION['lang'] = 'zh';
+
+// ── Unit price decimals: the invoice screen must agree with the printed copy ──
+// Invoice unit prices are back-calculated from a tax-inclusive price and carry
+// two decimals. Rendering them whole made qty x price look wrong on screen
+// (Rp 214.414 x 2 shown against a line total of Rp 428.829).
+ok('idr() defaults to whole rupiah', idr(214414.41) === 'Rp 214.414');
+ok('idr() can carry decimals', idr(214414.41, 2) === 'Rp 214.414,41', idr(214414.41, 2));
+ok('idr() decimals match num() used by the print template', idr(214414.41, 2) === 'Rp ' . num(214414.41, 2));
+
+$priced = array_merge($invoice, ['id' => 9, 'total' => 476000, 'amount_paid' => 0, 'payment_status' => 'pending']);
+$pricedItems = [['sku' => 'SJ8036', 'color' => 'Coffee', 'spec' => '3.0*0.10', 'size' => '1.220 x 2.440',
+                 'qty' => 2, 'unit' => 'Unit', 'price' => 214414.41]];
+$html = $renderFile($showFile, ['invoice' => $priced, 'items' => $pricedItems, 'payments' => [], 'voidBlock' => null]);
+ok('invoice screen shows the unit price with decimals', str_contains($html, 'Rp 214.414,41'), 'missing 214.414,41');
+ok('invoice screen no longer truncates it', !str_contains($html, '>Rp 214.414<'));
+ok('line total matches qty x unit price', str_contains($html, 'Rp 428.829'));
+
+// The order screen is different: those prices are tax-inclusive whole rupiah as
+// typed by the assistant, so decimals there would be noise.
+$orderView = __DIR__ . '/../views/orders/show.php';
+if (is_file($orderView)) {
+    $src = (string) file_get_contents($orderView);
+    ok('order screen keeps whole-rupiah unit prices', str_contains($src, "idr(\$it['price'])"));
+}

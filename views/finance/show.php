@@ -58,7 +58,7 @@ $voidBlock = $voidBlock ?? null;
             <tbody>
             <?php foreach ($items as $it): ?>
                 <tr><td><code><?= e($it['sku']) ?></code></td><td><?= e($it['color']) ?> · <?= e($it['spec']) ?></td>
-                    <td class="right"><?= (int) $it['qty'] ?></td><td class="right"><?= idr($it['price']) ?></td>
+                    <td class="right"><?= (int) $it['qty'] ?></td><td class="right"><?= idr($it['price'], 2) ?></td>
                     <td class="right"><?= idr($it['qty'] * $it['price']) ?></td></tr>
             <?php endforeach; ?>
             </tbody>
