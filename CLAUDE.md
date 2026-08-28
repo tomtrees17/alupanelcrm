@@ -38,7 +38,7 @@ public/
   index.php                 前端控制器：鉴权 → 强制改密 → 模块权限 → 分发到 controllers/
   manifest.json             PWA
   assets/css/{app,print}.css
-  assets/img/               app-icon.svg / logo-print.svg
+  assets/img/               app-icon.svg(PWA) / logo-print.png + .svg(发票抬头，png 优先)
 
 app/
   bootstrap.php             启动装配（session 加固 → config → i18n/helpers/domain → PDO → Auth）
@@ -49,7 +49,7 @@ app/
   Export.php                Excel 导出   Word.php  Word 导出
   Auth.php                  会话鉴权     Csrf.php  CSRF 令牌
   controllers/              dashboard customers pipeline tasks finance orders inventory
-                            approvals delivery users roles account auth lang
+                            approvals audit delivery users roles account auth lang
 
 views/                      按模块分目录 + layout.php + print/ + word/ + errors/
 database/schema.sql         表结构
@@ -57,6 +57,8 @@ database/seed_products.sql  269 个产品（由 tools/gen_products.php 从原型
 tools/
   reset_password.php        CLI 重置账号密码（运维）
   backup_db.php             VACUUM INTO 一致快照 + 附件打包，滚动保留 14 份
+  run_tests.php             零依赖测试运行器（见 5.7）
+tests/                      测试用例 *_test.php（内存 SQLite，不碰运行时数据）
 data/                       运行时 SQLite + uploads/（gitignore，**在 web 根之外**）
 backups/                    备份产物（gitignore）
 ```
@@ -98,7 +100,7 @@ php -S localhost:8000 -t public
 3. 拉取并修正属主：
 
    ```bash
-   cd /www/wwwroot/www.alupanel.cc && git pull && chown -R www:www data && chmod -R 755 data
+   cd /www/wwwroot/www.alupanel.cc && git pull && chown -R www:www data && chmod -R u=rwX,go=rX data
    ```
 
 4. 打开一次网站，让 `Database::ensureSchema()` 跑完自动迁移（见 5.3）。

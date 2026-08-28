@@ -33,7 +33,7 @@ php -S localhost:8000 -t public
 - SSH：`ssh -p 22022 root@149.129.218.9`（**端口 22022，非默认 22**）
 - PHP 8.2（已确认 `pdo_sqlite`/`sqlite3` 启用）
 - **网站运行目录必须设为 `/public`**
-- `data/` 目录需 `www` 用户可写：`chown -R www:www data && chmod -R 755 data`
+- `data/` 目录需 `www` 用户可写：`chown -R www:www data && chmod -R u=rwX,go=rX data`
 - 更新代码：`cd /www/wwwroot/www.alupanel.cc && git pull`（发布流程见 CLAUDE.md 第 4 节：本地改 → push GitHub → 服务器 git pull）
 
 ## 4. 默认账号（初始密码均 `admin123`，**首次登录强制改密**，见 6c）
@@ -125,7 +125,7 @@ php -S localhost:8000 -t public
 cd /www/wwwroot/www.alupanel.cc && git pull
 /www/server/php/82/bin/php tools/reset_password.php                              # 不带参数 = 列出所有账号
 /www/server/php/82/bin/php tools/reset_password.php admin@alupanel.local '新密码'   # ≥8 位
-chown -R www:www data && chmod -R 755 data                                       # 修正属主（必做）
+chown -R www:www data && chmod -R u=rwX,go=rX data                                       # 修正属主（必做）
 ```
 - 重置 `password_hash` 并清 `must_change_password`，新密码当场生效。
 - 对 `must_change_password` 列做**存在性判断**，故线上库尚未经 web 迁移（刚 git pull、还没人访问网站）时也能用（否则会报 `no such column`）。
