@@ -8,7 +8,7 @@
 - **业务**：铝塑板（ACP）销售 CRM / 轻量 ERP，面向**印尼市场**
 - **真实公司**：PT ALUPANEL MULIA INDONESIA
 - **来源**：按规划原型 `crm-system_25.html`（NexusCRM）实现（该原型文件在早期的 Windows 开发机上，未进仓库）
-- **仓库**：https://github.com/tomtrees17/alupanelcrm （main 分支，公开）
+- **仓库**：https://github.com/tomtrees17/alupanelcrm （main 分支，**private**，2026-08-28 由公开转私有）
 - **本地路径**：`~/projects/alupanelcrm`（macOS；早期在 Windows `D:\AluPanelCRM`）
 
 ## 2. 技术栈
@@ -73,7 +73,7 @@ php -S localhost:8000 -t public
 - 新建订单按**可用库存**校验（客户端标红阻止提交 + 服务端拒绝）；每级审批再按物理库存校验
 - `order_items.product_id` 已记录；线上旧库由 `Database::ensureSchema()` 自动加列+回填+重算
 
-**打印**：发票(`print/invoice.php`，公司抬头+Bill To+DPP/VAT+双银行ICBC/BCA+签字+terbilang金额大写) 与送货单(`print/do.php`，SURAT JALAN)，A4 样式 `public/assets/css/print.css`。抬头用公司名（无 logo；放 `public/assets/img/logo.png` 可让侧边栏自动改用图片）。打印时 `no_cjk()` 剔除所有中文（规格如 `4.0*0.15抗刮木纹` 印成 `4.0*0.15`，单位「张」→Unit,库内数据不动）。
+**打印**：发票(`print/invoice.php`，公司抬头+Bill To+DPP/VAT+双银行ICBC/BCA+签字+terbilang金额大写) 与送货单(`print/do.php`，SURAT JALAN)，A4 样式 `public/assets/css/print.css`。抬头用 **ALUSIGNPANEL logo 图片**：`views/print/invoice.php` 按 `logo-print.png → .svg → .jpg` 顺序查找 `public/assets/img/`，命中即用。真实 PNG（524×112）**原先只存在于服务器上、未进 git 也不在备份范围**，2026-08-28 已提交进仓库。打印时 `no_cjk()` 剔除所有中文（规格如 `4.0*0.15抗刮木纹` 印成 `4.0*0.15`，单位「张」→Unit,库内数据不动）。
 
 **Word 导出（可手改再打）**：`finance.word` / `delivery.word` 生成可编辑 Word 文档（`app/Word.php`，MSO-HTML `.doc`，零依赖，Word/WPS 直接打开编辑）。权限 `can_word_export()`＝admin + 仓库(can_edit_inventory) + 财务(can_access('finance'))；发票 Word 还需过 finance 模块路由（warehouse 只能导送货单）。入口：发票详情/打印页、送货单列表/打印页的「导出 Word」按钮。内容同打印版（含 terbilang、双银行、签名位），同样零中文。
 
@@ -143,12 +143,42 @@ chown -R www:www data && chmod -R 755 data                                      
 - 恢复:停站 → 用某份快照覆盖 `data/crm.sqlite`(并删掉 `-wal/-shm`)→ `chown -R www:www data`。
 - 进阶(建议):把 `backups/` 定期同步到异地/对象存储,防整机故障。
 
+## 6f. 服务器访问与安全审计（2026-08-28）
+
+**仓库已转为 private**。服务器 git remote 相应从 HTTPS 改为 **SSH**（`git@github.com:tomtrees17/alupanelcrm.git`）——private 仓库走 HTTPS 会卡在认证上，**不要改回去**。认证用 `/root/.ssh/id_ed25519`，该公钥已注册在 GitHub 账号 `tomtrees17` 的 SSH keys 下（不是 deploy key，所以服务器实际拥有该账号**所有仓库**的访问权；想收紧就从账号 SSH keys 移除、改加为本仓库的 read-only deploy key）。
+
+**SSH 访问**：`ssh -p 22022 root@149.129.218.9`，本机 `~/.ssh/id_ed25519`（`yuan-imac`）已在服务器 authorized_keys 中，免密。主机指纹 ED25519 `SHA256:Ub6Xr8wg7Bg1y6ilzPzVfQsVxU8kEOHL0GDkOxK3hkw`。**退路**：阿里云控制台 VNC 远程连接可用（已验证），SSH 配置改坏时靠它救场。
+
+**审计结论：无入侵迹象。** authorized_keys 里两把钥匙——`SHA256:9GE/...`(服务器自己的 id_ed25519.pub，setup 时自我授权，无害) 和 `SHA256:ndFF...`(yuan-imac)，没有第三方公钥；可登录 shell 的账号只有 root；所有成功登录都来自本人 IP（`101.0.4.x` / `100.104.x.x` CGNAT 移动网络）。
+
+**当前风险（截至 2026-08-28 未处理）**：
+| 项 | 现状 | 风险 |
+|---|---|---|
+| SSH 密码认证 | `PasswordAuthentication yes` + `PermitRootLogin yes` | **高**——自 6/13 起 574,160 次失败登录（约 7,700 次/天），**fail2ban 未安装** |
+| 宝塔面板 8888 / phpMyAdmin 888 | firewalld 放行，对公网开放 | 中高——宝塔面板历史有未授权访问漏洞 |
+| MySQL 3306 | 监听 `0.0.0.0`（无 bind-address），但 **firewalld 未放行** | 低——外网连不到；且本项目用 SQLite，该 MySQL 疑似闲置 |
+| FTP 20/21 | firewalld 放行 | 低——明文协议，未在用可关 |
+
+firewalld 放行清单：`20, 21, 22, 80, 443, 888, 8888, 22022, 37775, 39000-40000`（`22/tcp` 是残留，sshd 只听 22022）。阿里云**安全组**规则是 firewalld 之外的第二道防火墙，服务器内部看不到，需在控制台确认。
+
+**加固待办（关闭密码认证的操作步骤）**——改前务必先确认 VNC 能进：
+```bash
+cp -a /etc/ssh/sshd_config /root/sshd_config.bak.$(date +%Y%m%d)
+sed -i 's/^PermitRootLogin yes$/PermitRootLogin prohibit-password/; s/^PasswordAuthentication yes$/PasswordAuthentication no/' /etc/ssh/sshd_config
+sshd -t && systemctl reload sshd          # reload 不断开现有连接
+sshd -T | grep -E 'permitrootlogin|passwordauthentication|kbdinteractive'
+```
+生效值应为 `permitrootlogin prohibit-password` / `passwordauthentication no` / `kbdinteractiveauthentication no`（**最后一项必须是 no**，否则 PAM 会绕过 `prohibit-password` 让密码登录复活）。**改完先别关当前会话**，另开终端验证 `ssh -p 22022 root@149.129.218.9 hostname` 能通再关。回滚：`cp -a /root/sshd_config.bak.<日期> /etc/ssh/sshd_config && systemctl reload sshd`。
+
+配置生效点在 `/etc/ssh/sshd_config` 第 132/133 行（宝塔追加）；`Include /etc/ssh/sshd_config.d/*.conf` 在第 15 行，那两个 redhat 默认文件没覆盖这两项，也没有 `Match` 块。直接改主配置是为了和宝塔面板的 SSH 管理界面保持一致，避免「面板显示开着、实际关着」。
+
 ## 7. 目录结构
 
 ```
+CLAUDE.md                   开发约定（技术栈/目录/部署流程/代码约定，给 Claude Code 和新人看）
 public/index.php            前端控制器（路由）
 public/assets/css/{app,print}.css
-public/assets/img/logo.svg
+public/assets/img/           app-icon.svg(PWA) / logo-print.png + .svg(发票抬头，png 优先)
 app/
   bootstrap.php             启动装配（session, config, i18n, helpers, domain, Database, Auth, Csrf）
   Database.php              连接+建表+种子+ensureSchema(线上升级)
@@ -162,9 +192,12 @@ views/                      按模块分目录 + layout.php + print/ + errors/�
 database/schema.sql         表结构
 database/seed_products.sql  269 个产品（由 tools/gen_products.php 从原型抽取）
 tools/reset_password.php    CLI 重置账号密码（运维，见 6d）
-data/                       运行时 SQLite（gitignore）
+tools/backup_db.php         DB 快照 + 附件打包备份（运维，见 6e）
+data/                       运行时 SQLite + uploads/（gitignore，在 web 根之外）
 config.php                  应用与公司配置
 ```
+
+**服务器上的未跟踪文件**（宝塔生成，别提交也别删）：`.htaccess`、`404.html`、`index.html`、`public/.user.ini`、`public/.well-known/`。除此之外 `git status` 应该是干净的——**服务器上永远不要直接改代码**。
 
 ## 8. config.php 可定制项
 
@@ -176,38 +209,39 @@ users(+must_change_password), customers, deals, tasks, products(+reserved), stoc
 
 ## 10. 提交历史（main）
 
+最近 30 条（共 64 条，完整历史用 `git log --oneline`）：
+
 ```
-169b0da Make reset tool work before web migration adds must_change_password
-b6cbc57 Add CLI password-reset tool for locked-out accounts
-afa4e76 Harden auth: session cookies, login throttle, forced password change
-957817d Let orders enter a new customer and auto-save to customer module
-08eee58 Allow free-text salesperson name with suggestions in order form
-ae9f33b Add assign-salesperson (submitter) option in order form
-a0c4fe0 Localize remaining UI strings (finance detail, topbar titles, 404, banners)
-af8ea56 Fully localize finance invoice detail page (zh/id)
-b0f012a Order draft + edit-before-approval + reject-back-to-draft workflow
-c83a4f9 Enable SQLite WAL + busy_timeout for safe concurrent access
-fa7a4ea Document Excel export in PROJECT_STATUS
-a729e69 Make Excel export a configurable 'export' permission
-a7ad0ab Add Excel export for inventory, finance report and customers (managers only)
-683d883 Document roles & access-control rules in PROJECT_STATUS
-f4eb663 Let admins/managers assign customer owner (sales PIC)
-bd2863a Inventory edit limited to admin/warehouse; sales see only own orders & customers
-43dba6e Add HR, operations-supervisor and clerk roles
-88f1244 Make all-staff sales performance its own configurable permission
-73bf91c Show personal performance to sales (own orders only)
-763b01d Add sales performance & hot products to dashboard
-ebb8c2d Add finance_manager role and per-role module permissions
-f64c117 Reserve stock on order placement to prevent overselling
-4681501 Block order flow when product stock is insufficient
-4212162 Add keyword search to product picker in new-order form
-a76cd2b Add ALUSIGNPANEL logo (SVG) to printed invoice and delivery order
-4ba25e8 Treat order prices as tax-inclusive when generating invoice
-99d1a41 Match printed invoice to company template (PT Alupanel Mulia Indonesia)
-c94400e Add bilingual zh/id, print templates, delivery orders; rename to AluPanelCRM
-feccc03 Rebuild as ACP sales CRM per NexusCRM plan (7 modules)
-56afafa Stop tracking local .claude settings
-c3ad488 Initial commit: AluPanel CRM (PHP + SQLite)
+af4bc9f Docs: server pulls over SSH remote now that the repo is private
+0a90600 Docs: real SSH endpoint and macOS local path in CLAUDE.md / PROJECT_STATUS
+1a39556 Add CLAUDE.md with stack, layout, deploy flow and code conventions
+beaf52c Finance: editable invoice number on the invoice page
+28915e0 Invoice: ALUSIGNPANEL logo in the letterhead (print-only asset)
+bfe2816 Invoice: drop company name from the letterhead (address box + title only)
+b239ab6 Invoice signature block: title only (no company name, no signer name)
+0c3a755 Backup: bundle DB snapshot + attachments (data/uploads) into a rotated zip
+7e3cb15 Approvals: HR review stage for trip / expense / leave requests
+168488d Approvals: file attachments (images/PDF) on requests
+c031a63 Approvals: add payment-request type (PY-) with linked-document reference
+ca77ca1 Add editable Word export for invoices & delivery orders (finance/warehouse)
+bee5277 Strip Chinese from printed invoice & delivery order
+ec04fe7 Order form picker: drop size from the product label
+35d888d Order form: show full product designation in picker (bilingual name + size), searchable in Chinese
+297b2d3 Mobile: make order-form product picker readable (wrap items, wider dropdown)
+53683f4 Drop ALUSIGNPANEL logo image; sidebar uses the AluPanelCRM text mark
+53ac76f Match logo colors to brand image: red A, blue LUSIGNPANE, black L
+46397bf Add responsive mobile layout + installable PWA
+9df2a80 Add rotated SQLite backup tool (tools/backup_db.php)
+2436a4f Fix invoice overdue detection to use the real date
+d28a7e1 Approvals: forbid self-approval (separation of duties)
+d608637 Customers: add city/owner filters and potential-value sorting
+84ec3c5 Dashboard sales trend: split into 已成交 (approved orders) & 已回款 (payments)
+da101dc Dashboard: add monthly & weekly sales trend charts
+3c97311 Clarify on the permissions page that inventory edits are admin/warehouse only
+f971e9d Add administrative approvals module (business trip / expense / leave)
+8aad2c8 Delivery order: drop logo, keep company name in letterhead
+d62d1eb Invoice header: use company name instead of logo image
+8bca646 Show ALUSIGNPANEL logo in sidebar + fix logo.svg color split
 ```
 
 ## 11. 用户偏好
@@ -216,8 +250,18 @@ c3ad488 Initial commit: AluPanel CRM (PHP + SQLite)
 
 ## 12. 可能的后续
 
-真实 logo.png 上传、发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。
+发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。（~~真实 logo.png 上传~~ 已完成，见 6 打印一节）
 
-**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA**。**待办**：审计日志(谁改了什么)、金额用 REAL 存在舍入风险(可改整数分)、列表分页、看板日期范围、自动化测试、备份异地同步、WhatsApp 一键联系/自动通知。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f)。
+
+**待办（按优先级）**：
+1. **关闭 SSH 密码认证 + 装 fail2ban** —— 操作步骤见 6f，是当前最高的实际风险（7,700 次爆破/天）
+2. **审计日志**（谁改了什么）—— 多角色 + 审批流 + 财务数据，出争议无从追溯
+3. **金额改整数分** —— 现用 REAL 存，含税反算(÷1.11)有累积误差；涉及数据迁移，越晚成本越高
+4. **列表分页** —— 订单/发票持续增长，目前全量渲染
+5. **WhatsApp 一键联系 / 自动通知** —— 印尼市场刚需（审批到达、发票逾期）
+6. 宝塔面板 8888 收口、停用闲置 MySQL/FTP（见 6f）
+7. 备份异地同步、看板日期范围、自动化测试
+8. GitHub 密钥收紧：服务器用的是账号级 SSH key（可访问所有仓库），可改为本仓库 read-only deploy key（见 6f）
 
 **响应式 + PWA**：`app.css` 末尾 `@media (max-width:768px)` 把侧边栏变滑出抽屉(`layout.php` 顶栏加 `☰` `#navToggle` + `#navBackdrop` + 底部切换脚本;`.nav-toggle`/`.sidebar-backdrop` 默认隐藏),栅格(stats/grid-2/detail/form-row)、搜索栏、页头在窄屏自适应堆叠。PWA:`public/manifest.json`(display=standalone,theme #00a884)+ `public/assets/img/app-icon.svg`(青底白 A)+ `layout.php`/`login.php` head 里的 manifest/theme-color/apple-touch-icon,可「添加到主屏幕」。**未做 service worker**(避免缓存旧页;CRM 本就依赖服务器)。iOS 主屏图标想更精细可加 180×180 png 覆盖。
