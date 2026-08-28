@@ -28,6 +28,8 @@ $pdo->exec("INSERT INTO payments (invoice_id,customer,amount,pay_date,receipt_no
 $pdo->exec('DROP INDEX IF EXISTS idx_notif_pending');
 $pdo->exec('DROP INDEX IF EXISTS idx_notif_user');
 $pdo->exec('DROP TABLE IF EXISTS notifications');
+$pdo->exec('DROP INDEX IF EXISTS idx_ai_user_day');
+$pdo->exec('DROP TABLE IF EXISTS ai_queries');
 $pdo->exec('ALTER TABLE users DROP COLUMN phone');
 $pdo->exec('ALTER TABLE users DROP COLUMN lang');
 $pdo->exec('ALTER TABLE orders DROP COLUMN created_by');
@@ -79,6 +81,8 @@ ok('orders gains created_by', in_array('created_by', array_column($pdo->query('P
 $existing = $pdo->query("SELECT * FROM users WHERE email='admin@alupanel.local'")->fetch();
 ok('existing user survives with lang default', $existing && $existing['lang'] === 'id' && $existing['phone'] === null);
 ok('existing user has no phone yet (notifications skip, not crash)', Notify::normalise_phone((string) $existing['phone']) === '');
+
+ok('ai_queries table created', $has('ai_queries'));
 
 // 'audit' must NOT be granted to anyone by the migration — admin-only by default.
 $granted = $pdo->query("SELECT COUNT(*) FROM role_permissions WHERE module='audit'")->fetchColumn();

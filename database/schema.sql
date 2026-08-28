@@ -280,6 +280,22 @@ CREATE TABLE notifications (
 CREATE INDEX idx_notif_pending ON notifications(status, id);
 CREATE INDEX idx_notif_user    ON notifications(user_id, id);
 
+-- ── AI assistant queries (cost tracking + per-user rate limit) ──
+CREATE TABLE ai_queries (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    user_name     TEXT,
+    question      TEXT NOT NULL,
+    matched       TEXT,        -- comma-separated product ids the model picked
+    ok            INTEGER NOT NULL DEFAULT 1,
+    error         TEXT,
+    in_tokens     INTEGER DEFAULT 0,
+    cached_tokens INTEGER DEFAULT 0,
+    out_tokens    INTEGER DEFAULT 0,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_ai_user_day ON ai_queries(user_id, created_at);
+
 -- ── Audit trail (who changed what, append-only) ──
 CREATE TABLE audit_log (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,

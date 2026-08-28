@@ -32,6 +32,7 @@ require __DIR__ . '/domain.php';
 require __DIR__ . '/Export.php';
 require __DIR__ . '/Word.php';
 require __DIR__ . '/Notify.php';
+require __DIR__ . '/Ai.php';
 require __DIR__ . '/Database.php';
 require __DIR__ . '/Csrf.php';
 require __DIR__ . '/Auth.php';

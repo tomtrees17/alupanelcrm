@@ -195,6 +195,18 @@ final class Database
             $pdo->exec('ALTER TABLE orders ADD COLUMN created_by TEXT');
         }
 
+        // ai_queries (AI 库存查询用量与限流, added later).
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS ai_queries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER, user_name TEXT, question TEXT NOT NULL, matched TEXT,
+                ok INTEGER NOT NULL DEFAULT 1, error TEXT,
+                in_tokens INTEGER DEFAULT 0, cached_tokens INTEGER DEFAULT 0, out_tokens INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            )"
+        );
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ai_user_day ON ai_queries(user_id, created_at)');
+
         // notifications queue (WhatsApp, added later).
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS notifications (

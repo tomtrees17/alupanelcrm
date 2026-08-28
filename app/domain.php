@@ -251,6 +251,74 @@ function login_clear_failures(PDO $pdo): void
 }
 
 // ──────────────────────────────────────────────────────────
+//  AI inventory lookup
+// ──────────────────────────────────────────────────────────
+
+/** Queries this user has already made today (rate limit + cost control). */
+function ai_used_today(PDO $pdo, int $userId): int
+{
+    $st = $pdo->prepare("SELECT COUNT(*) FROM ai_queries WHERE user_id = ? AND date(created_at) = date('now','localtime')");
+    $st->execute([$userId]);
+    return (int) $st->fetchColumn();
+}
+
+/**
+ * Live stock for the ids the model picked, in the model's order of confidence.
+ * This is the only place a quantity is produced — never the model.
+ */
+function ai_resolve_products(PDO $pdo, array $ids): array
+{
+    $ids = array_values(array_filter(array_map('intval', $ids), fn($i) => $i > 0));
+    if ($ids === []) {
+        return [];
+    }
+    $ids = array_slice($ids, 0, 8);
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    $st = $pdo->prepare("SELECT id, sku, name, color_zh, color_en, spec, size, unit, price, stock, reserved, min_stock
+                         FROM products WHERE id IN ({$in})");
+    $st->execute($ids);
+
+    $byId = [];
+    foreach ($st->fetchAll() as $row) {
+        $row['available'] = (int) $row['stock'] - (int) $row['reserved'];
+        $byId[(int) $row['id']] = $row;
+    }
+    // Preserve the model's ranking; drop ids that no longer exist.
+    $out = [];
+    foreach ($ids as $id) {
+        if (isset($byId[$id])) {
+            $out[] = $byId[$id];
+        }
+    }
+    return $out;
+}
+
+/** Record every call: what was asked, what matched, what it cost. */
+function ai_log(PDO $pdo, string $question, array $ids, bool $ok, string $error = '', array $usage = []): void
+{
+    $auth = $GLOBALS['auth'] ?? null;
+    $user = ($auth !== null && $auth->check()) ? $auth->user() : null;
+    try {
+        $pdo->prepare(
+            'INSERT INTO ai_queries (user_id,user_name,question,matched,ok,error,in_tokens,cached_tokens,out_tokens)
+             VALUES (?,?,?,?,?,?,?,?,?)'
+        )->execute([
+            $user['id'] ?? null,
+            $user['name'] ?? '',
+            mb_substr($question, 0, 500),
+            implode(',', array_map('intval', $ids)),
+            $ok ? 1 : 0,
+            mb_substr($error, 0, 300),
+            (int) ($usage['in'] ?? 0),
+            (int) ($usage['cached'] ?? 0),
+            (int) ($usage['out'] ?? 0),
+        ]);
+    } catch (Throwable $e) {
+        // Logging must not break the answer the user is waiting for.
+    }
+}
+
+// ──────────────────────────────────────────────────────────
 //  WhatsApp notifications — who to tell, and what to say
 // ──────────────────────────────────────────────────────────
 

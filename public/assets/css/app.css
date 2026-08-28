@@ -252,6 +252,22 @@ tfoot td { padding: 8px 14px; }
 .login-card label { font-size: 11px; font-weight: 600; color: var(--text2); display: block; margin: 0 0 6px; }
 .login-hint { text-align: center; color: var(--text3); font-size: 11px; margin-top: 16px; line-height: 1.6; }
 
+/* ─ AI ASK (mobile-first: sales use this on a phone) ─ */
+.ask-form { display: flex; gap: 8px; align-items: stretch; }
+.ask-input { flex: 1; resize: vertical; font-size: 16px; /* 16px stops iOS zooming on focus */ line-height: 1.5; }
+.ask-send { white-space: nowrap; }
+.ask-card { margin-bottom: 10px; }
+.ask-name { font-weight: 600; font-size: 15px; }
+.ask-stock { display: flex; align-items: baseline; gap: 12px; margin: 10px 0 8px; flex-wrap: wrap; }
+.ask-avail { display: flex; align-items: baseline; gap: 6px; }
+.ask-num { font-size: 26px; font-weight: 700; letter-spacing: -1px; }
+.ask-avail.ok .ask-num { color: var(--success); }
+.ask-avail.low .ask-num { color: var(--danger); }
+@media (max-width: 768px) {
+  .ask-form { flex-direction: column; }
+  .ask-send { width: 100%; justify-content: center; }
+}
+
 /* ─ FINANCE: reversed payment rows ─ */
 .row-void td { color: var(--text3); text-decoration: line-through; }
 .row-void td .tag, .row-void td .muted { text-decoration: none; }

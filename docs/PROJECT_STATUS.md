@@ -143,6 +143,32 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 - 恢复:停站 → 用某份快照覆盖 `data/crm.sqlite`(并删掉 `-wal/-shm`)→ `chown -R www:www data`。
 - 进阶(建议):把 `backups/` 定期同步到异地/对象存储,防整机故障。
 
+## 6j. AI 智能查库存（2026-08-28）
+
+**场景**：销售在客户现场用手机，要查库存得进列表页翻 269 个产品。改成一句话问答：「4.0 银色拉丝还有多少张？」「客户要 50 张 3mm 白色，够吗？」中文/印尼语/英文混着说都行。入口 `inventory.ask`，侧边栏「智能查库存」，权限沿用 `can_access('inventory')`。
+
+**核心安全属性：模型只挑产品，数字一律来自数据库。**
+- 喂给模型的目录（`Ai::catalogue()`）**故意不含库存数**——既因为库存每小时在变，也为了让模型根本没有可引用的数字。
+- 结构化输出（`output_config.format` + JSON Schema）只接受 `product_ids` 整数数组，**schema 里没有任何能装下数量的字段**。
+- 拿到 id 后由 `ai_resolve_products()` 查实时 `stock/reserved`，算出可用量。模型幻觉出不存在的 id 会被直接丢弃，不会变成错误答案。
+- 界面显示完整产品名 + SKU + 规格，**让人一眼看出 AI 有没有认错货**。
+
+**成本控制**：
+- 产品目录放在**带 `cache_control` 的系统前缀**里，问题在 `messages` 中（必须在缓存断点之后，否则每次都是 cache miss）。目录渲染保持字节稳定（按 id 排序、无时间戳），测试里有断言守着。
+- `output_config.effort = 'low'`——这是查表不是推理。
+- `ai_queries` 表记录每次调用的提问、匹配结果、**token 用量**（含 `cache_read_input_tokens`），可据此实测真实成本。
+- 每人每天上限 `ai.daily_limit`（默认 60 次），失败的调用也计数，防止出错时反复重试烧钱。
+
+**驱动可切换**（`config.php` 的 `ai.driver`）：
+- `stub`（**默认**）= 纯 PHP 关键词匹配，不发任何请求、零成本。整条链路（界面、限流、日志、实时库存渲染）都能跑通，**没有 API key 也能用**，同时也是 API 故障时的兜底。
+- `claude` = 调 Anthropic Messages API，模型 `claude-opus-5`。
+
+**开通**：在 console.anthropic.com 拿 API key → 填 `config.php` 的 `ai.key` → `driver` 改 `claude`。key 在项目根目录的 `config.php`，不在 `public/` 下，外网访问不到。
+
+**未验证**：`claude` 驱动**从未发过真实请求**（无 key）。请求体的线上格式（模型名、缓存断点位置、structured output schema、Chinese JSON 编码）有 13 项断言守着，但真实往返要等填了 key 才知道。首次开通建议先自己问几句，核对答案与库存页一致。
+
+**后续**：文字下单（解析 → 预填订单表单 → **人工确认后**才走 `save_order()`，绝不自动提交）；WhatsApp 入站（销售发消息直接生成草稿）。
+
 ## 6i. WhatsApp 通知（2026-08-28）
 
 **目标**：印尼员工不会主动打开系统，审批卡住的最常见原因就是"没人知道轮到自己了"。通知是让系统进入日常动线的触发器。**销售下单统一由销售助理负责**，所以通知的主要服务对象是**审批链流转**，不是销售的日常。
@@ -292,7 +318,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-users(+must_change_password), customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
+users(+must_change_password), customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
 
 ## 10. 提交历史（main）
 
@@ -339,7 +365,7 @@ d62d1eb Invoice header: use company name instead of logo image
 
 发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。（~~真实 logo.png 上传~~ 已完成，见 6 打印一节）
 
-**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **自动化测试**(`tools/run_tests.php`，148 项)。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **自动化测试**(`tools/run_tests.php`，213 项)。
 
 **待办（按优先级）**：
 1. **关闭 SSH 密码认证 + 装 fail2ban** —— 操作步骤见 6f，是当前最高的实际风险（7,700 次爆破/天）

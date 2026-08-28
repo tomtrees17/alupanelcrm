@@ -46,5 +46,17 @@ return [
         'throttle' => 1,       // seconds to wait between sends (avoid provider rate limits)
     ],
 
+    // ── AI assistant (natural-language inventory lookup) ──
+    // driver: 'stub'   = deterministic keyword match, no API call, no cost (safe default)
+    //         'claude' = Anthropic Messages API
+    // The model only ever PICKS PRODUCTS from the catalog it is given; every stock
+    // number shown to a user is read from the database afterwards, never from the model.
+    'ai' => [
+        'driver'      => 'stub',
+        'key'         => '',                 // Anthropic API key (console.anthropic.com)
+        'model'       => 'claude-opus-5',
+        'daily_limit' => 60,                 // per user per day, guards against cost runaway
+    ],
+
     'db_path'  => __DIR__ . '/data/crm.sqlite',
 ];

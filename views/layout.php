@@ -72,7 +72,10 @@ $sub   = $pageSub ?? (I18N[$lang]['sub_' . $module] ?? '');
             <?php if (can_access('finance')): ?><a class="nav-item<?= $active('finance') ?>" href="<?= url('finance.index') ?>"><span class="nav-icon">◈</span> <?= t('nav_finance') ?></a><?php endif; ?>
             <div class="nav-label"><?= t('nav_extra') ?></div>
             <?php if (can_access('orders')): ?><a class="nav-item<?= $active('orders') ?>" href="<?= url('orders.index') ?>"><span class="nav-icon">✦</span> <?= t('nav_orders') ?><?php if ($pendingOrders): ?><span class="nav-badge" style="background:var(--warning)"><?= $pendingOrders ?></span><?php endif; ?></a><?php endif; ?>
-            <?php if (can_access('inventory')): ?><a class="nav-item<?= $active('inventory') ?>" href="<?= url('inventory.index') ?>"><span class="nav-icon">▣</span> <?= t('nav_inventory') ?></a><?php endif; ?>
+            <?php if (can_access('inventory')): ?>
+                <a class="nav-item<?= $cur !== 'inventory.ask' ? $active('inventory') : '' ?>" href="<?= url('inventory.index') ?>"><span class="nav-icon">▣</span> <?= t('nav_inventory') ?></a>
+                <a class="nav-item<?= $cur === 'inventory.ask' ? ' active' : '' ?>" href="<?= url('inventory.ask') ?>"><span class="nav-icon">⌕</span> <?= t('nav_ask') ?></a>
+            <?php endif; ?>
             <?php if (can_access('approvals')): ?><a class="nav-item<?= $active('approvals') ?>" href="<?= url('approvals.index') ?>"><span class="nav-icon">✎</span> <?= t('nav_approvals') ?><?php if ($pendingReqs): ?><span class="nav-badge" style="background:var(--warning)"><?= $pendingReqs ?></span><?php endif; ?></a><?php endif; ?>
             <?php if (can_access('audit')): ?><a class="nav-item<?= $active('audit') ?>" href="<?= url('audit.index') ?>"><span class="nav-icon">☰</span> <?= t('nav_audit') ?></a><?php endif; ?>
             <?php if ($auth->isAdmin()): ?>

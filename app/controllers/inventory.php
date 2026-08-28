@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 /** @var string $action */
 /** @var PDO $pdo */
+/** @var Auth $auth */
+/** @var array $config */
 
 $fields = ['sku', 'name', 'color_zh', 'color_en', 'spec', 'size', 'category', 'unit', 'price', 'stock', 'min_stock'];
 
@@ -71,6 +73,47 @@ switch ($action) {
         send_spreadsheet('inventory_' . date('Ymd'), '库存',
             ['SKU', '名称', '颜色(中)', '颜色(英)', '规格', '尺寸', '分类', '单位', '单价', '库存', '预留', '可用', '安全库存'],
             $rows);
+        break;
+
+    case 'ask':
+        // Natural-language stock lookup. Read-only: the model picks products,
+        // ai_resolve_products() reads the live numbers. Available to anyone who
+        // can already see inventory, on the same permission.
+        $question = trim((string) input('q', ''));
+        $answer = null;
+        $error = '';
+        $limit = (int) ($config['ai']['daily_limit'] ?? 60);
+        $used = ai_used_today($pdo, (int) ($auth->user()['id'] ?? 0));
+
+        if ($question !== '' && is_post()) {
+            Csrf::verify();
+            if ($used >= $limit) {
+                $error = sprintf(t('ai_limit_hit'), $limit);
+            } else {
+                [$parsed, $err, $usage] = Ai::match($config, Ai::catalogue($pdo), $question);
+                if ($parsed === null) {
+                    $error = t('ai_failed');
+                    ai_log($pdo, $question, [], false, $err, $usage);
+                } else {
+                    $ids = (array) ($parsed['product_ids'] ?? []);
+                    $answer = [
+                        'understood' => (string) ($parsed['understood'] ?? ''),
+                        'clarify'    => $parsed['clarify'] ?? null,
+                        'qty'        => $parsed['qty_asked'] ?? null,
+                        'products'   => ai_resolve_products($pdo, $ids),
+                    ];
+                    ai_log($pdo, $question, $ids, true, '', $usage);
+                    $used++;
+                }
+            }
+        }
+
+        view('inventory.ask', [
+            'pageTitle' => t('page_ask'), 'pageSub' => t('sub_ask'),
+            'question' => $question, 'answer' => $answer, 'error' => $error,
+            'used' => $used, 'limit' => $limit,
+            'stub' => (string) ($config['ai']['driver'] ?? 'stub') !== 'claude',
+        ]);
         break;
 
     case 'txns':
