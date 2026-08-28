@@ -33,5 +33,18 @@ return [
         ],
     ],
 
+    // ── WhatsApp notifications ──
+    // driver: 'log'    = queue + record only, nothing leaves the server (safe default)
+    //         'fonnte' = Fonnte.com HTTP API (Indonesian provider)
+    //         'cloud'  = Meta WhatsApp Cloud API
+    // Switching provider is a config change; no business code knows the difference.
+    'wa' => [
+        'driver'   => 'log',
+        'token'    => '',      // fonnte: API token | cloud: permanent access token
+        'sender'   => '',      // cloud only: phone number ID
+        'test_to'  => '',      // if set, EVERY message goes here instead of the real recipient
+        'throttle' => 1,       // seconds to wait between sends (avoid provider rate limits)
+    ],
+
     'db_path'  => __DIR__ . '/data/crm.sqlite',
 ];

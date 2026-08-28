@@ -143,6 +143,45 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 - 恢复:停站 → 用某份快照覆盖 `data/crm.sqlite`(并删掉 `-wal/-shm`)→ `chown -R www:www data`。
 - 进阶(建议):把 `backups/` 定期同步到异地/对象存储,防整机故障。
 
+## 6i. WhatsApp 通知（2026-08-28）
+
+**目标**：印尼员工不会主动打开系统，审批卡住的最常见原因就是"没人知道轮到自己了"。通知是让系统进入日常动线的触发器。**销售下单统一由销售助理负责**，所以通知的主要服务对象是**审批链流转**，不是销售的日常。
+
+**架构（发送通道可插拔）**：
+- `notifications` 表 = **队列**。业务代码只调 `Notify::queue()`，Web 请求里**从不**调用第三方 API——服务商慢或挂掉都不会让审批卡住或丢失。
+- `tools/send_notifications.php` 由 cron 每分钟消费队列。失败重试，`Notify::MAX_ATTEMPTS`(3) 次后标 `failed` 不再循环。
+- 通道在 `config.php` 的 `wa.driver` 切换：`log`(只入库不发送，默认) / `fonnte`(印尼服务商) / `cloud`(Meta 官方)。**换服务商是改配置，业务代码零改动**。零依赖，用 PHP 自带 curl。
+- `wa.test_to` 设了之后**所有消息都改发这个号**，第一次开通时用来验证不会误扰员工。
+
+**收件人与语言**：
+- `users.phone`(WhatsApp 号，`Notify::normalise_phone()` 把 0812/+62/62-812 各种写法统一成 `628xxx`) + `users.lang`(通知语言)。
+- **消息用收件人自己的语言渲染**（`t_in()`），不是发起人的 session 语言——否则中国老板操作一下，印尼员工收到中文。
+- 没填号码的人**入库标 `skipped` 并记原因**，不静默丢弃；否则"某个审批人从来收不到通知"这件事没人会发现。
+
+**通知点**：
+| 事件 | 通知谁 |
+|---|---|
+| 订单提交 | 主管（`notify_order_stage()` 复用 `order_action_role()`，保证"通知谁"和"谁有权审批"永远一致） |
+| 主管通过 / 经理通过 | 经理 / 仓库 |
+| 订单驳回 | **助理 + 对应销售**（`order_stakeholders()`） |
+| 仓库确认出货 | 助理 + 销售（含送货单号、发票号） |
+| 行政审批提交 / 各级通过 | 对应阶段角色（人事 / 经理 / 财务经理） |
+| 行政审批通过 / 驳回 | 申请人 |
+
+新增 `orders.created_by` 记录**实际录单的人**（助理），与 `submitter`（订单归属的销售）区分——驳回和出货要同时通知这两个人。
+
+**查看**：`audit.notifications`（审计日志页右上角入口，同样 admin-only）列出每条通知的接收人、内容、状态、失败原因，可按状态筛选。没有这个页面通知就是黑盒。
+
+**运维**：宝塔计划任务每分钟执行
+```
+/www/server/php/82/bin/php /www/wwwroot/www.alupanel.cc/tools/send_notifications.php
+```
+队列为空时静默退出。有 `failed` 记录时在 cron 日志里告警。
+
+**开通步骤**：① 用户管理里给每人填 WhatsApp 号和语言 → ② `config.php` 填 `wa.token`、把 `driver` 改成 `fonnte`、`test_to` 先填自己的号 → ③ 触发一次审批，确认自己收到 → ④ 清空 `test_to` 正式启用。
+
+**选型说明**：先用 Fonnte 这类印尼本地服务商起步（当天可用、消息内容随便写、便于快速迭代措辞），**务必用专门的便宜 SIM 卡，不要绑公司主号**（非官方通道理论上有封号风险）。跑顺一个月、措辞稳定后再迁 Meta 官方 Cloud API（要商业验证 + 模板预审，约 2-3 周）。
+
 ## 6h. 收款冲销（2026-08-28）
 
 **背景**：财务反馈"已登记收款的发票能不能改"。查下来除发票号外**什么都改不了**——收款记录既不能编辑也不能删除。金额录错(如 500.000 打成 5.000.000)会让发票直接变"已付清"，界面上无法补救，只能改库。
@@ -253,7 +292,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-users(+must_change_password), customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, **audit_log(审计日志)**, payments(+created_by/reversal_of 冲销)。
+users(+must_change_password), customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
 
 ## 10. 提交历史（main）
 
@@ -300,14 +339,14 @@ d62d1eb Invoice header: use company name instead of logo image
 
 发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。（~~真实 logo.png 上传~~ 已完成，见 6 打印一节）
 
-**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **自动化测试**(`tools/run_tests.php`，110 项)。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **自动化测试**(`tools/run_tests.php`，148 项)。
 
 **待办（按优先级）**：
 1. **关闭 SSH 密码认证 + 装 fail2ban** —— 操作步骤见 6f，是当前最高的实际风险（7,700 次爆破/天）
 2. ~~**审计日志**~~ —— **已完成**（见 6g）
 3. **金额改整数分 / 修发票合计舍入** —— 现用 REAL 存。**线上已实际发生**：3 张发票(1027/1037/1043 - AMI - INV - 08 - 26)的合计比订单含税额少 1 卢比，客户按整数付款后被判定"超额收款"。根因是 `fulfill_order()` 里逐行 `round()` 后 `total = subtotal + ppn` 与原始含税额不完全相等(代码注释写的就是 `≈ original`)。修法：税额改为 `total - subtotal` 反推，让合计严格等于订单含税金额；历史 3 张可一并订正。涉及数据迁移，越晚成本越高
 4. **列表分页** —— 订单/发票持续增长，目前全量渲染
-5. **WhatsApp 一键联系 / 自动通知** —— 印尼市场刚需（审批到达、发票逾期）
+5. ~~**WhatsApp 审批通知**~~ —— **已完成**（见 6i）。**待补**：发票逾期每日提醒、客户 N 天未跟进提醒（都靠 cron，队列已就绪）
 6. 宝塔面板 8888 收口、停用闲置 MySQL/FTP（见 6f）
 7. 备份异地同步、看板日期范围、扩充测试覆盖（目前只覆盖审计日志与迁移路径）
 8. GitHub 密钥收紧：服务器用的是账号级 SSH key（可访问所有仓库），可改为本仓库 read-only deploy key（见 6f）

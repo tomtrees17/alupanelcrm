@@ -23,6 +23,20 @@ $v = fn(string $k) => e($user[$k] ?? '');
                 </select>
             </div>
             <div class="form-group"><label class="form-label"><?= t('f_title') ?></label><input class="form-input" name="title" value="<?= $v('title') ?>"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label"><?= t('f_phone_wa') ?></label>
+                <input class="form-input" name="phone" value="<?= $v('phone') ?>" placeholder="0812xxxxxxx">
+                <div class="muted small" style="margin-top:4px"><?= t('f_phone_wa_hint') ?></div>
+            </div>
+            <div class="form-group"><label class="form-label"><?= t('f_lang') ?></label>
+                <select class="form-select" name="lang">
+                    <?php foreach (['id' => 'Bahasa Indonesia', 'zh' => '中文'] as $lk => $ll): ?>
+                        <option value="<?= $lk ?>" <?= ($user['lang'] ?? 'id') === $lk ? 'selected' : '' ?>><?= $ll ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
             <div class="form-group"><label class="form-label"><?= t('f_password') ?> <?= $isEdit ? '' : '*' ?></label><input class="form-input" type="password" name="password" <?= $isEdit ? '' : 'required' ?> minlength="6"></div>
         </div>
         <div class="form-actions"><button class="btn btn-primary" type="submit"><?= t('btn_save_user') ?></button></div>

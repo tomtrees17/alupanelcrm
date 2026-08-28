@@ -9,6 +9,8 @@ CREATE TABLE users (
     password_hash TEXT    NOT NULL,
     role          TEXT    NOT NULL DEFAULT 'sales',  -- admin|sales|supervisor|manager|warehouse
     title         TEXT,                              -- display job title
+    phone         TEXT,                              -- WhatsApp number, 628xxx (notifications)
+    lang          TEXT    NOT NULL DEFAULT 'id',     -- preferred UI + notification language
     must_change_password INTEGER NOT NULL DEFAULT 0, -- force a password change on next login
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
@@ -94,7 +96,8 @@ CREATE TABLE orders (
     client_type      TEXT,                   -- Contractor|Distributor|Retailer|End User
     delivery_service TEXT,                   -- Lala Move|Self Pickup|Truck|JNE ...
     delivery_address TEXT,
-    submitter        TEXT,                   -- salesperson name
+    submitter        TEXT,                   -- salesperson the order belongs to
+    created_by       TEXT,                   -- who keyed it in (sales assistant); may differ from submitter
     shipping_cost    REAL    DEFAULT 0,
     delivery_date    TEXT,
     note             TEXT,
@@ -258,6 +261,24 @@ CREATE TABLE login_attempts (
     attempt_time INTEGER NOT NULL DEFAULT 0   -- unix epoch of the failed attempt
 );
 CREATE INDEX idx_login_ip ON login_attempts(ip, attempt_time);
+
+-- ── Outbound notifications (WhatsApp); a queue so a slow API never blocks a request ──
+CREATE TABLE notifications (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    phone      TEXT,                     -- resolved at queue time; kept even if the user changes it
+    event      TEXT NOT NULL,            -- order_submitted / order_approved / request_pending / ...
+    entity     TEXT, entity_id INTEGER,  -- what it is about
+    label      TEXT,                     -- 单号, for the admin list
+    body       TEXT NOT NULL,            -- fully rendered message
+    status     TEXT NOT NULL DEFAULT 'queued',  -- queued|sent|failed|skipped
+    attempts   INTEGER NOT NULL DEFAULT 0,
+    error      TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    sent_at    TEXT
+);
+CREATE INDEX idx_notif_pending ON notifications(status, id);
+CREATE INDEX idx_notif_user    ON notifications(user_id, id);
 
 -- ── Audit trail (who changed what, append-only) ──
 CREATE TABLE audit_log (

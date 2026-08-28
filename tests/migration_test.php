@@ -24,6 +24,13 @@ $pdo->exec('DROP INDEX IF EXISTS idx_payments_invoice');
 $pdo->exec('ALTER TABLE payments DROP COLUMN created_by');
 $pdo->exec('ALTER TABLE payments DROP COLUMN reversal_of');
 $pdo->exec("INSERT INTO payments (invoice_id,customer,amount,pay_date,receipt_no) VALUES (1,'PT Lama',250000,'2026-07-01','RC-OLD')");
+// before WhatsApp notifications: no users.phone/lang, no orders.created_by, no queue.
+$pdo->exec('DROP INDEX IF EXISTS idx_notif_pending');
+$pdo->exec('DROP INDEX IF EXISTS idx_notif_user');
+$pdo->exec('DROP TABLE IF EXISTS notifications');
+$pdo->exec('ALTER TABLE users DROP COLUMN phone');
+$pdo->exec('ALTER TABLE users DROP COLUMN lang');
+$pdo->exec('ALTER TABLE orders DROP COLUMN created_by');
 $pdo->exec("INSERT INTO users (name,email,password_hash,role) VALUES ('Admin','admin@alupanel.local','x','admin')");
 $pdo->exec("INSERT INTO role_permissions (role, module) VALUES ('manager','orders'),('sales','orders')");
 // Production has already run every earlier one-time migration; without these
@@ -63,6 +70,15 @@ ok('historical payment survives untouched', $old && (float) $old['amount'] === 2
 ok('historical payment is reversible', payment_reversal_block($pdo, $old) === null);
 $pidx = array_column($pdo->query("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='payments'")->fetchAll(), 'name');
 ok('payments index created', in_array('idx_payments_invoice', $pidx, true), implode(',', $pidx));
+
+// notification upgrade: queue table + user columns, existing users default to id.
+ok('notifications table created', $has('notifications'));
+$ucols2 = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+ok('users gains phone + lang', in_array('phone', $ucols2, true) && in_array('lang', $ucols2, true), implode(',', $ucols2));
+ok('orders gains created_by', in_array('created_by', array_column($pdo->query('PRAGMA table_info(orders)')->fetchAll(), 'name'), true));
+$existing = $pdo->query("SELECT * FROM users WHERE email='admin@alupanel.local'")->fetch();
+ok('existing user survives with lang default', $existing && $existing['lang'] === 'id' && $existing['phone'] === null);
+ok('existing user has no phone yet (notifications skip, not crash)', Notify::normalise_phone((string) $existing['phone']) === '');
 
 // 'audit' must NOT be granted to anyone by the migration — admin-only by default.
 $granted = $pdo->query("SELECT COUNT(*) FROM role_permissions WHERE module='audit'")->fetchColumn();

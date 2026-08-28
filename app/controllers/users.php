@@ -29,14 +29,16 @@ switch ($action) {
         $email = trim((string) input('email', ''));
         $role = in_array(input('role'), $roles, true) ? input('role') : 'sales';
         $title = trim((string) input('title', ''));
+        $phone = Notify::normalise_phone((string) input('phone', ''));
+        $lang = in_array(input('lang'), ['zh', 'id'], true) ? (string) input('lang') : 'id';
         $pass = (string) input('password', '');
         if ($name === '' || $email === '' || strlen($pass) < 6) {
             flash(t('msg_user_req_pwd'), 'error');
             redirect('users.create');
         }
         try {
-            $pdo->prepare('INSERT INTO users (name,email,password_hash,role,title) VALUES (?,?,?,?,?)')
-                ->execute([$name, $email, password_hash($pass, PASSWORD_DEFAULT), $role, $title]);
+            $pdo->prepare('INSERT INTO users (name,email,password_hash,role,title,phone,lang) VALUES (?,?,?,?,?,?,?)')
+                ->execute([$name, $email, password_hash($pass, PASSWORD_DEFAULT), $role, $title, $phone, $lang]);
         } catch (PDOException $e) {
             flash(t('msg_user_email_used'), 'error');
             redirect('users.create');
@@ -48,7 +50,7 @@ switch ($action) {
             'user',
             (int) $pdo->lastInsertId(),
             $name,
-            sprintf('邮箱: %s; 角色: %s; 职位: %s', $email, role_label((string) $role), $title ?: '(空)')
+            sprintf('邮箱: %s; 角色: %s; 职位: %s; WhatsApp: %s', $email, role_label((string) $role), $title ?: '(空)', $phone ?: '(未填)')
         );
         flash(t('msg_user_created'));
         redirect('users.index');
@@ -65,24 +67,27 @@ switch ($action) {
         $email = trim((string) input('email', ''));
         $role = in_array(input('role'), $roles, true) ? input('role') : $user['role'];
         $title = trim((string) input('title', ''));
+        $phone = Notify::normalise_phone((string) input('phone', ''));
+        $lang = in_array(input('lang'), ['zh', 'id'], true) ? (string) input('lang') : (string) ($user['lang'] ?? 'id');
         $pass = (string) input('password', '');
         if ($name === '' || $email === '') {
             flash(t('msg_user_req'), 'error');
             redirect('users.edit', ['id' => $user['id']]);
         }
         if ($pass !== '') {
-            $pdo->prepare('UPDATE users SET name=?,email=?,role=?,title=?,password_hash=? WHERE id=?')
-                ->execute([$name, $email, $role, $title, password_hash($pass, PASSWORD_DEFAULT), $user['id']]);
+            $pdo->prepare('UPDATE users SET name=?,email=?,role=?,title=?,phone=?,lang=?,password_hash=? WHERE id=?')
+                ->execute([$name, $email, $role, $title, $phone, $lang, password_hash($pass, PASSWORD_DEFAULT), $user['id']]);
         } else {
-            $pdo->prepare('UPDATE users SET name=?,email=?,role=?,title=? WHERE id=?')
-                ->execute([$name, $email, $role, $title, $user['id']]);
+            $pdo->prepare('UPDATE users SET name=?,email=?,role=?,title=?,phone=?,lang=? WHERE id=?')
+                ->execute([$name, $email, $role, $title, $phone, $lang, $user['id']]);
         }
         // Role changes are the security-relevant part — spell them out in words.
         $diff = audit_diff(
             ['name' => $user['name'], 'email' => $user['email'], 'title' => $user['title'],
-             'role' => role_label((string) $user['role'])],
-            ['name' => $name, 'email' => $email, 'title' => $title, 'role' => role_label((string) $role)],
-            ['name' => '姓名', 'email' => '邮箱', 'role' => '角色', 'title' => '职位']
+             'role' => role_label((string) $user['role']), 'phone' => $user['phone'] ?? '', 'lang' => $user['lang'] ?? ''],
+            ['name' => $name, 'email' => $email, 'title' => $title,
+             'role' => role_label((string) $role), 'phone' => $phone, 'lang' => $lang],
+            ['name' => '姓名', 'email' => '邮箱', 'role' => '角色', 'title' => '职位', 'phone' => 'WhatsApp', 'lang' => '语言']
         );
         if ($pass !== '') {
             $diff = ($diff !== '' ? $diff . '; ' : '') . '重置了密码';

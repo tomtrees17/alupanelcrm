@@ -251,6 +251,104 @@ function login_clear_failures(PDO $pdo): void
 }
 
 // ──────────────────────────────────────────────────────────
+//  WhatsApp notifications — who to tell, and what to say
+// ──────────────────────────────────────────────────────────
+
+/** Users holding a role, as [id => name]. Admins are NOT auto-included: they
+ *  can act at any stage, but notifying them about every order would be noise. */
+function users_with_role(PDO $pdo, string $role): array
+{
+    $st = $pdo->prepare('SELECT id, name FROM users WHERE role = ? ORDER BY id');
+    $st->execute([$role]);
+    return $st->fetchAll();
+}
+
+/** Look a user up by display name (submitter / created_by are stored as names). */
+function user_by_name(PDO $pdo, string $name): ?array
+{
+    if (trim($name) === '') {
+        return null;
+    }
+    $st = $pdo->prepare('SELECT * FROM users WHERE name = ? LIMIT 1');
+    $st->execute([trim($name)]);
+    return $st->fetch() ?: null;
+}
+
+/** A user's preferred language, falling back to Indonesian (most of the staff). */
+function user_lang(?array $user): string
+{
+    $l = (string) ($user['lang'] ?? '');
+    return in_array($l, ['zh', 'id'], true) ? $l : 'id';
+}
+
+/** Translate a key in an explicit language (t() follows the *session*, which is
+ *  the sender's, not the recipient's — wrong for notifications). */
+function t_in(string $lang, string $key): string
+{
+    return I18N[$lang][$key] ?? I18N['zh'][$key] ?? $key;
+}
+
+/**
+ * Queue a notification for one user, rendered in that user's own language.
+ * $args fills the sprintf placeholders of the message template.
+ */
+function notify_user(PDO $pdo, ?array $user, string $event, string $msgKey, array $args, string $entity = '', ?int $entityId = null, string $label = ''): void
+{
+    if ($user === null) {
+        return;
+    }
+    $body = vsprintf(t_in(user_lang($user), $msgKey), $args);
+    Notify::queue($pdo, (int) $user['id'], $event, $body, $entity, $entityId, $label);
+}
+
+/** Same, for everyone holding a role (e.g. every supervisor). */
+function notify_role(PDO $pdo, string $role, string $event, string $msgKey, array $args, string $entity = '', ?int $entityId = null, string $label = ''): void
+{
+    foreach (users_with_role($pdo, $role) as $u) {
+        $full = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+        $full->execute([$u['id']]);
+        notify_user($pdo, $full->fetch() ?: null, $event, $msgKey, $args, $entity, $entityId, $label);
+    }
+}
+
+/**
+ * An order moved to a stage that someone must act on: tell that role.
+ * Mirrors order_action_role() so the notification and the permission can never
+ * point at different people.
+ */
+function notify_order_stage(PDO $pdo, array $order, string $status): void
+{
+    $role = order_action_role($status);
+    if ($role === null) {
+        return;
+    }
+    notify_role(
+        $pdo,
+        $role,
+        'order_' . $status,
+        'wa_order_pending',
+        [(string) $order['order_no'], (string) $order['customer_name']],
+        'order',
+        (int) $order['id'],
+        (string) $order['order_no']
+    );
+}
+
+/** People who need to know what happened to an order they are responsible for:
+ *  the assistant who keyed it in, and the salesperson it belongs to. */
+function order_stakeholders(PDO $pdo, array $order): array
+{
+    $out = [];
+    foreach ([(string) ($order['created_by'] ?? ''), (string) ($order['submitter'] ?? '')] as $name) {
+        $u = user_by_name($pdo, $name);
+        if ($u !== null && !isset($out[(int) $u['id']])) {
+            $out[(int) $u['id']] = $u;
+        }
+    }
+    return array_values($out);
+}
+
+// ──────────────────────────────────────────────────────────
 //  Audit trail (审计日志) — who changed what
 // ──────────────────────────────────────────────────────────
 

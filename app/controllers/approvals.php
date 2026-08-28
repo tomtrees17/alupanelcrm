@@ -163,6 +163,15 @@ switch ($action) {
         $pdo->prepare("UPDATE admin_requests SET status=?, reject_note=NULL, reject_by=NULL, reject_date=NULL, hr_note=NULL, hr_approver=NULL, hr_date=NULL WHERE id=?")
             ->execute([request_first_stage((string) $req['type']), $req['id']]);
         audit($pdo, 'approvals', 'submit', 'request', (int) $req['id'], (string) $req['req_no'], '草稿提交审批');
+        $stage = request_first_stage((string) $req['type']);
+        $nextRole = request_action_role($stage);
+        if ($nextRole !== null) {
+            notify_role(
+                $pdo, $nextRole, 'request_' . $stage, 'wa_req_pending',
+                [request_type_label((string) $req['type']), (string) $req['req_no'], (string) $req['applicant']],
+                'request', (int) $req['id'], (string) $req['req_no']
+            );
+        }
         flash(t('req_submitted'));
         redirect('approvals.show', ['id' => $req['id']]);
         break;
@@ -304,6 +313,15 @@ function save_request(PDO $pdo, Auth $auth, ?array $existing): int
     );
     if ($submit) {
         audit($pdo, 'approvals', 'submit', 'request', $id, $reqNo, '提交审批');
+        $stage = request_first_stage($type);
+        $role = request_action_role($stage);
+        if ($role !== null) {
+            notify_role(
+                $pdo, $role, 'request_' . $stage, 'wa_req_pending',
+                [request_type_label($type), $reqNo, own_name()],
+                'request', $id, $reqNo
+            );
+        }
     }
 
     flash($submit ? t('req_submitted') : t('req_saved_draft'));
@@ -407,6 +425,11 @@ function approve_request(PDO $pdo, Auth $auth, array $req, string $note): void
             $pdo->prepare('UPDATE admin_requests SET status=?, hr_note=?, hr_approver=?, hr_date=? WHERE id=?')
                 ->execute(['pending_mgr', $note, $name, $today, $req['id']]);
             audit($pdo, 'approvals', 'approve', 'request', (int) $req['id'], (string) $req['req_no'], '人事通过 → 待经理审批' . $noteSuffix);
+        notify_role(
+            $pdo, 'manager', 'request_pending_mgr', 'wa_req_pending',
+            [request_type_label((string) $req['type']), (string) $req['req_no'], (string) $req['applicant']],
+            'request', (int) $req['id'], (string) $req['req_no']
+        );
             flash(t('req_hr_ok'));
             break;
         case 'pending_mgr':
@@ -423,6 +446,18 @@ function approve_request(PDO $pdo, Auth $auth, array $req, string $note): void
                 (string) $req['req_no'],
                 ($next === 'pending_fin' ? '经理通过 → 待财务确认付款' : '经理通过 → 审批完成') . $noteSuffix
             );
+            if ($next === 'pending_fin') {
+                notify_role(
+                    $pdo, 'finance_manager', 'request_pending_fin', 'wa_req_pending',
+                    [request_type_label((string) $req['type']), (string) $req['req_no'], (string) $req['applicant']],
+                    'request', (int) $req['id'], (string) $req['req_no']
+                );
+            } else {
+                notify_user(
+                    $pdo, user_by_name($pdo, (string) $req['applicant']), 'request_approved', 'wa_req_approved',
+                    [(string) $req['req_no']], 'request', (int) $req['id'], (string) $req['req_no']
+                );
+            }
             flash($next === 'pending_fin' ? t('req_to_fin') : t('req_approved'));
             break;
         case 'pending_fin':
@@ -436,6 +471,10 @@ function approve_request(PDO $pdo, Auth $auth, array $req, string $note): void
                 (int) $req['id'],
                 (string) $req['req_no'],
                 sprintf('财务确认付款%s → 审批完成%s', (float) $req['amount'] > 0 ? ' ' . idr((float) $req['amount']) : '', $noteSuffix)
+            );
+            notify_user(
+                $pdo, user_by_name($pdo, (string) $req['applicant']), 'request_approved', 'wa_req_approved',
+                [(string) $req['req_no']], 'request', (int) $req['id'], (string) $req['req_no']
             );
             flash(t('req_approved'));
             break;
@@ -469,6 +508,11 @@ function reject_request(PDO $pdo, Auth $auth, array $req, string $note): void
         (int) $req['id'],
         (string) $req['req_no'],
         sprintf('在 %s 阶段驳回，退回草稿；理由: %s', request_status_label((string) $req['status']), $note !== '' ? $note : '(未填)')
+    );
+    notify_user(
+        $pdo, user_by_name($pdo, (string) $req['applicant']), 'request_rejected', 'wa_req_rejected',
+        [(string) $req['req_no'], (string) ($auth->user()['name'] ?? ''), $note !== '' ? $note : '-'],
+        'request', (int) $req['id'], (string) $req['req_no']
     );
     flash(t('req_rejected'));
 }

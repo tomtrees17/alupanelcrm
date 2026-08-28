@@ -297,8 +297,8 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
             $pdo->prepare('DELETE FROM order_items WHERE order_id = ?')->execute([$oid]);
         } else {
             $pdo->prepare(
-                'INSERT INTO orders (order_no,customer_id,customer_name,company,address,phone,client_type,delivery_service,delivery_address,submitter,shipping_cost,delivery_date,note,payment_term,custom_days,status)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+                'INSERT INTO orders (order_no,customer_id,customer_name,company,address,phone,client_type,delivery_service,delivery_address,submitter,shipping_cost,delivery_date,note,payment_term,custom_days,status,created_by)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
             )->execute([
                 next_order_no($pdo), $customerId, $custName, trim((string) input('company', '')),
                 trim((string) input('address', '')), trim((string) input('phone', '')),
@@ -306,7 +306,7 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
                 trim((string) input('delivery_address', '')), $submitter,
                 (float) input('shipping_cost', 0), (string) input('delivery_date', ''),
                 trim((string) input('note', '')), (string) input('payment_term', 'CBD'),
-                (int) input('custom_days', 0), $status,
+                (int) input('custom_days', 0), $status, own_name(),
             ]);
             $oid = (int) $pdo->lastInsertId();
         }
@@ -341,6 +341,9 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
     );
     if ($submit) {
         audit($pdo, 'orders', 'submit', 'order', $oid, $orderNo, '提交主管审批');
+        $fresh = $pdo->prepare('SELECT * FROM orders WHERE id = ?');
+        $fresh->execute([$oid]);
+        notify_order_stage($pdo, $fresh->fetch() ?: [], 'pending_sup');
     }
 
     flash($submit ? '订单已提交，进入主管审批。' : '草稿已保存。');
@@ -366,6 +369,7 @@ function submit_order(PDO $pdo, array $order): void
         ->execute([$order['id']]);
     recompute_reservations($pdo);
     audit($pdo, 'orders', 'submit', 'order', (int) $order['id'], (string) $order['order_no'], '草稿提交，进入主管审批');
+    notify_order_stage($pdo, $order, 'pending_sup');
     flash(t('msg_order_submitted'));
 }
 
@@ -407,12 +411,14 @@ function approve_order(PDO $pdo, Auth $auth, array $order, string $note): void
             $pdo->prepare('UPDATE orders SET status=?, sup_note=?, sup_approver=?, sup_date=? WHERE id=?')
                 ->execute(['pending_mgr', $note, $name, $today, $oid]);
             audit($pdo, 'orders', 'approve', 'order', $oid, $ono, '主管通过 → 待经理审批' . $noteSuffix);
+            notify_order_stage($pdo, $order, 'pending_mgr');
             flash(t('msg_order_sup_ok'));
             break;
         case 'pending_mgr':
             $pdo->prepare('UPDATE orders SET status=?, mgr_note=?, mgr_approver=?, mgr_date=? WHERE id=?')
                 ->execute(['pending_wh', $note, $name, $today, $oid]);
             audit($pdo, 'orders', 'approve', 'order', $oid, $ono, '经理通过 → 待仓库出货' . $noteSuffix);
+            notify_order_stage($pdo, $order, 'pending_wh');
             flash(t('msg_order_mgr_ok'));
             break;
         case 'pending_wh':
@@ -454,6 +460,13 @@ function reject_order(PDO $pdo, Auth $auth, array $order, string $note): void
         (string) $order['order_no'],
         sprintf('在 %s 阶段驳回，退回草稿；理由: %s', order_status_label((string) $order['status']), $note !== '' ? $note : '(未填)')
     );
+    foreach (order_stakeholders($pdo, $order) as $u) {
+        notify_user(
+            $pdo, $u, 'order_rejected', 'wa_order_rejected',
+            [(string) $order['order_no'], $name, $note !== '' ? $note : '-'],
+            'order', (int) $order['id'], (string) $order['order_no']
+        );
+    }
     flash(t('msg_order_rejected'));
 }
 
@@ -541,6 +554,14 @@ function fulfill_order(PDO $pdo, array $order, string $name, string $note, strin
         sprintf('确认出货：扣减 %d 项库存，生成送货单 %s、发票 %s（合计 %s）', count($rows), $doNo, $invNo, idr($total))
     );
     audit($pdo, 'finance', 'create', 'invoice', $invId, $invNo, sprintf('由订单 %s 自动生成；合计 %s', $order['order_no'], idr($total)));
+
+    foreach (order_stakeholders($pdo, $order) as $u) {
+        notify_user(
+            $pdo, $u, 'order_shipped', 'wa_order_shipped',
+            [(string) $order['order_no'], $doNo, $invNo],
+            'order', (int) $order['id'], (string) $order['order_no']
+        );
+    }
 }
 
 function find_order(PDO $pdo, int $id): array

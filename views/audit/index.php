@@ -10,7 +10,10 @@ $hasFilter = $filters !== [];
 ?>
 <div class="page-head">
     <h1><?= t('page_audit') ?></h1>
-    <div class="head-actions muted"><?= sprintf(t('audit_total'), $total) ?></div>
+    <div class="head-actions">
+        <span class="muted"><?= sprintf(t('audit_total'), $total) ?></span>
+        <a class="btn btn-ghost" href="<?= url('audit.notifications') ?>"><?= t('nav_notifications') ?></a>
+    </div>
 </div>
 
 <form class="searchbar" method="get" action="index.php">

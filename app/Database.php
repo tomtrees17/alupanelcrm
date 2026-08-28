@@ -180,6 +180,34 @@ final class Database
             $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_approvals', '1')");
         }
 
+        // users.phone / users.lang (WhatsApp notifications, added later).
+        $upcols = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+        if (!in_array('phone', $upcols, true)) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN phone TEXT');
+        }
+        if (!in_array('lang', $upcols, true)) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN lang TEXT NOT NULL DEFAULT 'id'");
+        }
+
+        // orders.created_by — the sales assistant who keys the order in, which is
+        // not the salesperson it belongs to (submitter). Added later.
+        if (!in_array('created_by', $ocols, true)) {
+            $pdo->exec('ALTER TABLE orders ADD COLUMN created_by TEXT');
+        }
+
+        // notifications queue (WhatsApp, added later).
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER, phone TEXT, event TEXT NOT NULL,
+                entity TEXT, entity_id INTEGER, label TEXT, body TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'queued', attempts INTEGER NOT NULL DEFAULT 0, error TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), sent_at TEXT
+            )"
+        );
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_notif_pending ON notifications(status, id)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, id)');
+
         // payments: created_by + reversal_of (收款冲销, added later).
         $pcols = array_column($pdo->query('PRAGMA table_info(payments)')->fetchAll(), 'name');
         if (!in_array('created_by', $pcols, true)) {
