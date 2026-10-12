@@ -426,9 +426,11 @@ users(+must_change_password), customers, deals, tasks, products(+reserved), stoc
 
 ## 10. 提交历史（main）
 
-最近 30 条（共 84 条，含本条文档提交；完整历史用 `git log --oneline`）：
+最近 30 条（共 86 条，含本条文档提交；完整历史用 `git log --oneline`）：
 
 ```
+88f0e2e Paginate and search the order, invoice, customer, delivery and approval lists
+329274a Offsite: trim pasted credentials; record OSS backups as live
 73ac833 Offsite: default to the Jakarta bucket alupanel-backup-crm
 d849274 Offsite backups to Alibaba Cloud OSS
 48f9c65 Docs: SSH is key-only now; record keys, rollback and next priorities
@@ -457,8 +459,6 @@ bfe2816 Invoice: drop company name from the letterhead (address box + title only
 b239ab6 Invoice signature block: title only (no company name, no signer name)
 0c3a755 Backup: bundle DB snapshot + attachments (data/uploads) into a rotated zip
 7e3cb15 Approvals: HR review stage for trip / expense / leave requests
-168488d Approvals: file attachments (images/PDF) on requests
-c031a63 Approvals: add payment-request type (PY-) with linked-document reference
 ```
 
 ## 11. 用户偏好
