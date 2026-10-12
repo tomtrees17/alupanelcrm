@@ -337,14 +337,16 @@ chown -R www:www data && chmod -R u=rwX,go=rX data
 
 **仓库已转为 private**。服务器 git remote 相应从 HTTPS 改为 **SSH**（`git@github.com:tomtrees17/alupanelcrm.git`）——private 仓库走 HTTPS 会卡在认证上，**不要改回去**。认证用 `/root/.ssh/id_ed25519`，该公钥已注册在 GitHub 账号 `tomtrees17` 的 SSH keys 下（不是 deploy key，所以服务器实际拥有该账号**所有仓库**的访问权；想收紧就从账号 SSH keys 移除、改加为本仓库的 read-only deploy key）。
 
-**SSH 访问**：`ssh -p 22022 root@149.129.218.9`，本机 `~/.ssh/id_ed25519`（`yuan-imac`）已在服务器 authorized_keys 中，免密。主机指纹 ED25519 `SHA256:Ub6Xr8wg7Bg1y6ilzPzVfQsVxU8kEOHL0GDkOxK3hkw`。**退路**：阿里云控制台 VNC 远程连接可用（已验证），SSH 配置改坏时靠它救场。
+**SSH 访问**：`ssh -p 22022 root@149.129.218.9`，**仅限密钥登录**（2026-10-12 已关闭密码登录，见下）。授权的公钥：`yuan-imac`（Mac，`SHA256:ndFF…QnU`）、`windows-pc`（Windows，`SHA256:Moraa…kfo`）、服务器自身的 `id_ed25519`（`SHA256:9GE/…AMU`，用于拉 GitHub）。**新增电脑必须先由已授权的电脑把它的公钥追加进 `/root/.ssh/authorized_keys`**——密码登录已关，新电脑无法用 `ssh-copy-id`。主机指纹 ED25519 `SHA256:Ub6Xr8wg7Bg1y6ilzPzVfQsVxU8kEOHL0GDkOxK3hkw`。**退路**：阿里云控制台 VNC 远程连接可用（已验证），SSH 配置改坏时靠它救场。
+
+**2026-10-12 加固完成**：`PermitRootLogin prohibit-password` + `PasswordAuthentication no`（`sshd_config` 第 132/133 行），`kbdinteractiveauthentication no` 保持不变（否则 PAM 会绕过）。外部验证：服务器只接受 `publickey`，强制密码登录被拒。改前备份在 `/root/sshd_config.bak.pre-hardening`；回滚：`cp -a /root/sshd_config.bak.pre-hardening /etc/ssh/sshd_config && systemctl reload sshd`。**应急退路**：阿里云控制台 VNC，同日用 `passwd` 重设了 root 密码（原密码已无人记得——Windows 上三次输错），并退出了一个从 7 月起一直挂着的 tty1 root 会话（任何能进阿里云控制台的人都可以免密拿到 root）。
 
 **审计结论：无入侵迹象。** authorized_keys 里两把钥匙——`SHA256:9GE/...`(服务器自己的 id_ed25519.pub，setup 时自我授权，无害) 和 `SHA256:ndFF...`(yuan-imac)，没有第三方公钥；可登录 shell 的账号只有 root；所有成功登录都来自本人 IP（`101.0.4.x` / `100.104.x.x` CGNAT 移动网络）。
 
 **当前风险（截至 2026-08-28 未处理）**：
 | 项 | 现状 | 风险 |
 |---|---|---|
-| SSH 密码认证 | `PasswordAuthentication yes` + `PermitRootLogin yes` | **高**——自 6/13 起 574,160 次失败登录（约 7,700 次/天），**fail2ban 未安装** |
+| ~~SSH 密码认证~~ | **已关闭（2026-10-12）**，只剩密钥登录 | 已解除——累计 67 万次爆破全部失效。fail2ban 仍未安装（需 EPEL，阿里云 Linux 4 默认无），现在只起减少日志噪音的作用，可选 |
 | 宝塔面板 8888 / phpMyAdmin 888 | firewalld 放行，对公网开放 | 中高——宝塔面板历史有未授权访问漏洞 |
 | MySQL 3306 | 监听 `0.0.0.0`（无 bind-address），但 **firewalld 未放行** | 低——外网连不到；且本项目用 SQLite，该 MySQL 疑似闲置 |
 | FTP 20/21 | firewalld 放行 | 低——明文协议，未在用可关 |
@@ -447,7 +449,8 @@ d62d1eb Invoice header: use company name instead of logo image
 **安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **自动化测试**(`tools/run_tests.php`，433 项)。
 
 **待办（按优先级）**：
-1. **关闭 SSH 密码认证 + 装 fail2ban** —— 操作步骤见 6f，是当前最高的实际风险（7,700 次爆破/天）
+1. ~~**关闭 SSH 密码认证**~~ —— **已完成**（2026-10-12，见 6f）。**新的第一优先**：**备份异地同步**（目前 14 份备份都在同一台机器上，整机故障即全丢）；**系统安全补丁**（登录提示 72 个安全更新，26 个 Important，挑空闲时段 `dnf upgrade-minimal --security`）
+1b. **订单/客户按姓名而非账号关联** —— 85/407 个订单的 `submitter` 对不上任何账号（如账号 `erfandi` 有 29 张发票录成 `erpandi`，他登录后看不到）；改用户姓名会让该销售的订单和客户从视图中消失。修法：下单改为账号下拉选择 + 名字变体合并工具
 2. ~~**审计日志**~~ —— **已完成**（见 6g）
 3. ~~**修发票合计舍入**~~ —— **已完成**（见 6n，Pembulatan）。**金额改整数分**仍未做（REAL 存储本身目前未造成误差，优先级降低）。原记录：现用 REAL 存。**线上已实际发生**：3 张发票(1027/1037/1043 - AMI - INV - 08 - 26)的合计比订单含税额少 1 卢比，客户按整数付款后被判定"超额收款"。根因是 `fulfill_order()` 里逐行 `round()` 后 `total = subtotal + ppn` 与原始含税额不完全相等(代码注释写的就是 `≈ original`)。修法：税额改为 `total - subtotal` 反推，让合计严格等于订单含税金额；历史 3 张可一并订正。涉及数据迁移，越晚成本越高
 4. **列表分页** —— 订单/发票持续增长，目前全量渲染
