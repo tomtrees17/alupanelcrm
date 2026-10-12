@@ -46,6 +46,7 @@ $axisMax = Dashboard::nice_max(max(1.0, ...array_map(fn($b) => max($b['sales'], 
 $pct = fn(float $v) => $v <= 0 ? 0 : max(1.5, round($v / $axisMax * 100, 1));
 ?>
 
+<div class="dash">
 <!-- ── Period selector: one control scopes everything below ── -->
 <div class="period-bar">
     <div class="seg" role="tablist">
@@ -175,6 +176,7 @@ $pct = fn(float $v) => $v <= 0 ? 0 : max(1.5, round($v / $axisMax * 100, 1));
     </div>
 </div>
 
+<div class="dash-row<?= ($perf && $fin) ? ' dash-row-split' : '' ?>">
 <?php if ($perf): ?>
 <!-- ── Who sold, who collected ── -->
 <div class="card">
@@ -226,7 +228,6 @@ $pct = fn(float $v) => $v <= 0 ? 0 : max(1.5, round($v / $axisMax * 100, 1));
 </div>
 <?php endif; ?>
 
-<div class="grid-2">
     <?php if ($fin): ?>
     <!-- ── Receivables aging (a balance as of today, not the selected period) ── -->
     <div class="card">
@@ -265,7 +266,9 @@ $pct = fn(float $v) => $v <= 0 ? 0 : max(1.5, round($v / $axisMax * 100, 1));
         </div>
     </div>
     <?php endif; ?>
+</div>
 
+<div class="grid-2">
     <!-- ── Best sellers in the period ── -->
     <div class="card">
         <div class="card-header"><span class="card-title"><?= t('dash_hot') ?></span><span class="muted small"><?= e($title) ?></span></div>
@@ -287,18 +290,9 @@ $pct = fn(float $v) => $v <= 0 ? 0 : max(1.5, round($v / $axisMax * 100, 1));
         </table></div>
     </div>
 
-    <?php if (!$fin): ?>
-    <!-- Without finance access the recent-orders list takes the aging slot. -->
     <div class="card">
         <div class="card-header"><span class="card-title"><?= t('recent_orders') ?></span><a class="muted small" href="<?= url('orders.index') ?>"><?= t('view_more') ?></a></div>
         <?php include __DIR__ . '/_recent.php'; ?>
     </div>
-    <?php endif; ?>
 </div>
-
-<?php if ($fin): ?>
-<div class="card">
-    <div class="card-header"><span class="card-title"><?= t('recent_orders') ?></span><a class="muted small" href="<?= url('orders.index') ?>"><?= t('view_more') ?></a></div>
-    <?php include __DIR__ . '/_recent.php'; ?>
 </div>
-<?php endif; ?>

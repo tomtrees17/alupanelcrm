@@ -56,6 +56,14 @@ ok('14 daily buckets', count($bd) === 14 && $bd[13]['start'] === '2026-10-01' &&
 $bw = Dashboard::buckets($w);
 ok('12 weekly buckets, all Mondays', count($bw) === 12 && count(array_filter($bw, fn($b) => date('N', strtotime($b['start'])) === '1')) === 12);
 
+// Empty months before the system was in use are trimmed — but never below 6 columns.
+$mk = fn(array $vals) => array_map(fn($v) => ['start' => 'x', 'end' => 'x', 'sales' => (float) $v, 'collected' => 0.0, 'current' => false], $vals);
+ok('leading empty columns are trimmed', count(Dashboard::trim_leading($mk([0, 0, 0, 0, 0, 0, 0, 0, 5, 6, 7, 8]), 6)) === 6);
+ok('trimming stops at the first column with data', count(Dashboard::trim_leading($mk([0, 0, 3, 0, 5, 6, 7, 8, 9, 1, 2, 3]), 6)) === 10);
+ok('a gap in the middle is kept', Dashboard::trim_leading($mk([0, 0, 3, 0, 5, 6, 7, 8, 9, 1, 2, 3]), 6)[1]['sales'] === 0.0);
+ok('an all-empty chart keeps the minimum', count(Dashboard::trim_leading($mk(array_fill(0, 12, 0)), 6)) === 6);
+ok('collections alone count as data', count(Dashboard::trim_leading([['sales' => 0.0, 'collected' => 9.0]] + $mk(array_fill(0, 12, 0)), 6)) >= 6);
+
 // ── 3) Small maths ───────────────────────────────────────────────────────────
 ok('delta up', round((float) Dashboard::delta(120, 100), 1) === 20.0);
 ok('delta down', round((float) Dashboard::delta(80, 100), 1) === -20.0);
@@ -116,8 +124,9 @@ ok('collected nets reversals', $k['collected'] === 1000000.0 + 500000 + 500000 -
 ok('collected comparison', $k['collected_cmp'] === 4000000.0);
 
 $oct = end($data['buckets']);
+ok('the selected period is always the last column', end($data['buckets'])['current'] === true);
 ok('the current bucket matches the tiles', $oct['sales'] === $k['sales'] && $oct['collected'] === $k['collected']);
-$sep = $data['buckets'][10];
+$sep = $data['buckets'][count($data['buckets']) - 2];
 ok('the previous bucket holds the whole month', $sep['sales'] === 13000000.0, (string) $sep['sales']);
 
 // Receivables: a balance as of today, regardless of the selected period.
@@ -150,7 +159,7 @@ ok('ranking totals match the tile', array_sum(array_column($data['ranking'], 'sa
 $mine = Dashboard::data($pdo, $m, $today, 'angga', false, false, 'sales');
 ok('own scope: only angga\'s sales', $mine['kpi']['sales'] === 2500000.0, (string) $mine['kpi']['sales']);
 ok('own scope: only angga\'s orders', $mine['kpi']['orders'] === 2);
-ok('no finance access → no cash figures at all', !isset($mine['receivable']) && $mine['kpi']['collected'] === 0.0 && $mine['buckets'][11]['collected'] === 0.0);
+ok('no finance access → no cash figures at all', !isset($mine['receivable']) && $mine['kpi']['collected'] === 0.0 && end($mine['buckets'])['collected'] === 0.0);
 ok('no performance access → no ranking', !isset($mine['ranking']));
 ok('sales role approves nothing', $mine['workload']['to_approve'] === null);
 
@@ -194,7 +203,7 @@ ok('three period tabs', substr_count($html, 'role="tab"') === 3);
 ok('month tab selected', preg_match('/class="active" role="tab" aria-selected="true"\s+href="[^"]*p=month/', $html) === 1);
 ok('period title names the current month', str_contains($html, t('dash_now_month')));
 ok('like-for-like label on an in-progress month', str_contains($html, t('dash_vs_month_partial')));
-ok('12 clickable columns', preg_match_all('/class="dcol( current)?"/', $html) === 12);
+ok('one clickable column per bucket', preg_match_all('/class="dcol( current)?"/', $html) === count($full['buckets']));
 ok('columns drill into their period', str_contains($html, 'p=month&d=2026-09-01'));
 ok('two-series legend when cash is shown', str_contains($html, 'class="sw sales"') && str_contains($html, 'class="sw paid"'));
 ok('table view exists', str_contains($html, t('dash_table_view')));

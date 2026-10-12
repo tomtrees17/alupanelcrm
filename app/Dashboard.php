@@ -103,6 +103,7 @@ final class Dashboard
             $b['collected'] = self::sum_in($payments, $b['start'], $b['end']);
         }
         unset($b);
+        $buckets = self::trim_leading($buckets, 6);
 
         $kpi = [
             'sales'         => self::sum_in($invoices, $period['start'], $period['to']),
@@ -129,6 +130,19 @@ final class Dashboard
             $out['ranking'] = self::ranking($pdo, $period['start'], $period['to'], $today, $fin);
         }
         return $out;
+    }
+
+    /**
+     * Drop empty columns from the start of the trend — months before anyone
+     * used the system read as a broken chart — but keep at least $min so a
+     * quiet stretch still shows as a quiet stretch.
+     */
+    public static function trim_leading(array $buckets, int $min): array
+    {
+        while (count($buckets) > $min && $buckets[0]['sales'] == 0.0 && $buckets[0]['collected'] == 0.0) {
+            array_shift($buckets);
+        }
+        return $buckets;
     }
 
     /** Signed % change, or null when there is nothing to compare with. */
