@@ -17,6 +17,15 @@
   --danger: #dc2626;
   --font: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, monospace;
+  /* Chart series — validated for colour-blind separation (dataviz validator):
+     blue = invoiced, green = collected. Aging is one hue, light → dark. */
+  --c-sales: #2a78d6;
+  --c-paid: #00a884;
+  --age-current: #cbd5e1;
+  --age-1_30: #e9963f;
+  --age-31_60: #d96c25;
+  --age-61_90: #bf4a17;
+  --age-90: #8f2f0e;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
@@ -254,6 +263,62 @@ tfoot td { padding: 8px 14px; }
 .login-card label { font-size: 11px; font-weight: 600; color: var(--text2); display: block; margin: 0 0 6px; }
 .login-hint { text-align: center; color: var(--text3); font-size: 11px; margin-top: 16px; line-height: 1.6; }
 
+
+/* ─ DASHBOARD ─ */
+.period-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+.seg a { padding: 6px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--text2); }
+.seg a.active { background: var(--accent); color: #fff; }
+.period-nav { display: flex; align-items: center; gap: 8px; }
+.period-title { font-size: 15px; font-weight: 600; min-width: 120px; text-align: center; }
+.stat-link { display: block; color: inherit; transition: border-color .15s; }
+.stat-link:hover { border-color: var(--accent); }
+.delta { font-weight: 600; }
+.delta.up { color: var(--success); }
+.delta.down { color: var(--danger); }
+.delta.flat { color: var(--text3); }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.chart-legend { display: flex; gap: 14px; font-size: 11px; color: var(--text2); }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.sw.sales { background: var(--c-sales); }
+.sw.paid { background: var(--c-paid); }
+
+.dchart { display: flex; gap: 8px; }
+.dchart-axis { position: relative; width: 62px; height: 160px; flex-shrink: 0; }
+.dchart-axis span { position: absolute; right: 0; transform: translateY(50%); font-size: 10px; color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dchart-plot { position: relative; flex: 1; display: flex; min-width: 0; }
+.dchart-grid { position: absolute; left: 0; right: 0; top: 0; height: 160px; pointer-events: none; }
+.dchart-grid i { position: absolute; left: 0; right: 0; height: 1px; background: var(--border); }
+.dcol { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; border-radius: 6px; color: inherit; }
+.dcol:hover { background: var(--surface2); }
+.dcol.current { background: rgba(42,120,214,.07); }
+.dcol-bars { height: 160px; width: 100%; display: flex; justify-content: center; align-items: flex-end; gap: 2px; }
+.dcol .b { display: block; width: 34%; max-width: 20px; border-radius: 4px 4px 0 0; }
+.dcol .b:only-child { width: 56%; max-width: 24px; }
+.dcol .b.sales { background: var(--c-sales); }
+.dcol .b.paid { background: var(--c-paid); }
+.dcol-label { font-size: 10px; color: var(--text3); margin: 6px 0 4px; white-space: nowrap; }
+.dcol.current .dcol-label { color: var(--text); font-weight: 700; }
+.chart-foot { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.table-view summary { cursor: pointer; font-size: 11px; color: var(--accent2); }
+.table-view[open] { flex-basis: 100%; }
+.row-current td { font-weight: 700; }
+
+.rank-name { min-width: 160px; }
+.rank-no { display: inline-block; width: 20px; color: var(--text3); font-size: 11px; }
+
+.aging-bar { display: flex; gap: 2px; height: 14px; border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
+.aging-bar i { display: block; min-width: 3px; }
+.age-current { background: var(--age-current); }
+.age-1_30 { background: var(--age-1_30); }
+.age-31_60 { background: var(--age-31_60); }
+.age-61_90 { background: var(--age-61_90); }
+.age-90 { background: var(--age-90); }
+.aging-table { width: 100%; font-size: 12px; }
+.aging-table td { padding: 5px 0; border-bottom: 1px solid var(--surface3); }
+.aging-table tr:last-child td { border-bottom: none; }
+
 /* ─ AI ASK (mobile-first: sales use this on a phone) ─ */
 .ask-form { display: flex; gap: 8px; align-items: stretch; }
 .ask-input { flex: 1; resize: vertical; font-size: 16px; /* 16px stops iOS zooming on focus */ line-height: 1.5; }
@@ -310,6 +375,15 @@ tfoot td { padding: 8px 14px; }
   .item-row .qty { width: 62px !important; }
   .item-row .price { width: 100px !important; }
   tbody td, thead th { padding-left: 8px; padding-right: 8px; }
+  .period-bar { flex-direction: column; align-items: stretch; }
+  .seg { justify-content: center; }
+  .seg a { flex: 1; text-align: center; }
+  .period-nav { justify-content: space-between; }
+  .dchart-axis { width: 46px; }
+}
+@media (max-width: 480px) {
+  /* 12–14 columns on a phone: label every other one, but always the selected. */
+  .dcol:nth-of-type(even):not(.current) .dcol-label { visibility: hidden; }
 }
 
 @media print {

@@ -1,154 +1,304 @@
 <?php
-/** @var float $revenue */ /** @var int $custCount */ /** @var int $activeDeals */
-/** @var int $taskRate */ /** @var array $funnel */ /** @var array $recent */ /** @var array $overdue */
-/** @var array $monthlySales */ /** @var array $weeklySales */
-?>
-<?php if (can_access('finance') && $overdue): ?>
-    <div class="credit-alert">
-        ⚠ <?= t('credit_alert_1') ?> <strong><?= count($overdue) ?></strong> <?= t('credit_alert_2') ?>
-        <strong><?= idr(array_sum(array_map(fn($i) => $i['total'] - $i['amount_paid'], $overdue))) ?></strong>。
-        <a class="ml-auto btn btn-sm btn-danger" href="<?= url('finance.index', ['status' => 'overdue']) ?>"><?= t('view_more') ?></a>
-    </div>
-<?php endif; ?>
+/** @var array $period */ /** @var array $buckets */ /** @var array $kpi */ /** @var array $hot */
+/** @var array $recent */ /** @var bool $fin */ /** @var bool $perf */
+/** @var ?array $receivable */ /** @var ?array $workload */ /** @var ?array $ranking */
+$lang = current_lang();
+$p = $period['p'];
+$link = fn(string $pp, string $d) => url('dashboard.index', ['p' => $pp, 'd' => $d]);
 
-<div class="stats-grid">
-    <?php if (can_access('finance')): ?>
-        <div class="stat-card c1"><div class="stat-label"><?= t('stat_received') ?></div><div class="stat-value c1"><?= idr_short($revenue) ?></div></div>
-    <?php else: ?>
-        <div class="stat-card c1"><div class="stat-label"><?= t('nav_orders') ?></div><div class="stat-value c1"><?= (int) ($pendingOrders ?? 0) ?></div></div>
-    <?php endif; ?>
-    <div class="stat-card c2"><div class="stat-label"><?= t('stat_customers') ?></div><div class="stat-value c2"><?= $custCount ?></div></div>
-    <div class="stat-card c3"><div class="stat-label"><?= t('stat_active_deals') ?></div><div class="stat-value c3"><?= $activeDeals ?></div></div>
-    <div class="stat-card c4"><div class="stat-label"><?= t('stat_task_rate') ?></div><div class="stat-value c4"><?= $taskRate ?>%</div></div>
+// Bucket label: short enough for 12–14 columns on a phone.
+$idMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+$bucketLabel = function (array $b) use ($p, $lang, $idMonths): string {
+    $ts = strtotime($b['start']);
+    if ($p === 'month') {
+        return $lang === 'id' ? $idMonths[(int) date('n', $ts) - 1] : date('n', $ts) . '月';
+    }
+    return $lang === 'id' ? date('j/n', $ts) : date('n/j', $ts);
+};
+
+// Period title, e.g. 本月 · 2026年10月 / Minggu ini · 6/10 – 12/10
+$ts = strtotime($period['start']);
+$title = match ($p) {
+    'day'   => $period['start'],
+    'week'  => ($lang === 'id' ? date('j/n', $ts) . ' – ' . date('j/n', strtotime($period['end']))
+                               : date('n/j', $ts) . ' – ' . date('n/j', strtotime($period['end']))),
+    default => ($lang === 'id' ? $idMonths[(int) date('n', $ts) - 1] . ' ' . date('Y', $ts)
+                               : date('Y', $ts) . '年' . date('n', $ts) . '月'),
+};
+if ($period['current']) {
+    $title = t('dash_now_' . $p) . ' · ' . $title;
+}
+$vsLabel = t('dash_vs_' . $p . ($period['partial'] ? '_partial' : ''));
+
+/** ▲ 12% / ▼ 8% / — ; up is good for every tile on this page. */
+$delta = function (float $now, float $before) use ($vsLabel): string {
+    $d = Dashboard::delta($now, $before);
+    if ($d === null) {
+        return '<span class="delta flat">' . e($vsLabel) . ' —</span>';
+    }
+    $cls = abs($d) < 0.5 ? 'flat' : ($d > 0 ? 'up' : 'down');
+    $arrow = $cls === 'up' ? '▲' : ($cls === 'down' ? '▼' : '■');
+    return '<span class="delta ' . $cls . '">' . $arrow . ' ' . num(abs($d), abs($d) < 10 ? 1 : 0) . '%</span>'
+         . ' <span class="muted">' . e($vsLabel) . '</span>';
+};
+
+$axisMax = Dashboard::nice_max(max(1.0, ...array_map(fn($b) => max($b['sales'], $b['collected']), $buckets)));
+$pct = fn(float $v) => $v <= 0 ? 0 : max(1.5, round($v / $axisMax * 100, 1));
+?>
+
+<!-- ── Period selector: one control scopes everything below ── -->
+<div class="period-bar">
+    <div class="seg" role="tablist">
+        <?php foreach (Dashboard::PERIODS as $pp): ?>
+            <a class="<?= $pp === $p ? 'active' : '' ?>" role="tab" aria-selected="<?= $pp === $p ? 'true' : 'false' ?>"
+               href="<?= $link($pp, $period['current'] ? date('Y-m-d') : $period['start']) ?>"><?= t('dash_' . $pp) ?></a>
+        <?php endforeach; ?>
+    </div>
+    <div class="period-nav">
+        <a class="btn btn-ghost btn-sm" href="<?= $link($p, $period['prev']) ?>" aria-label="<?= t('dash_prev') ?>">‹</a>
+        <span class="period-title"><?= e($title) ?></span>
+        <?php if ($period['next'] !== null): ?>
+            <a class="btn btn-ghost btn-sm" href="<?= $link($p, $period['next']) ?>" aria-label="<?= t('dash_next') ?>">›</a>
+        <?php else: ?>
+            <span class="btn btn-ghost btn-sm btn-disabled" aria-hidden="true">›</span>
+        <?php endif; ?>
+        <?php if (!$period['current']): ?>
+            <a class="btn btn-ghost btn-sm" href="<?= $link($p, date('Y-m-d')) ?>"><?= t('dash_back_now') ?></a>
+        <?php endif; ?>
+    </div>
 </div>
 
-<div class="grid-2">
-    <div class="card">
-        <div class="card-header"><span class="card-title"><?= t('funnel') ?></span><a class="muted" href="<?= url('pipeline.index') ?>" style="font-size:11px"><?= t('view_more') ?></a></div>
-        <div class="card-body">
-            <div class="funnel-bars">
-                <?php foreach ($funnel as $f): $color = deal_stage_color($f['stage']); ?>
-                    <div class="funnel-row">
-                        <div class="funnel-label"><?= e(tr_stage($f['stage'])) ?></div>
-                        <div class="funnel-track"><div class="funnel-fill" style="width:<?= max(6, $f['pct']) ?>%;background:<?= $color ?>"><?= $f['pct'] ?>%</div></div>
-                        <div class="funnel-count"><?= $f['count'] ?></div>
-                    </div>
+<!-- ── Headline tiles ── -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label"><?= t($perf ? 'dash_sales' : 'dash_my_sales') ?></div>
+        <div class="stat-value"><?= idr_short($kpi['sales']) ?></div>
+        <div class="stat-sub"><?= $delta($kpi['sales'], $kpi['sales_cmp']) ?></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label"><?= t($perf ? 'dash_orders' : 'dash_my_orders') ?></div>
+        <div class="stat-value"><?= num($kpi['orders']) ?></div>
+        <div class="stat-sub"><?= $delta((float) $kpi['orders'], (float) $kpi['orders_cmp']) ?></div>
+    </div>
+    <?php if ($fin): ?>
+        <div class="stat-card">
+            <div class="stat-label"><?= t('dash_collected') ?></div>
+            <div class="stat-value"><?= idr_short($kpi['collected']) ?></div>
+            <div class="stat-sub"><?= $delta($kpi['collected'], $kpi['collected_cmp']) ?></div>
+        </div>
+        <a class="stat-card stat-link" href="<?= url('finance.index', ['status' => 'overdue']) ?>">
+            <div class="stat-label"><?= t('dash_receivable') ?> <span class="muted">· <?= t('dash_as_of_now') ?></span></div>
+            <div class="stat-value"><?= idr_short($receivable['total']) ?></div>
+            <div class="stat-sub">
+                <?php if ($receivable['overdue'] > 0.5): ?>
+                    <span class="delta down">⚠ <?= sprintf(t('dash_overdue_part'), idr_short($receivable['overdue']), (int) $receivable['overdue_count']) ?></span>
+                <?php else: ?>
+                    <span class="delta up">✓ <?= t('dash_no_overdue') ?></span>
+                <?php endif; ?>
+            </div>
+        </a>
+    <?php else: ?>
+        <?php if ($workload['to_approve'] !== null): ?>
+            <a class="stat-card stat-link" href="<?= url('orders.index') ?>">
+                <div class="stat-label"><?= t('dash_to_approve') ?></div>
+                <div class="stat-value"><?= (int) $workload['to_approve'] ?></div>
+                <div class="stat-sub muted"><?= t('dash_as_of_now') ?></div>
+            </a>
+        <?php else: ?>
+            <a class="stat-card stat-link" href="<?= url('orders.index') ?>">
+                <div class="stat-label"><?= t('dash_in_approval') ?></div>
+                <div class="stat-value"><?= (int) $workload['pending'] ?></div>
+                <div class="stat-sub muted"><?= t('dash_as_of_now') ?></div>
+            </a>
+        <?php endif; ?>
+        <a class="stat-card stat-link" href="<?= url('orders.index', ['status' => 'draft']) ?>">
+            <div class="stat-label"><?= t('dash_rework') ?></div>
+            <div class="stat-value"><?= (int) $workload['rework'] ?></div>
+            <div class="stat-sub muted"><?= t('dash_as_of_now') ?></div>
+        </a>
+    <?php endif; ?>
+</div>
+
+<!-- ── Trend: invoiced vs collected, one shared axis ── -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title"><?= t('dash_trend_' . $p . ($fin ? '' : '_sales')) ?></span>
+        <?php if ($fin): ?>
+            <div class="chart-legend">
+                <span><i class="sw sales"></i><?= t('dash_series_sales') ?></span>
+                <span><i class="sw paid"></i><?= t('dash_series_collected') ?></span>
+            </div>
+        <?php endif; ?>
+    </div>
+    <div class="card-body">
+        <div class="dchart">
+            <div class="dchart-axis" aria-hidden="true">
+                <span style="bottom:100%"><?= idr_short($axisMax) ?></span>
+                <span style="bottom:50%"><?= idr_short($axisMax / 2) ?></span>
+                <span style="bottom:0">0</span>
+            </div>
+            <div class="dchart-plot">
+                <div class="dchart-grid" aria-hidden="true"><i style="bottom:100%"></i><i style="bottom:50%"></i><i style="bottom:0"></i></div>
+                <?php foreach ($buckets as $b): ?>
+                    <?php
+                    $tip = $bucketLabel($b) . ' · ' . t('dash_series_sales') . ' ' . idr($b['sales'])
+                         . ($fin ? ' · ' . t('dash_series_collected') . ' ' . idr($b['collected']) : '');
+                    ?>
+                    <a class="dcol<?= $b['current'] ? ' current' : '' ?>" href="<?= $link($p, $b['start']) ?>" title="<?= e($tip) ?>" aria-label="<?= e($tip) ?>">
+                        <span class="dcol-bars">
+                            <i class="b sales" style="height:<?= $pct($b['sales']) ?>%"></i>
+                            <?php if ($fin): ?><i class="b paid" style="height:<?= $pct($b['collected']) ?>%"></i><?php endif; ?>
+                        </span>
+                        <span class="dcol-label"><?= e($bucketLabel($b)) ?></span>
+                    </a>
                 <?php endforeach; ?>
             </div>
         </div>
+        <div class="chart-foot">
+            <span class="muted small"><?= t('dash_click_hint') ?></span>
+            <details class="table-view">
+                <summary><?= t('dash_table_view') ?></summary>
+                <div class="table-wrap"><table>
+                    <thead><tr><th><?= t('dash_period_col') ?></th><th class="right"><?= t('dash_series_sales') ?></th><?php if ($fin): ?><th class="right"><?= t('dash_series_collected') ?></th><?php endif; ?></tr></thead>
+                    <tbody>
+                    <?php foreach (array_reverse($buckets) as $b): ?>
+                        <tr<?= $b['current'] ? ' class="row-current"' : '' ?>>
+                            <td><?= e($b['start'] === $b['end'] ? $b['start'] : $b['start'] . ' ~ ' . $b['end']) ?></td>
+                            <td class="right num"><?= idr($b['sales']) ?></td>
+                            <?php if ($fin): ?><td class="right num"><?= idr($b['collected']) ?></td><?php endif; ?>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table></div>
+            </details>
+        </div>
     </div>
+</div>
 
+<?php if ($perf): ?>
+<!-- ── Who sold, who collected ── -->
+<div class="card">
+    <div class="card-header"><span class="card-title"><?= t('dash_ranking') ?></span><span class="muted small"><?= e($title) ?></span></div>
+    <div class="table-wrap"><table>
+        <thead><tr>
+            <th><?= t('th_submitter') ?></th>
+            <th class="right"><?= t('dash_orders') ?></th>
+            <th class="right"><?= t('dash_sales') ?></th>
+            <?php if ($fin): ?>
+                <th class="right"><?= t('dash_rank_collected') ?></th>
+                <th class="right"><?= t('dash_rank_outstanding') ?></th>
+            <?php endif; ?>
+        </tr></thead>
+        <tbody>
+        <?php if (!$ranking): ?><tr><td colspan="5" class="empty"><?= t('no_data') ?></td></tr><?php endif; ?>
+        <?php
+        $topSales = max(1.0, ...array_map(fn($r) => $r['sales'], $ranking ?: [['sales' => 0]]));
+        $sum = ['orders' => 0, 'sales' => 0.0, 'collected' => 0.0, 'outstanding' => 0.0];
+        ?>
+        <?php foreach ($ranking as $i => $r): ?>
+            <?php foreach ($sum as $k => $_) { $sum[$k] += $r[$k]; } ?>
+            <tr>
+                <td class="rank-name">
+                    <span class="rank-no"><?= $i + 1 ?></span><strong><?= e($r['name']) ?></strong>
+                    <div class="bar"><div class="bar-fill" style="width:<?= round($r['sales'] / $topSales * 100) ?>%;background:var(--c-sales)"></div></div>
+                </td>
+                <td class="right num"><?= (int) $r['orders'] ?></td>
+                <td class="right num"><strong><?= idr_short($r['sales']) ?></strong></td>
+                <?php if ($fin): ?>
+                    <td class="right num"><?= idr_short($r['collected']) ?></td>
+                    <td class="right num<?= $r['outstanding'] > 0.5 ? '' : ' muted' ?>"><?= idr_short($r['outstanding']) ?></td>
+                <?php endif; ?>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+        <?php if ($ranking): ?>
+            <tfoot><tr class="total-row">
+                <td><?= t('dash_total') ?></td>
+                <td class="right num"><?= (int) $sum['orders'] ?></td>
+                <td class="right num"><?= idr_short($sum['sales']) ?></td>
+                <?php if ($fin): ?>
+                    <td class="right num"><?= idr_short($sum['collected']) ?></td>
+                    <td class="right num"><?= idr_short($sum['outstanding']) ?></td>
+                <?php endif; ?>
+            </tr></tfoot>
+        <?php endif; ?>
+    </table></div>
+</div>
+<?php endif; ?>
+
+<div class="grid-2">
+    <?php if ($fin): ?>
+    <!-- ── Receivables aging (a balance as of today, not the selected period) ── -->
     <div class="card">
-        <div class="card-header"><span class="card-title"><?= t('recent_orders') ?></span><a class="muted" href="<?= url('orders.index') ?>" style="font-size:11px"><?= t('view_more') ?></a></div>
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th><?= t('th_order_no') ?></th><th><?= t('th_customer') ?></th><th><?= t('th_status') ?></th><th class="right"><?= t('th_amount') ?></th></tr></thead>
-                <tbody>
-                <?php if (!$recent): ?><tr><td colspan="4" class="empty"><?= t('no_orders') ?></td></tr><?php endif; ?>
-                <?php foreach ($recent as $o): ?>
-                    <tr class="clickable" onclick="location.href='<?= url('orders.show', ['id' => $o['id']]) ?>'">
-                        <td><code><?= e($o['order_no']) ?></code></td>
-                        <td><?= e($o['customer_name']) ?></td>
-                        <td><span class="order-status-badge <?= order_status_class($o['status']) ?>"><?= e(order_status_label($o['status'])) ?></span></td>
-                        <td class="right"><?= idr($o['amount']) ?></td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<?php if (can_access('performance')): ?>
-<div class="card">
-    <div class="card-header">
-        <span class="card-title"><?= t('sales_trend') ?></span>
-        <div class="trend-legend">
-            <span><i class="dot won"></i> <?= t('trend_won') ?></span>
-            <span><i class="dot paid"></i> <?= t('trend_collected') ?></span>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="grid-2">
-            <?php
-            $renderTrend = function (array $data, string $title) {
-                $max = max(1, ...array_map(fn($x) => max((float) $x['won'], (float) $x['collected']), $data ?: [['won' => 0, 'collected' => 0]]));
-                ?>
-                <div>
-                    <div class="trend-title"><?= e($title) ?></div>
-                    <div class="trend">
-                        <?php foreach ($data as $d): ?>
-                            <div class="trend-col" title="<?= e($d['label']) ?> · <?= t('trend_won') ?> <?= idr($d['won']) ?> · <?= t('trend_collected') ?> <?= idr($d['collected']) ?>">
-                                <div class="trend-bar-wrap">
-                                    <div class="trend-bar won" style="height:<?= round($d['won'] / $max * 100) ?>%"></div>
-                                    <div class="trend-bar paid" style="height:<?= round($d['collected'] / $max * 100) ?>%"></div>
-                                </div>
-                                <div class="trend-label"><?= e($d['label']) ?></div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
+        <div class="card-header"><span class="card-title"><?= t('dash_aging') ?></span><span class="muted small"><?= t('dash_as_of_now') ?></span></div>
+        <div class="card-body">
+            <?php if ($receivable['total'] <= 0.5): ?>
+                <div class="empty"><?= t('dash_no_receivable') ?></div>
+            <?php else: ?>
+                <div class="aging-bar" role="img" aria-label="<?= t('dash_aging') ?>">
+                    <?php foreach ($receivable['bands'] as $band => $amt): ?>
+                        <?php if ($amt > 0.5): ?>
+                            <i class="age-<?= $band ?>" style="flex-grow:<?= round($amt / $receivable['total'] * 1000) ?>"
+                               title="<?= e(t('dash_age_' . $band) . ' · ' . idr($amt)) ?>"></i>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
                 </div>
-                <?php
-            };
-            $renderTrend($monthlySales, t('monthly_sales'));
-            $renderTrend($weeklySales, t('weekly_sales'));
-            ?>
+                <table class="aging-table">
+                    <?php foreach ($receivable['bands'] as $band => $amt): ?>
+                        <tr<?= $amt <= 0.5 ? ' class="muted"' : '' ?>>
+                            <td><i class="sw age-<?= $band ?>"></i><?= t('dash_age_' . $band) ?></td>
+                            <td class="right num"><?= (int) $receivable['counts'][$band] ?> <?= t('dash_inv_unit') ?></td>
+                            <td class="right num"><strong><?= idr($amt) ?></strong></td>
+                            <td class="right num muted"><?= num($amt / $receivable['total'] * 100) ?>%</td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+                <?php if ($receivable['top_overdue']): ?>
+                    <div class="trend-title" style="margin-top:14px"><?= t('dash_top_overdue') ?></div>
+                    <table class="aging-table">
+                        <?php foreach ($receivable['top_overdue'] as $cust => $amt): ?>
+                            <tr><td><?= e($cust) ?></td><td class="right num"><strong><?= idr($amt) ?></strong></td></tr>
+                        <?php endforeach; ?>
+                    </table>
+                <?php endif; ?>
+            <?php endif; ?>
         </div>
     </div>
-</div>
+    <?php endif; ?>
 
-<div class="card">
-    <div class="card-header"><span class="card-title"><?= t('sales_perf') ?></span></div>
-    <div class="table-wrap"><table>
-        <thead><tr><th><?= t('th_submitter') ?></th><th class="right"><?= t('col_orders') ?></th><th class="right"><?= t('col_won') ?></th><th class="right"><?= t('col_won_amt') ?></th></tr></thead>
-        <tbody>
-        <?php if (!$salesPerf): ?><tr><td colspan="4" class="empty"><?= t('no_data') ?></td></tr><?php endif; ?>
-        <?php $maxAmt = max(1, ...array_map(fn($s) => (float) $s['amount'], $salesPerf ?: [['amount' => 0]])); ?>
-        <?php foreach ($salesPerf as $sp): ?>
-            <tr>
-                <td style="min-width:160px"><strong><?= e($sp['name']) ?></strong>
-                    <div class="bar"><div class="bar-fill" style="width:<?= round($sp['amount'] / $maxAmt * 100) ?>%;background:var(--accent)"></div></div>
-                </td>
-                <td class="right"><?= (int) $sp['orders'] ?></td>
-                <td class="right"><?= (int) $sp['won'] ?></td>
-                <td class="right"><strong><?= idr_short($sp['amount']) ?></strong></td>
-            </tr>
-        <?php endforeach; ?>
-        </tbody>
-    </table></div>
-</div>
-<?php endif; ?>
-
-<?php if (!can_access('performance') && !empty($myPerf) && (int) $myPerf['orders'] > 0): ?>
-<div class="card">
-    <div class="card-header"><span class="card-title"><?= t('my_perf') ?></span></div>
-    <div class="card-body">
-        <div class="cards" style="grid-template-columns:repeat(3,1fr);margin-bottom:0">
-            <div class="stat-card c2"><div class="stat-label"><?= t('col_orders') ?></div><div class="stat-value c2"><?= (int) $myPerf['orders'] ?></div></div>
-            <div class="stat-card c1"><div class="stat-label"><?= t('col_won') ?></div><div class="stat-value c1"><?= (int) $myPerf['won'] ?></div></div>
-            <div class="stat-card c3"><div class="stat-label"><?= t('col_won_amt') ?></div><div class="stat-value c3"><?= idr_short($myPerf['amount']) ?></div></div>
-        </div>
+    <!-- ── Best sellers in the period ── -->
+    <div class="card">
+        <div class="card-header"><span class="card-title"><?= t('dash_hot') ?></span><span class="muted small"><?= e($title) ?></span></div>
+        <div class="table-wrap"><table>
+            <thead><tr><th><?= t('th_product') ?></th><th class="right"><?= t('th_qty') ?></th><?php if ($fin): ?><th class="right"><?= t('th_amount') ?></th><?php endif; ?></tr></thead>
+            <tbody>
+            <?php if (!$hot): ?><tr><td colspan="3" class="empty"><?= t('no_data') ?></td></tr><?php endif; ?>
+            <?php $maxQty = max(1.0, ...array_map(fn($h) => (float) $h['qty'], $hot ?: [['qty' => 0]])); ?>
+            <?php foreach ($hot as $h): ?>
+                <tr>
+                    <td style="min-width:180px"><code><?= e($h['sku']) ?></code> <?= e($h['color']) ?> <span class="muted"><?= e($h['spec']) ?></span>
+                        <div class="bar"><div class="bar-fill" style="width:<?= round($h['qty'] / $maxQty * 100) ?>%;background:var(--text2)"></div></div>
+                    </td>
+                    <td class="right num"><strong><?= num($h['qty']) ?></strong></td>
+                    <?php if ($fin): ?><td class="right num"><?= idr_short($h['amount']) ?></td><?php endif; ?>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table></div>
     </div>
+
+    <?php if (!$fin): ?>
+    <!-- Without finance access the recent-orders list takes the aging slot. -->
+    <div class="card">
+        <div class="card-header"><span class="card-title"><?= t('recent_orders') ?></span><a class="muted small" href="<?= url('orders.index') ?>"><?= t('view_more') ?></a></div>
+        <?php include __DIR__ . '/_recent.php'; ?>
+    </div>
+    <?php endif; ?>
+</div>
+
+<?php if ($fin): ?>
+<div class="card">
+    <div class="card-header"><span class="card-title"><?= t('recent_orders') ?></span><a class="muted small" href="<?= url('orders.index') ?>"><?= t('view_more') ?></a></div>
+    <?php include __DIR__ . '/_recent.php'; ?>
 </div>
 <?php endif; ?>
-
-<div class="card">
-    <div class="card-header"><span class="card-title"><?= t('hot_products') ?></span></div>
-    <div class="table-wrap"><table>
-        <thead><tr><th><?= t('th_sku') ?></th><th><?= t('th_color') ?></th><th class="right"><?= t('th_qty') ?></th><?php if (can_access('finance')): ?><th class="right"><?= t('th_amount') ?></th><?php endif; ?></tr></thead>
-        <tbody>
-        <?php if (!$hotProducts): ?><tr><td colspan="4" class="empty"><?= t('no_data') ?></td></tr><?php endif; ?>
-        <?php $maxQty = max(1, ...array_map(fn($h) => (float) $h['qty'], $hotProducts ?: [['qty' => 0]])); ?>
-        <?php foreach ($hotProducts as $h): ?>
-            <tr>
-                <td><code><?= e($h['sku']) ?></code></td>
-                <td style="min-width:200px"><?= e($h['color']) ?> <span class="muted"><?= e($h['spec']) ?></span>
-                    <div class="bar"><div class="bar-fill" style="width:<?= round($h['qty'] / $maxQty * 100) ?>%;background:var(--accent3)"></div></div>
-                </td>
-                <td class="right"><strong><?= (int) $h['qty'] ?></strong></td>
-                <?php if (can_access('finance')): ?><td class="right"><?= idr_short($h['amount']) ?></td><?php endif; ?>
-            </tr>
-        <?php endforeach; ?>
-        </tbody>
-    </table></div>
-</div>
