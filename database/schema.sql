@@ -161,6 +161,7 @@ CREATE TABLE invoices (
     shipping_cost REAL    DEFAULT 0,
     subtotal      REAL    DEFAULT 0,
     ppn           REAL    DEFAULT 0,         -- VAT 11%
+    rounding      REAL    NOT NULL DEFAULT 0,-- Pembulatan: makes total equal the order's inclusive amount
     total         REAL    DEFAULT 0,
     invoice_date  TEXT,
     due_date      TEXT,

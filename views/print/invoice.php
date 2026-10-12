@@ -4,6 +4,7 @@ $cfg = $GLOBALS['config'];
 $subtotal = (float) $invoice['subtotal'];
 $dpp = round($subtotal * 11 / 12);
 $vat = (float) $invoice['ppn'];           // = subtotal × 11% = DPP × 12%
+$rounding = (float) ($invoice['rounding'] ?? 0);   // Pembulatan: total = order's inclusive amount
 $total = (float) $invoice['total'];
 $fdate = fn($d) => $d ? date('j/M/y', strtotime($d)) : '';
 $fdate2 = fn($d) => $d ? date('j-M-y', strtotime($d)) : '';
@@ -102,6 +103,9 @@ foreach (['logo-print.png', 'logo-print.svg', 'logo-print.jpg'] as $cand) {
                 <tr><td class="k">Subtotal</td><td class="v"><?= $rp($subtotal) ?></td></tr>
                 <tr><td class="k">DPP</td><td class="v"><?= $rp($dpp) ?></td></tr>
                 <tr><td class="k">VAT 12%</td><td class="v"><?= $rp($vat) ?></td></tr>
+                <?php if (abs($rounding) >= 0.005): ?>
+                    <tr><td class="k">Pembulatan</td><td class="v"><?= rp_signed($rounding) ?></td></tr>
+                <?php endif; ?>
                 <tr><td class="k">Total Invoice</td><td class="v"><?= $rp($total) ?></td></tr>
                 <tr class="grand"><td class="k">Total Amount</td><td class="v"><?= $rp($total) ?></td></tr>
             </table>

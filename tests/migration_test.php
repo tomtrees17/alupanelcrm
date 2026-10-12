@@ -33,6 +33,7 @@ $pdo->exec('DROP TABLE IF EXISTS ai_queries');
 $pdo->exec('ALTER TABLE invoices DROP COLUMN voided_at');
 $pdo->exec('ALTER TABLE invoices DROP COLUMN voided_by');
 $pdo->exec('ALTER TABLE invoices DROP COLUMN void_reason');
+$pdo->exec('ALTER TABLE invoices DROP COLUMN rounding');
 $pdo->exec("INSERT INTO invoices (invoice_no,customer,total,payment_status) VALUES ('INV-LAMA','PT Lama',5000,'pending')");
 $pdo->exec('ALTER TABLE users DROP COLUMN phone');
 $pdo->exec('ALTER TABLE users DROP COLUMN lang');
@@ -92,6 +93,10 @@ ok('invoices gains the void columns', count(array_intersect(['voided_at','voided
 $oldInv = $pdo->query("SELECT * FROM invoices WHERE invoice_no='INV-LAMA'")->fetch();
 ok('existing invoice survives and is not void', $oldInv && !invoice_is_void($oldInv));
 ok('existing invoice can be voided after upgrade', invoice_void_block($pdo, $oldInv) === null);
+$ivc2 = array_column($pdo->query('PRAGMA table_info(invoices)')->fetchAll(), 'name');
+ok('invoices gains rounding', in_array('rounding', $ivc2, true));
+$oldInv2 = $pdo->query("SELECT * FROM invoices WHERE invoice_no='INV-LAMA'")->fetch();
+ok('upgrade does not rewrite existing totals (that is the CLI tool\'s job)', (float) $oldInv2['total'] === 5000.0 && (float) $oldInv2['rounding'] === 0.0);
 
 // 'audit' must NOT be granted to anyone by the migration — admin-only by default.
 $granted = $pdo->query("SELECT COUNT(*) FROM role_permissions WHERE module='audit'")->fetchColumn();

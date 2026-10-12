@@ -54,12 +54,12 @@ switch ($action) {
             $rows[] = [
                 $iv['invoice_no'], $iv['order_no'], $iv['customer'], $iv['bill_to_name'], $iv['npwp'],
                 $iv['invoice_date'], $iv['due_date'], invoice_status_label($iv['payment_status']),
-                (float) $iv['subtotal'], (float) $iv['ppn'], (float) $iv['total'], (float) $iv['amount_paid'],
+                (float) $iv['subtotal'], (float) $iv['ppn'], (float) ($iv['rounding'] ?? 0), (float) $iv['total'], (float) $iv['amount_paid'],
                 (float) $iv['total'] - (float) $iv['amount_paid'], $iv['payment_method'], $iv['receipt_no'],
             ];
         }
         send_spreadsheet('finance_' . date('Ymd'), '财务报表',
-            ['发票号', '订单号', '客户', '开票对象', 'NPWP', '开票日', '到期日', '状态', '小计', 'PPN', '合计', '已收', '未收', '收款方式', '收据号'],
+            ['发票号', '订单号', '客户', '开票对象', 'NPWP', '开票日', '到期日', '状态', '小计', 'PPN', '尾差调整', '合计', '已收', '未收', '收款方式', '收据号'],
             $rows);
         break;
 

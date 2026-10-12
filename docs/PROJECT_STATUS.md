@@ -66,6 +66,7 @@ php -S localhost:8000 -t public
 - DPP = Subtotal × 11/12，VAT12% = DPP × 12% = Subtotal × 11%，Total = Subtotal + VAT
 - 发票号格式 `N - AMI - INV - MM - YY`
 - 已与公司真实模板核对一致（235.000×3 含税 → 单价 211.711,71 / Subtotal 714.262 / VAT 78.569 / Total 792.831）
+- **发票合计 = 订单含税额，差额记为 Pembulatan（尾差调整）**（2026-10-12）：逐行四舍五入后 Subtotal + VAT 会和订单含税整数差 1–3 卢比。Subtotal、DPP、VAT **一个都不动**（仍严格等于原算法、VAT = Subtotal×11%），只在 `invoices.rounding` 记差额、`total` 等于客户被报的金额。打印件 / Word / 详情页只在非零时显示「Pembulatan」一行；Excel 导出加「尾差调整」列。计算统一在 `invoice_amounts()`（`domain.php`），`fulfill_order()` 调用它。
 - **税前单价带 2 位小数**（含税价 ÷ 1.11 的结果）。打印件、Word 导出、发票详情页三处必须都用 2 位小数渲染，否则 `单价 × 数量` 与行小计对不上——2026-08-29 修过一次：详情页用了 `idr()`（0 位）把 `214.414,41` 显示成 `Rp 214.414`，而小计仍按完整值算成 `428.829`，客户拿计算器一按就发现不一致。`idr($v, 2)` 用于发票单价；**订单页不适用**，订单单价是用户输入的含税整价。
 
 **库存预留防超卖**：
@@ -143,6 +144,25 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
   ```
 - 恢复:停站 → 用某份快照覆盖 `data/crm.sqlite`(并删掉 `-wal/-shm`)→ `chown -R www:www data`。
 - 进阶(建议):把 `backups/` 定期同步到异地/对象存储,防整机故障。
+
+## 6n. 发票尾差订正（2026-10-12）
+
+**问题**：394 张关联订单的发票里 **123 张（31%）合计和订单含税额差 ±1–3 卢比**。真正的危害是：客户按订单整数付清后，发票仍挂着 1 卢比欠款被判"逾期"——**看板上 117 张逾期里约一半是这种幽灵欠款**（订正后快照试算降到 60 张）。财务一直在手动绕：有人给 `1240` 专门补登了一笔 1 卢比收款，另有 4 张照着错误合计（如 1.450.001）登记了收款。
+
+**决策**（用户确认）：差额单列为 **Pembulatan** 行，而不是让 VAT 吸收——VAT 必须保持 DPP×12%，否则和税务发票（Faktur Pajak）对不上。
+
+**新发票**：`invoice_amounts()` 计算，3000 单随机订单对照测试证实 Subtotal/VAT 与旧算法逐位一致，合计恒等于订单含税额。
+
+**历史发票**：`tools/fix_invoice_rounding.php`（默认预演，`--apply` 执行，单事务，幂等，逐张写审计日志）。**只订正"用现行算法重算 Subtotal 和 VAT 与库里完全一致"的发票**——这证明除了尾差以外什么都没变；孤儿发票、被改过的、差额 >5 卢比的一律跳过并列出。`ensureSchema()` 只加 `rounding` 列（默认 0），**不会在页面加载时静默改写财务数据**。订正后自动刷新收款状态。
+
+```bash
+cd /www/wwwroot/www.alupanel.cc && /www/server/php/82/bin/php tools/backup_db.php
+/www/server/php/82/bin/php tools/fix_invoice_rounding.php            # 预演
+/www/server/php/82/bin/php tools/fix_invoice_rounding.php --apply
+chown -R www:www data && chmod -R u=rwX,go=rX data
+```
+
+**订正后遗留 5 张，需财务手动处理**（收款流水是只追加的现金记录，工具不改）：`174`（Rose Aluminium，收款 939.999 → 订正后欠 1 卢比，需补登或冲销重登）；`255` / `1163` / `1218` / `1240` 各多收 1 卢比，显示已收清，可用冲销功能清掉多出的 1 卢比（`1240` 那笔单独的 Rp 1 收款直接冲销即可）。
 
 ## 6m. 数据看板改版：日 / 周 / 月（2026-10-12）
 
@@ -377,7 +397,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-users(+must_change_password), customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
+users(+must_change_password), customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
 
 ## 10. 提交历史（main）
 
@@ -424,12 +444,12 @@ d62d1eb Invoice header: use company name instead of logo image
 
 发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。（~~真实 logo.png 上传~~ 已完成，见 6 打印一节）
 
-**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **自动化测试**(`tools/run_tests.php`，400 项)。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **自动化测试**(`tools/run_tests.php`，433 项)。
 
 **待办（按优先级）**：
 1. **关闭 SSH 密码认证 + 装 fail2ban** —— 操作步骤见 6f，是当前最高的实际风险（7,700 次爆破/天）
 2. ~~**审计日志**~~ —— **已完成**（见 6g）
-3. **金额改整数分 / 修发票合计舍入** —— 现用 REAL 存。**线上已实际发生**：3 张发票(1027/1037/1043 - AMI - INV - 08 - 26)的合计比订单含税额少 1 卢比，客户按整数付款后被判定"超额收款"。根因是 `fulfill_order()` 里逐行 `round()` 后 `total = subtotal + ppn` 与原始含税额不完全相等(代码注释写的就是 `≈ original`)。修法：税额改为 `total - subtotal` 反推，让合计严格等于订单含税金额；历史 3 张可一并订正。涉及数据迁移，越晚成本越高
+3. ~~**修发票合计舍入**~~ —— **已完成**（见 6n，Pembulatan）。**金额改整数分**仍未做（REAL 存储本身目前未造成误差，优先级降低）。原记录：现用 REAL 存。**线上已实际发生**：3 张发票(1027/1037/1043 - AMI - INV - 08 - 26)的合计比订单含税额少 1 卢比，客户按整数付款后被判定"超额收款"。根因是 `fulfill_order()` 里逐行 `round()` 后 `total = subtotal + ppn` 与原始含税额不完全相等(代码注释写的就是 `≈ original`)。修法：税额改为 `total - subtotal` 反推，让合计严格等于订单含税金额；历史 3 张可一并订正。涉及数据迁移，越晚成本越高
 4. **列表分页** —— 订单/发票持续增长，目前全量渲染
 5. ~~**WhatsApp 审批通知**~~ —— **已完成**（见 6i）。**待补**：发票逾期每日提醒、客户 N 天未跟进提醒（都靠 cron，队列已就绪）
 6. 宝塔面板 8888 收口、停用闲置 MySQL/FTP（见 6f）

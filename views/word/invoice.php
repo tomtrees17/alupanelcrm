@@ -6,6 +6,7 @@
 $subtotal = (float) $invoice['subtotal'];
 $dpp = round($subtotal * 11 / 12);
 $vat = (float) $invoice['ppn'];
+$rounding = (float) ($invoice['rounding'] ?? 0);
 $total = (float) $invoice['total'];
 $fdate = fn($d) => $d ? date('j/M/y', strtotime($d)) : '';
 $rp = fn($n) => 'Rp' . num($n);
@@ -73,6 +74,9 @@ $rp = fn($n) => 'Rp' . num($n);
             <tr><td style="padding:2pt">Subtotal</td><td style="padding:2pt;text-align:right"><?= $rp($subtotal) ?></td></tr>
             <tr><td style="padding:2pt">DPP</td><td style="padding:2pt;text-align:right"><?= $rp($dpp) ?></td></tr>
             <tr><td style="padding:2pt">VAT 12%</td><td style="padding:2pt;text-align:right"><?= $rp($vat) ?></td></tr>
+            <?php if (abs($rounding) >= 0.005): ?>
+                <tr><td style="padding:2pt">Pembulatan</td><td style="padding:2pt;text-align:right"><?= rp_signed($rounding) ?></td></tr>
+            <?php endif; ?>
             <tr><td style="padding:2pt;border-top:1px solid #000"><b>Total Amount</b></td><td style="padding:2pt;text-align:right;border-top:1px solid #000"><b><?= $rp($total) ?></b></td></tr>
         </table>
     </td>

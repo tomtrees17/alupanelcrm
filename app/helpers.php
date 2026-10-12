@@ -60,6 +60,12 @@ function num($amount, int $dec = 0): string
     return number_format((float) $amount, $dec, ',', '.');
 }
 
+/** "Rp1.234" / "-Rp1" — the rounding line can be negative. */
+function rp_signed(float $v): string
+{
+    return ($v < 0 ? '-' : '') . 'Rp' . num(abs($v));
+}
+
 /** Compact Rupiah for tight UI: Rp 28,0 jt / Rp 1,2 M */
 function idr_short($amount): string
 {

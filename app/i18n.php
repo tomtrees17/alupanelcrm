@@ -192,6 +192,7 @@ const I18N = [
         'ai_limit_hit' => '今天的查询次数已用完（每人每天 %d 次），明天再试或找管理员调整。',
         'ai_failed' => '查询失败，请稍后再试；如持续失败请联系管理员。',
         'ai_stub_mode' => '离线匹配模式',
+        'inv_rounding' => '尾差调整 (Pembulatan)',
         // invoice void (发票作废)
         'void_invoice' => '作废发票', 'void_btn' => '作废', 'void_tag' => '已作废',
         'void_confirm' => '确认作废', 'void_reason' => '作废原因', 'void_reason_ph' => '如：开错客户 / 金额有误 / 重复开票',
@@ -436,6 +437,7 @@ const I18N = [
         'ai_limit_hit' => 'Kuota pertanyaan hari ini habis (%d per orang per hari). Coba besok atau hubungi admin.',
         'ai_failed' => 'Pencarian gagal, coba lagi nanti. Hubungi admin jika terus gagal.',
         'ai_stub_mode' => 'Mode pencocokan offline',
+        'inv_rounding' => 'Pembulatan',
         // invoice void
         'void_invoice' => 'Batalkan Faktur', 'void_btn' => 'Batalkan', 'void_tag' => 'Dibatalkan',
         'void_confirm' => 'Konfirmasi Pembatalan', 'void_reason' => 'Alasan Pembatalan', 'void_reason_ph' => 'mis. salah klien / salah jumlah / dobel faktur',

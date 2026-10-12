@@ -507,33 +507,28 @@ function fulfill_order(PDO $pdo, array $order, string $name, string $note, strin
             $order['delivery_address'], $order['delivery_service'], $today, $name, $order['note'],
         ]);
 
-        // 3) Invoice — order prices are TAX-INCLUSIVE, so back the tax out.
-        //    pre-tax = inclusive / (1 + rate); Subtotal + VAT = inclusive total.
-        $ppnRate = (float) ($GLOBALS['config']['ppn_rate'] ?? 11);
-        $div = 1 + $ppnRate / 100;            // 1.11
-
-        $itemsSum = 0.0;
+        // 3) Invoice — order prices are TAX-INCLUSIVE; see invoice_amounts() for
+        //    how the tax is backed out and why the total carries a Pembulatan.
+        $amt = invoice_amounts($rows, (float) $order['shipping_cost'], (float) ($GLOBALS['config']['ppn_rate'] ?? 11));
         $lines = [];
-        foreach ($rows as $it) {
-            $pretaxUnit = round((float) $it['price'] / $div, 2);   // shown on invoice line
-            $lineAmt = round((float) $it['qty'] * $pretaxUnit);
-            $itemsSum += $lineAmt;
-            $lines[] = [$it, $pretaxUnit];
+        foreach ($rows as $k => $it) {
+            $lines[] = [$it, $amt['units'][$k]];
         }
-        $pretaxShip = round((float) $order['shipping_cost'] / $div, 2);
-        $subtotal = $itemsSum + round($pretaxShip);
-        $ppn = round($subtotal * $ppnRate / 100);
-        $total = $subtotal + $ppn;            // ≈ original tax-inclusive order amount
+        $pretaxShip = $amt['pretax_ship'];
+        $subtotal = $amt['subtotal'];
+        $ppn = $amt['ppn'];
+        $rounding = $amt['rounding'];
+        $total = $amt['total'];               // = the order's tax-inclusive amount, exactly
         $days = $order['payment_term'] === 'custom' ? (int) $order['custom_days'] : 0;
         $due = date('Y-m-d', strtotime($today . " +{$days} days"));
         $invNo = next_invoice_no($pdo);
 
         $pdo->prepare(
-            'INSERT INTO invoices (invoice_no,order_id,do_number,customer,bill_to_name,address,currency,shipping_cost,subtotal,ppn,total,invoice_date,due_date,issued_by,payment_term,custom_days,payment_status)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+            'INSERT INTO invoices (invoice_no,order_id,do_number,customer,bill_to_name,address,currency,shipping_cost,subtotal,ppn,rounding,total,invoice_date,due_date,issued_by,payment_term,custom_days,payment_status)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
         )->execute([
             $invNo, $order['id'], $doNo, $order['company'] ?: $order['customer_name'], $order['customer_name'],
-            $order['address'], 'IDR', $pretaxShip, $subtotal, $ppn, $total, $today, $due,
+            $order['address'], 'IDR', $pretaxShip, $subtotal, $ppn, $rounding, $total, $today, $due,
             $name, $order['payment_term'], $order['custom_days'], 'pending',
         ]);
         $invId = (int) $pdo->lastInsertId();

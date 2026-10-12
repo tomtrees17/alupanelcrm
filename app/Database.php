@@ -202,6 +202,12 @@ final class Database
                 $pdo->exec("ALTER TABLE invoices ADD COLUMN {$col} TEXT");
             }
         }
+        // invoices.rounding (Pembulatan). Existing invoices stay 0 until
+        // tools/fix_invoice_rounding.php corrects them — financial records are
+        // not rewritten silently on a page load.
+        if (!in_array('rounding', $ivcols, true)) {
+            $pdo->exec('ALTER TABLE invoices ADD COLUMN rounding REAL NOT NULL DEFAULT 0');
+        }
 
         // ai_queries (AI 库存查询用量与限流, added later).
         $pdo->exec(

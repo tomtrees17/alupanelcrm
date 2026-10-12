@@ -67,6 +67,9 @@ $voidBlock = $voidBlock ?? null;
                 <tr><td colspan="4" class="right"><?= t('th_subtotal') ?></td><td class="right"><?= idr($invoice['subtotal']) ?></td></tr>
                 <tr><td colspan="4" class="right">DPP</td><td class="right"><?= idr(round($invoice['subtotal'] * 11 / 12)) ?></td></tr>
                 <tr><td colspan="4" class="right">VAT 12%</td><td class="right"><?= idr($invoice['ppn']) ?></td></tr>
+                <?php if (abs((float) ($invoice['rounding'] ?? 0)) >= 0.005): ?>
+                    <tr><td colspan="4" class="right"><?= t('inv_rounding') ?></td><td class="right"><?= ((float) $invoice['rounding'] < 0 ? '-' : '') . idr(abs((float) $invoice['rounding'])) ?></td></tr>
+                <?php endif; ?>
                 <tr class="total-row"><td colspan="4" class="right"><?= t('total') ?></td><td class="right"><?= idr($invoice['total']) ?></td></tr>
                 <tr><td colspan="4" class="right"><?= t('th_paid') ?></td><td class="right"><?= idr($invoice['amount_paid']) ?></td></tr>
                 <tr><td colspan="4" class="right" style="color:var(--danger)"><?= t('th_unpaid') ?></td><td class="right" style="color:var(--danger)"><?= idr($remaining) ?></td></tr>

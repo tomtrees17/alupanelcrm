@@ -549,6 +549,90 @@ function payment_reversal_block(PDO $pdo, array $payment): ?string
     return null;
 }
 
+/**
+ * Invoice figures from tax-inclusive order lines.
+ *
+ * Order prices include 11% PPN. Each line's pre-tax unit price is backed out
+ * and rounded to 2 decimals (that is what the invoice prints), line amounts
+ * are rounded to whole rupiah, and VAT = Subtotal x 11% — the figures checked
+ * against the company's real invoice template. Those roundings mean
+ * Subtotal + VAT can land 1–3 rupiah away from what the customer actually
+ * owes (the order's inclusive total), so the gap is shown explicitly as
+ * Pembulatan instead of being hidden inside Subtotal or VAT, neither of which
+ * may move without breaking DPP x 12%.
+ *
+ * @param array $items rows with 'qty' and tax-inclusive 'price'
+ * @return array{units: array, pretax_ship: float, subtotal: float, ppn: float, rounding: float, total: float}
+ */
+function invoice_amounts(array $items, float $shipping, float $ppnRate): array
+{
+    $div = 1 + $ppnRate / 100;
+    $units = [];
+    $itemsSum = 0.0;
+    $inclusive = $shipping;
+    foreach ($items as $k => $it) {
+        $unit = round((float) $it['price'] / $div, 2);
+        $units[$k] = $unit;
+        $itemsSum += round((float) $it['qty'] * $unit);
+        $inclusive += (float) $it['qty'] * (float) $it['price'];
+    }
+    $pretaxShip = round($shipping / $div, 2);
+    $subtotal = $itemsSum + round($pretaxShip);
+    $ppn = round($subtotal * $ppnRate / 100);
+    $total = round($inclusive);   // exactly what the customer was quoted
+
+    return [
+        'units'       => $units,
+        'pretax_ship' => $pretaxShip,
+        'subtotal'    => $subtotal,
+        'ppn'         => $ppn,
+        'rounding'    => $total - $subtotal - $ppn,
+        'total'       => $total,
+    ];
+}
+
+/**
+ * What tools/fix_invoice_rounding.php would do to one existing invoice.
+ *
+ * Returns ['action' => 'ok'|'fix'|'skip', 'rounding' => .., 'total' => .., 'reason' => ..].
+ * An invoice is only corrected when recomputing it from its order reproduces
+ * the stored Subtotal and VAT exactly — proof that nothing but the final
+ * rounding differs. Anything else (no order, edited figures, a gap too large to
+ * be rounding) is reported and left alone.
+ */
+function invoice_rounding_plan(PDO $pdo, array $invoice, float $ppnRate): array
+{
+    $skip = fn(string $why) => ['action' => 'skip', 'rounding' => 0.0, 'total' => (float) $invoice['total'], 'reason' => $why];
+
+    if (empty($invoice['order_id'])) {
+        return $skip('no linked order');
+    }
+    $o = $pdo->prepare('SELECT shipping_cost FROM orders WHERE id = ?');
+    $o->execute([(int) $invoice['order_id']]);
+    $ship = $o->fetchColumn();
+    if ($ship === false) {
+        return $skip('order no longer exists');
+    }
+    $it = $pdo->prepare('SELECT qty, price FROM order_items WHERE order_id = ? ORDER BY id');
+    $it->execute([(int) $invoice['order_id']]);
+    $items = $it->fetchAll();
+    if (!$items) {
+        return $skip('order has no lines');
+    }
+
+    $amt = invoice_amounts($items, (float) $ship, $ppnRate);
+    if (abs($amt['subtotal'] - (float) $invoice['subtotal']) > 0.005 || abs($amt['ppn'] - (float) $invoice['ppn']) > 0.005) {
+        return $skip('stored subtotal/VAT differ from the order — edited?');
+    }
+    if (abs($amt['rounding']) > 5) {
+        return $skip('gap of ' . $amt['rounding'] . ' is too large to be rounding');
+    }
+    $already = abs((float) $invoice['total'] - $amt['total']) < 0.005
+        && abs((float) ($invoice['rounding'] ?? 0) - $amt['rounding']) < 0.005;
+
+    return ['action' => $already ? 'ok' : 'fix', 'rounding' => $amt['rounding'], 'total' => $amt['total'], 'reason' => ''];
+}
+
 /** Recompute an invoice's payment_status from amount_paid / due_date. */
 function refresh_invoice_status(PDO $pdo, int $invoiceId, string $today): void
 {
