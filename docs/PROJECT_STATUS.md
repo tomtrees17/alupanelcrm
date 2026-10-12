@@ -146,7 +146,10 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 - **异地备份（2026-10-13）**：`backup_db.php` 每次备份成功后把 zip 上传到**阿里云 OSS 存储桶 `alupanel-backup-crm`（雅加达 `ap-southeast-5`，和服务器同地域；地域建桶后不可改）**。同地域的取舍：防的是服务器被删/被黑/磁盘损坏，不防整个雅加达地域故障——OSS 本身多副本存储，这个风险可接受。桶名和地域写在 `config.php`（不是机密）。零依赖实现：`app/Oss.php`（PutObject + 签名 V4，规范请求和最终签名步骤用阿里云文档的示例做了测试锁定）。
   - **密钥**：放服务器上的 `config.local.php`（git 忽略），只需 `driver` / `key_id` / `key_secret` 三项，格式见 `config.local.example.php`。用的是 **RAM 子账号、权限仅 `oss:PutObject`**——服务器即使被攻破，攻击者也只能往桶里加文件，列不出、读不到、删不掉已上传的备份。存储桶开**版本控制**（同名覆盖也不丢旧版本）、私有读写、服务端加密，**备份永久保留不过期**（每天几 MB，成本可忽略）；生命周期规则只清理**历史版本 30 天**后删除。
   - **RAM 策略** `alupanel-backup-putonly`，授权给 RAM 用户 `alupanel-backup`：`Action: oss:PutObject`，`Resource: acs:oss:*:*:alupanel-backup-crm/alupanel/*`（只能写 `alupanel/` 前缀）。
-  - **验证配置**：`php tools/backup_db.php --test-offsite`（只上传一个小探针文件，不做备份）。
+  - **已启用（2026-10-13 00:28）**：探针上传成功；首个完整备份 `alupanel/backup_2026-10-13_002817.zip` 已入桶；另验证了往 `alupanel/` 以外的路径写入返回 **403 AccessDenied**——权限确实只限这一个前缀。此后每天 03:30 的备份计划任务自动上传，无需改计划任务。
+  - **验证配置**：`/www/server/php/82/bin/php tools/backup_db.php --test-offsite`（只上传一个小探针文件，不做备份）。
+  - **坑**：在宝塔编辑器里粘贴密钥时会带进一个换行符（ID 变 25 位、Secret 变 31 位），签名必然失败。`Oss::put_file()` 现在会 trim 凭据；排查时可只看长度不看内容：ID 应为 24 位 `LTAI` 开头、Secret 30 位。
+  - **轮换密钥**：RAM → 用户 `alupanel-backup` → 认证管理 → 新建 AccessKey → 改服务器 `config.local.php` → 跑 `--test-offsite` → 禁用旧 key。
   - **失败可见**：上传结果写入 `app_meta`（`offsite_last_ok` / `offsite_last_error`），**管理员打开看板时**，若未配置、从未成功、最近一次失败或超过 48 小时没成功，顶部显示红色提醒（`Dashboard::offsite_health()`）。上传失败时备份脚本退出码 2，但本地备份照常保留。
   - **恢复**：OSS 控制台 → 存储桶 → `alupanel/` 下载对应日期的 zip → 解压出 `crm.sqlite` 和 `uploads/` → 按上面的恢复步骤覆盖。
 
@@ -408,9 +411,28 @@ users(+must_change_password), customers, deals, tasks, products(+reserved), stoc
 
 ## 10. 提交历史（main）
 
-最近 30 条（共 64 条，完整历史用 `git log --oneline`）：
+最近 30 条（共 84 条，含本条文档提交；完整历史用 `git log --oneline`）：
 
 ```
+73ac833 Offsite: default to the Jakarta bucket alupanel-backup-crm
+d849274 Offsite backups to Alibaba Cloud OSS
+48f9c65 Docs: SSH is key-only now; record keys, rollback and next priorities
+a9a9f28 Invoice totals equal the quoted amount, with the gap shown as Pembulatan
+8248bef Dashboard: tighter desktop layout
+facccd6 Dashboard: day / week / month view of sales and collections
+0ff2df1 Invoice screen: show the unit price with its decimals
+ad4c845 Finance: say why an invoice cannot be voided instead of erroring on click
+3f1a3c6 Finance: void an invoice instead of deleting it
+bf58e5e Cleanup tool: scope by date and recover stock stranded by deleted orders
+00cadd1 Clean up test data without stranding invoices
+630de17 Natural-language stock lookup for sales on their phones
+320969e WhatsApp notifications for the approval chain
+f307130 Translate the 55 operation messages staff see every day
+5f556b3 Finance: reverse a mis-registered payment instead of leaving it stuck
+116840d Deploy chmod no longer flips the exec bit on tracked files in data/
+6aedf8a Test the audit viewer template: rendering, pagination, escaping, i18n
+c6d14db Add append-only audit log across every write operation
+6b37ae1 Docs: record private-repo SSH deploy, server security audit; track print logo
 af4bc9f Docs: server pulls over SSH remote now that the repo is private
 0a90600 Docs: real SSH endpoint and macOS local path in CLAUDE.md / PROJECT_STATUS
 1a39556 Add CLAUDE.md with stack, layout, deploy flow and code conventions
@@ -422,25 +444,6 @@ b239ab6 Invoice signature block: title only (no company name, no signer name)
 7e3cb15 Approvals: HR review stage for trip / expense / leave requests
 168488d Approvals: file attachments (images/PDF) on requests
 c031a63 Approvals: add payment-request type (PY-) with linked-document reference
-ca77ca1 Add editable Word export for invoices & delivery orders (finance/warehouse)
-bee5277 Strip Chinese from printed invoice & delivery order
-ec04fe7 Order form picker: drop size from the product label
-35d888d Order form: show full product designation in picker (bilingual name + size), searchable in Chinese
-297b2d3 Mobile: make order-form product picker readable (wrap items, wider dropdown)
-53683f4 Drop ALUSIGNPANEL logo image; sidebar uses the AluPanelCRM text mark
-53ac76f Match logo colors to brand image: red A, blue LUSIGNPANE, black L
-46397bf Add responsive mobile layout + installable PWA
-9df2a80 Add rotated SQLite backup tool (tools/backup_db.php)
-2436a4f Fix invoice overdue detection to use the real date
-d28a7e1 Approvals: forbid self-approval (separation of duties)
-d608637 Customers: add city/owner filters and potential-value sorting
-84ec3c5 Dashboard sales trend: split into 已成交 (approved orders) & 已回款 (payments)
-da101dc Dashboard: add monthly & weekly sales trend charts
-3c97311 Clarify on the permissions page that inventory edits are admin/warehouse only
-f971e9d Add administrative approvals module (business trip / expense / leave)
-8aad2c8 Delivery order: drop logo, keep company name in letterhead
-d62d1eb Invoice header: use company name instead of logo image
-8bca646 Show ALUSIGNPANEL logo in sidebar + fix logo.svg color split
 ```
 
 ## 11. 用户偏好
@@ -451,17 +454,17 @@ d62d1eb Invoice header: use company name instead of logo image
 
 发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。（~~真实 logo.png 上传~~ 已完成，见 6 打印一节）
 
-**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **自动化测试**(`tools/run_tests.php`，462 项)。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **备份异地同步到 OSS**(见 6e) / **自动化测试**(`tools/run_tests.php`，463 项)。
 
 **待办（按优先级）**：
-1. ~~**关闭 SSH 密码认证**~~ —— **已完成**（2026-10-12，见 6f）。~~**备份异地同步**~~ —— **代码已完成**（2026-10-13，见 6e），待用户在阿里云建桶、建 RAM 子账号并在服务器写 `config.local.php`；**系统安全补丁**（登录提示 72 个安全更新，26 个 Important，挑空闲时段 `dnf upgrade-minimal --security`）
+1. ~~**关闭 SSH 密码认证**~~ —— **已完成**（2026-10-12，见 6f）。~~**备份异地同步**~~ —— **已完成并启用**（2026-10-13，阿里云 OSS，见 6e）；**系统安全补丁**（登录提示 72 个安全更新，26 个 Important，挑空闲时段 `dnf upgrade-minimal --security`）
 1b. **订单/客户按姓名而非账号关联** —— 85/407 个订单的 `submitter` 对不上任何账号（如账号 `erfandi` 有 29 张发票录成 `erpandi`，他登录后看不到）；改用户姓名会让该销售的订单和客户从视图中消失。修法：下单改为账号下拉选择 + 名字变体合并工具
 2. ~~**审计日志**~~ —— **已完成**（见 6g）
 3. ~~**修发票合计舍入**~~ —— **已完成**（见 6n，Pembulatan）。**金额改整数分**仍未做（REAL 存储本身目前未造成误差，优先级降低）。原记录：现用 REAL 存。**线上已实际发生**：3 张发票(1027/1037/1043 - AMI - INV - 08 - 26)的合计比订单含税额少 1 卢比，客户按整数付款后被判定"超额收款"。根因是 `fulfill_order()` 里逐行 `round()` 后 `total = subtotal + ppn` 与原始含税额不完全相等(代码注释写的就是 `≈ original`)。修法：税额改为 `total - subtotal` 反推，让合计严格等于订单含税金额；历史 3 张可一并订正。涉及数据迁移，越晚成本越高
 4. **列表分页** —— 订单/发票持续增长，目前全量渲染
 5. ~~**WhatsApp 审批通知**~~ —— **已完成**（见 6i）。**待补**：发票逾期每日提醒、客户 N 天未跟进提醒（都靠 cron，队列已就绪）
 6. 宝塔面板 8888 收口、停用闲置 MySQL/FTP（见 6f）
-7. 备份异地同步、扩充测试覆盖（~~看板日期范围~~ 已完成，见 6m）（目前只覆盖审计日志与迁移路径）
+7. ~~备份异地同步~~（已完成，见 6e）、扩充测试覆盖（~~看板日期范围~~ 已完成，见 6m）（目前只覆盖审计日志与迁移路径）
 8. GitHub 密钥收紧：服务器用的是账号级 SSH key（可访问所有仓库），可改为本仓库 read-only deploy key（见 6f）
 
 **响应式 + PWA**：`app.css` 末尾 `@media (max-width:768px)` 把侧边栏变滑出抽屉(`layout.php` 顶栏加 `☰` `#navToggle` + `#navBackdrop` + 底部切换脚本;`.nav-toggle`/`.sidebar-backdrop` 默认隐藏),栅格(stats/grid-2/detail/form-row)、搜索栏、页头在窄屏自适应堆叠。PWA:`public/manifest.json`(display=standalone,theme #00a884)+ `public/assets/img/app-icon.svg`(青底白 A)+ `layout.php`/`login.php` head 里的 manifest/theme-color/apple-touch-icon,可「添加到主屏幕」。**未做 service worker**(避免缓存旧页;CRM 本就依赖服务器)。iOS 主屏图标想更精细可加 180×180 png 覆盖。

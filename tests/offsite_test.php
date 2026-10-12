@@ -62,6 +62,8 @@ ok('object keys are URI-encoded per segment', Oss::encode_key('/备份 a+b/x.zip
 ok('missing credentials are reported, not attempted', $okUp === false && str_contains($msg, 'key_id'));
 [$okUp, $msg] = Oss::put_file(['bucket' => 'b', 'region' => 'r', 'key_id' => 'k', 'key_secret' => 's'], 'x', '/no/such/file');
 ok('a missing file is reported', $okUp === false && str_contains($msg, 'not found'));
+[$okUp, $msg] = Oss::put_file(['bucket' => 'b', 'region' => 'r', 'key_id' => "\n ", 'key_secret' => 's'], 'x', __FILE__);
+ok('whitespace-only credentials count as missing', $okUp === false && str_contains($msg, 'key_id'));
 
 // 5) The tracked config file must never carry credentials: it is in git, and
 //    the server's nightly `git reset --hard` would wipe anything edited there.

@@ -20,8 +20,13 @@ final class Oss
     /** Upload a local file. @return array{0:bool,1:string} [ok, message] */
     public static function put_file(array $cfg, string $object, string $path, string $contentType = 'application/zip'): array
     {
+        // Keys pasted into the server's config file tend to carry a trailing
+        // newline; a single stray byte would break every signature.
         foreach (['bucket', 'region', 'key_id', 'key_secret'] as $k) {
-            if (trim((string) ($cfg[$k] ?? '')) === '') {
+            $cfg[$k] = trim((string) ($cfg[$k] ?? ''));
+        }
+        foreach (['bucket', 'region', 'key_id', 'key_secret'] as $k) {
+            if ($cfg[$k] === '') {
                 return [false, "offsite.{$k} is not configured"];
             }
         }
