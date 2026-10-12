@@ -1,7 +1,7 @@
 <?php
 /** @var array $customers */ /** @var string $q */ /** @var string $tag */
 /** @var string $city */ /** @var string $owner */ /** @var string $sort */
-/** @var array $cities */ /** @var array $owners */
+/** @var array $cities */ /** @var array $owners */ /** @var array $pg */
 $curFilters = array_filter(['q' => $q, 'tag' => $tag, 'city' => $city, 'owner' => $owner], fn($v) => $v !== '');
 $valueSortHref = url('customers.index', array_merge($curFilters, ['sort' => $sort === 'value_desc' ? 'value_asc' : 'value_desc']));
 $valueArrow = $sort === 'value_desc' ? '↓' : ($sort === 'value_asc' ? '↑' : '⇅');
@@ -63,3 +63,4 @@ $valueArrow = $sort === 'value_desc' ? '↓' : ($sort === 'value_asc' ? '↑' : 
         </table>
     </div>
 </div>
+<?= pager('customers.index', $curFilters + ['sort' => $sort], $pg) ?>

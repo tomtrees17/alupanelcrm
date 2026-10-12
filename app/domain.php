@@ -660,3 +660,22 @@ function refresh_invoice_status(PDO $pdo, int $invoiceId, string $today): void
     }
     $pdo->prepare('UPDATE invoices SET payment_status = ? WHERE id = ?')->execute([$status, $invoiceId]);
 }
+
+/**
+ * refresh_invoice_status() for every invoice in one statement. The list page
+ * used to loop it over all invoices — a SELECT plus an UPDATE (i.e. a write
+ * transaction) per invoice on every page view. Same rules, same order; only
+ * rows whose status actually changes are written, so usually none are.
+ */
+function refresh_invoice_statuses(PDO $pdo, string $today): int
+{
+    $status = "CASE
+        WHEN COALESCE(amount_paid,0) >= COALESCE(total,0) AND COALESCE(total,0) > 0 THEN 'paid'
+        WHEN COALESCE(due_date,'') NOT IN ('', '0') AND due_date < :today THEN 'overdue'
+        WHEN COALESCE(amount_paid,0) > 0 THEN 'partial'
+        ELSE 'pending' END";
+    $st = $pdo->prepare("UPDATE invoices SET payment_status = {$status}
+        WHERE voided_at IS NULL AND payment_status IS NOT ({$status})");
+    $st->execute([':today' => $today]);
+    return $st->rowCount();
+}

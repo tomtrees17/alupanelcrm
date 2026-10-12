@@ -10,21 +10,26 @@ $today = date('Y-m-d');
 switch ($action) {
     case 'index':
         // Refresh overdue flags on the fly
-        foreach ($pdo->query('SELECT id FROM invoices') as $r) {
-            refresh_invoice_status($pdo, (int) $r['id'], $today);
-        }
+        refresh_invoice_statuses($pdo, $today);
 
         $statusFilter = (string) input('status', 'all');
-        $sql = 'SELECT * FROM invoices';
+        $q = trim((string) input('q', ''));
+        $cond = [];
         $args = [];
         if ($statusFilter === 'void') {
-            $sql .= ' WHERE voided_at IS NOT NULL';
+            $cond[] = 'voided_at IS NOT NULL';
         } elseif ($statusFilter !== 'all' && $statusFilter !== '') {
-            $sql .= ' WHERE payment_status = ? AND voided_at IS NULL';
+            $cond[] = 'payment_status = ? AND voided_at IS NULL';
             $args[] = $statusFilter;
         }
-        $sql .= ' ORDER BY invoice_date DESC';
-        $stmt = $pdo->prepare($sql);
+        if ($q !== '') {
+            $cond[] = '(invoice_no LIKE ? OR customer LIKE ? OR bill_to_name LIKE ?)';
+            array_push($args, "%$q%", "%$q%", "%$q%");
+        }
+        $where = $cond ? ' WHERE ' . implode(' AND ', $cond) : '';
+        $pg = paginate($pdo, 'SELECT COUNT(*) FROM invoices' . $where, $args);
+        // id breaks ties so a page boundary never splits one day's invoices unpredictably.
+        $stmt = $pdo->prepare('SELECT * FROM invoices' . $where . ' ORDER BY invoice_date DESC, id DESC' . $pg['limit']);
         $stmt->execute($args);
 
         // Voided invoices are not receivables and must not inflate any total.
@@ -36,6 +41,7 @@ switch ($action) {
         ];
         view('finance.index', [
             'invoices' => $stmt->fetchAll(), 'stats' => $stats, 'statusFilter' => $statusFilter,
+            'q' => $q, 'pg' => $pg,
         ]);
         break;
 
@@ -45,9 +51,7 @@ switch ($action) {
             flash(t('msg_no_export'), 'error');
             redirect('finance.index');
         }
-        foreach ($pdo->query('SELECT id FROM invoices') as $r) {
-            refresh_invoice_status($pdo, (int) $r['id'], $today);
-        }
+        refresh_invoice_statuses($pdo, $today);
         $rows = [];
         $sql = 'SELECT iv.*, (SELECT order_no FROM orders WHERE id = iv.order_id) AS order_no FROM invoices iv ORDER BY iv.invoice_date DESC';
         foreach ($pdo->query($sql) as $iv) {

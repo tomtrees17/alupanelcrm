@@ -1,4 +1,4 @@
-<?php /** @var array $invoices */ /** @var array $stats */ /** @var string $statusFilter */ ?>
+<?php /** @var array $invoices */ /** @var array $stats */ /** @var string $statusFilter */ /** @var string $q */ /** @var array $pg */ ?>
 <div class="page-head">
     <h1><?= t('page_finance') ?></h1>
     <?php if (can_export()): ?><a class="btn btn-ghost" href="<?= url('finance.export') ?>"><?= t('btn_export') ?></a><?php endif; ?>
@@ -10,6 +10,14 @@
     <div class="stat-card c4"><div class="stat-label"><?= t('fin_overdue') ?></div><div class="stat-value" style="color:var(--danger)"><?= idr_short($stats['overdue']) ?></div></div>
 </div>
 
+<form class="searchbar" method="get" action="index.php">
+    <input type="hidden" name="r" value="finance.index">
+    <input type="hidden" name="status" value="<?= e($statusFilter) ?>">
+    <input class="form-input" type="search" name="q" value="<?= e($q) ?>" placeholder="<?= t('search_invoices') ?>">
+    <button class="btn btn-ghost" type="submit"><?= t('btn_search') ?></button>
+    <?php if ($q !== ''): ?><a class="btn btn-ghost" href="<?= url('finance.index', ['status' => $statusFilter]) ?>"><?= t('btn_clear') ?></a><?php endif; ?>
+</form>
+
 <div class="task-filters">
     <?php
     $tabs = ['all' => t('filter_all'), 'paid' => t('inv_paid'), 'partial' => t('inv_partial'),
@@ -19,7 +27,7 @@
     }
     ?>
     <?php foreach ($tabs as $k => $lbl): ?>
-        <a class="filter-btn <?= $statusFilter === $k ? 'active' : '' ?>" href="<?= url('finance.index', ['status' => $k]) ?>"><?= $lbl ?></a>
+        <a class="filter-btn <?= $statusFilter === $k ? 'active' : '' ?>" href="<?= url('finance.index', array_filter(['status' => $k, 'q' => $q])) ?>"><?= $lbl ?></a>
     <?php endforeach; ?>
 </div>
 
@@ -41,3 +49,4 @@
     <?php endforeach; ?>
     </tbody>
 </table></div></div>
+<?= pager('finance.index', ['status' => $statusFilter, 'q' => $q], $pg) ?>

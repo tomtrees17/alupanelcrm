@@ -168,12 +168,13 @@ ok('the stamp itself carries no Chinese', preg_match('/[一-鿿]/u', 'VOID / BAT
 // List page
 $listFile = __DIR__ . '/../views/finance/index.php';
 $stats = ['received' => 0, 'pending' => 0, 'overdue' => 0, 'void' => 1];
-$htmlList = $render($listFile, ['invoices' => [$live, $dead], 'stats' => $stats, 'statusFilter' => 'all']);
+$onePage = ['page' => 1, 'pages' => 1, 'total' => 2, 'offset' => 0, 'limit' => ''];
+$htmlList = $render($listFile, ['invoices' => [$live, $dead], 'stats' => $stats, 'statusFilter' => 'all', 'q' => '', 'pg' => $onePage]);
 ok('voided row is struck through in the list', str_contains($htmlList, 'row-void'));
 ok('voided row shows the void tag', substr_count($htmlList, t('void_tag')) >= 1);
 ok('void filter tab appears when there are voided invoices', str_contains($htmlList, "status=void"));
 ok('no void tab when there are none',
-    !str_contains($render($listFile, ['invoices' => [$live], 'stats' => ['received' => 0, 'pending' => 0, 'overdue' => 0, 'void' => 0], 'statusFilter' => 'all']), 'status=void'));
+    !str_contains($render($listFile, ['invoices' => [$live], 'stats' => ['received' => 0, 'pending' => 0, 'overdue' => 0, 'void' => 0], 'statusFilter' => 'all', 'q' => '', 'pg' => $onePage]), 'status=void'));
 
 // Indonesian
 $_SESSION['lang'] = 'id';

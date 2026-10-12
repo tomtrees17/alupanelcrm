@@ -29,8 +29,9 @@ switch ($action) {
             $cond[] = 'applicant = ?';
             $args[] = own_name();
         }
-        $sql = 'SELECT * FROM admin_requests' . ($cond ? ' WHERE ' . implode(' AND ', $cond) : '') . ' ORDER BY id DESC';
-        $stmt = $pdo->prepare($sql);
+        $where = $cond ? ' WHERE ' . implode(' AND ', $cond) : '';
+        $pg = paginate($pdo, 'SELECT COUNT(*) FROM admin_requests' . $where, $args);
+        $stmt = $pdo->prepare('SELECT * FROM admin_requests' . $where . ' ORDER BY id DESC' . $pg['limit']);
         $stmt->execute($args);
 
         // Status counts (respecting the same visibility scope + type filter).
@@ -53,7 +54,7 @@ switch ($action) {
 
         view('approvals.index', [
             'requests' => $stmt->fetchAll(), 'counts' => $counts,
-            'typeFilter' => $typeFilter, 'statusFilter' => $statusFilter,
+            'typeFilter' => $typeFilter, 'statusFilter' => $statusFilter, 'pg' => $pg,
         ]);
         break;
 

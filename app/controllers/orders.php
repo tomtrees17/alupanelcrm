@@ -8,22 +8,28 @@ declare(strict_types=1);
 switch ($action) {
     case 'index':
         $statusFilter = (string) input('status', '');
-        $sql = 'SELECT o.*, (SELECT COALESCE(SUM(qty*price),0) FROM order_items WHERE order_id=o.id)+o.shipping_cost AS amount FROM orders o';
+        $q = trim((string) input('q', ''));
         $cond = [];
         $args = [];
         if ($statusFilter !== '') {
             $cond[] = 'o.status = ?';
             $args[] = $statusFilter;
         }
+        if ($q !== '') {
+            $cond[] = '(o.order_no LIKE ? OR o.customer_name LIKE ? OR o.company LIKE ? OR o.submitter LIKE ? OR o.invoice_number LIKE ?)';
+            array_push($args, "%$q%", "%$q%", "%$q%", "%$q%", "%$q%");
+        }
         if (sees_only_own()) {
             $cond[] = 'o.submitter = ?';
             $args[] = own_name();
         }
-        if ($cond) {
-            $sql .= ' WHERE ' . implode(' AND ', $cond);
-        }
-        $sql .= ' ORDER BY o.id DESC';
-        $stmt = $pdo->prepare($sql);
+        $where = $cond ? ' WHERE ' . implode(' AND ', $cond) : '';
+        $pg = paginate($pdo, 'SELECT COUNT(*) FROM orders o' . $where, $args);
+        // Line totals are summed for the visible page only.
+        $stmt = $pdo->prepare(
+            'SELECT o.*, (SELECT COALESCE(SUM(qty*price),0) FROM order_items WHERE order_id=o.id)+o.shipping_cost AS amount FROM orders o'
+            . $where . ' ORDER BY o.id DESC' . $pg['limit']
+        );
         $stmt->execute($args);
 
         $counts = [];
@@ -39,6 +45,7 @@ switch ($action) {
         }
         view('orders.index', [
             'orders' => $stmt->fetchAll(), 'counts' => $counts, 'statusFilter' => $statusFilter,
+            'q' => $q, 'pg' => $pg,
         ]);
         break;
 

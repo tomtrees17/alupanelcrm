@@ -1,8 +1,15 @@
-<?php /** @var array $dos */ ?>
+<?php /** @var array $dos */ /** @var string $q */ /** @var array $pg */ ?>
 <div class="page-head">
     <h1><?= t('do_invoice') ?></h1>
     <a class="btn btn-ghost" href="<?= url('orders.index') ?>"><?= t('nav_orders') ?></a>
 </div>
+
+<form class="searchbar" method="get" action="index.php">
+    <input type="hidden" name="r" value="delivery.index">
+    <input class="form-input" type="search" name="q" value="<?= e($q) ?>" placeholder="<?= t('search_do') ?>">
+    <button class="btn btn-ghost" type="submit"><?= t('btn_search') ?></button>
+    <?php if ($q !== ''): ?><a class="btn btn-ghost" href="<?= url('delivery.index') ?>"><?= t('btn_clear') ?></a><?php endif; ?>
+</form>
 
 <div class="card"><div class="table-wrap"><table>
     <thead><tr><th>No. Surat Jalan</th><th><?= t('th_order_no') ?></th><th><?= t('th_customer') ?></th><th><?= t('th_date') ?></th><th><?= t('f_delivery_service') ?></th><th class="right"><?= t('th_action') ?></th></tr></thead>
@@ -23,3 +30,4 @@
     <?php endforeach; ?>
     </tbody>
 </table></div></div>
+<?= pager('delivery.index', ['q' => $q], $pg) ?>

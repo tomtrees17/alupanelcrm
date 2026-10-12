@@ -6,12 +6,18 @@ declare(strict_types=1);
 
 switch ($action) {
     case 'index':
-        $rows = $pdo->query(
-            'SELECT d.*, o.order_no FROM delivery_orders d
-          LEFT JOIN orders o ON o.id = d.order_id
-          ORDER BY d.id DESC'
-        )->fetchAll();
-        view('delivery.index', ['dos' => $rows]);
+        $q = trim((string) input('q', ''));
+        $where = '';
+        $args = [];
+        if ($q !== '') {
+            $where = ' WHERE (d.do_no LIKE ? OR o.order_no LIKE ? OR d.customer LIKE ? OR d.company LIKE ?)';
+            $args = ["%$q%", "%$q%", "%$q%", "%$q%"];
+        }
+        $from = ' FROM delivery_orders d LEFT JOIN orders o ON o.id = d.order_id';
+        $pg = paginate($pdo, 'SELECT COUNT(*)' . $from . $where, $args);
+        $stmt = $pdo->prepare('SELECT d.*, o.order_no' . $from . $where . ' ORDER BY d.id DESC' . $pg['limit']);
+        $stmt->execute($args);
+        view('delivery.index', ['dos' => $stmt->fetchAll(), 'q' => $q, 'pg' => $pg]);
         break;
 
     case 'print':

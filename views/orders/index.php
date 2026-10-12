@@ -1,4 +1,4 @@
-<?php /** @var array $orders */ /** @var array $counts */ /** @var string $statusFilter */ ?>
+<?php /** @var array $orders */ /** @var array $counts */ /** @var string $statusFilter */ /** @var string $q */ /** @var array $pg */ ?>
 <div class="page-head">
     <h1><?= t('page_orders') ?></h1>
     <div class="head-actions">
@@ -7,10 +7,18 @@
     </div>
 </div>
 
+<form class="searchbar" method="get" action="index.php">
+    <input type="hidden" name="r" value="orders.index">
+    <?php if ($statusFilter !== ''): ?><input type="hidden" name="status" value="<?= e($statusFilter) ?>"><?php endif; ?>
+    <input class="form-input" type="search" name="q" value="<?= e($q) ?>" placeholder="<?= t('search_orders') ?>">
+    <button class="btn btn-ghost" type="submit"><?= t('btn_search') ?></button>
+    <?php if ($q !== ''): ?><a class="btn btn-ghost" href="<?= url('orders.index', array_filter(['status' => $statusFilter])) ?>"><?= t('btn_clear') ?></a><?php endif; ?>
+</form>
+
 <div class="task-filters">
-    <a class="filter-btn <?= $statusFilter === '' ? 'active' : '' ?>" href="<?= url('orders.index') ?>"><?= t('filter_all') ?></a>
+    <a class="filter-btn <?= $statusFilter === '' ? 'active' : '' ?>" href="<?= url('orders.index', array_filter(['q' => $q])) ?>"><?= t('filter_all') ?></a>
     <?php foreach (order_statuses() as $s): ?>
-        <a class="filter-btn <?= $statusFilter === $s ? 'active' : '' ?>" href="<?= url('orders.index', ['status' => $s]) ?>">
+        <a class="filter-btn <?= $statusFilter === $s ? 'active' : '' ?>" href="<?= url('orders.index', array_filter(['status' => $s, 'q' => $q])) ?>">
             <?= e(order_status_label($s)) ?><?php if (!empty($counts[$s])): ?> (<?= $counts[$s] ?>)<?php endif; ?>
         </a>
     <?php endforeach; ?>
@@ -32,3 +40,4 @@
     <?php endforeach; ?>
     </tbody>
 </table></div></div>
+<?= pager('orders.index', ['status' => $statusFilter, 'q' => $q], $pg) ?>

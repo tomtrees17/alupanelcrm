@@ -1,4 +1,4 @@
-<?php /** @var array $requests */ /** @var array $counts */ /** @var string $typeFilter */ /** @var string $statusFilter */ ?>
+<?php /** @var array $requests */ /** @var array $counts */ /** @var string $typeFilter */ /** @var string $statusFilter */ /** @var array $pg */ ?>
 <div class="page-head">
     <h1><?= t('page_approvals') ?></h1>
     <div class="head-actions">
@@ -42,3 +42,4 @@
     <?php endforeach; ?>
     </tbody>
 </table></div></div>
+<?= pager('approvals.index', ['type' => $typeFilter, 'status' => $statusFilter], $pg) ?>

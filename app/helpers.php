@@ -20,6 +20,47 @@ function redirect(string $route, array $params = []): void
     exit;
 }
 
+const PER_PAGE = 50;
+
+/**
+ * Page window for a list query. $countSql must return a single COUNT(*);
+ * the caller appends $pg['limit'] to its own SELECT. An out-of-range ?page=
+ * clamps to the last page rather than showing an empty table.
+ *
+ * @return array{page:int,pages:int,total:int,offset:int,limit:string}
+ */
+function paginate(PDO $pdo, string $countSql, array $args, int $perPage = PER_PAGE): array
+{
+    $st = $pdo->prepare($countSql);
+    $st->execute($args);
+    $total = (int) $st->fetchColumn();
+    $pages = max(1, (int) ceil($total / $perPage));
+    $page = min(max(1, (int) input('page', 1)), $pages);
+    $offset = ($page - 1) * $perPage;
+    // Both numbers are ints computed here, never raw input.
+    return ['page' => $page, 'pages' => $pages, 'total' => $total, 'offset' => $offset,
+            'limit' => ' LIMIT ' . $perPage . ' OFFSET ' . $offset];
+}
+
+/** Prev / "page x of y · n rows" / next bar; keeps the current filters in the links. */
+function pager(string $route, array $params, array $pg): string
+{
+    $params = array_filter($params, fn($v) => $v !== '' && $v !== null);
+    $info = sprintf(t('pager_info'), $pg['page'], $pg['pages'], $pg['total']);
+    if ($pg['pages'] <= 1) {
+        return $pg['total'] > 0 ? '<div class="pager"><span class="muted">' . e(sprintf(t('pager_total'), $pg['total'])) . '</span></div>' : '';
+    }
+    $html = '<nav class="pager">';
+    $html .= $pg['page'] > 1
+        ? '<a class="btn btn-ghost" href="' . e(url($route, $params + ['page' => $pg['page'] - 1])) . '">' . e(t('audit_prev')) . '</a>'
+        : '<span class="btn btn-ghost pager-off">' . e(t('audit_prev')) . '</span>';
+    $html .= '<span class="muted">' . e($info) . '</span>';
+    $html .= $pg['page'] < $pg['pages']
+        ? '<a class="btn btn-ghost" href="' . e(url($route, $params + ['page' => $pg['page'] + 1])) . '">' . e(t('audit_next')) . '</a>'
+        : '<span class="btn btn-ghost pager-off">' . e(t('audit_next')) . '</span>';
+    return $html . '</nav>';
+}
+
 function input(string $key, $default = null)
 {
     return $_POST[$key] ?? $_GET[$key] ?? $default;

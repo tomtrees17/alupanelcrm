@@ -14,7 +14,6 @@ switch ($action) {
         $owner = trim((string) input('owner', ''));
         $sort = (string) input('sort', '');
 
-        $sql = 'SELECT * FROM customers';
         $cond = [];
         $args = [];
         if ($q !== '') {
@@ -36,16 +35,14 @@ switch ($action) {
             $cond[] = 'owner = ?';
             $args[] = $owner;
         }
-        if ($cond) {
-            $sql .= ' WHERE ' . implode(' AND ', $cond);
-        }
+        $where = $cond ? ' WHERE ' . implode(' AND ', $cond) : '';
         // Whitelisted sort (never interpolate raw input into ORDER BY).
         $orderBy = [
             'value_desc' => 'value DESC, id DESC',
             'value_asc'  => 'value ASC, id DESC',
         ][$sort] ?? 'id DESC';
-        $sql .= ' ORDER BY ' . $orderBy;
-        $stmt = $pdo->prepare($sql);
+        $pg = paginate($pdo, 'SELECT COUNT(*) FROM customers' . $where, $args);
+        $stmt = $pdo->prepare('SELECT * FROM customers' . $where . ' ORDER BY ' . $orderBy . $pg['limit']);
         $stmt->execute($args);
 
         // Distinct city / owner options for the filter dropdowns (scoped to visibility).
@@ -62,7 +59,7 @@ switch ($action) {
         view('customers.index', [
             'customers' => $stmt->fetchAll(), 'q' => $q, 'tag' => $tag,
             'city' => $city, 'owner' => $owner, 'sort' => $sort,
-            'cities' => $cities, 'owners' => $owners,
+            'cities' => $cities, 'owners' => $owners, 'pg' => $pg,
         ]);
         break;
 

@@ -347,7 +347,8 @@ tfoot td { padding: 8px 14px; }
 
 /* ─ AUDIT LOG ─ */
 .small { font-size: 11px; }
-.pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 14px; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
+.pager-off { opacity: .4; pointer-events: none; }
 .audit-detail { max-width: 420px; color: var(--text2); font-size: 12px; word-break: break-word; }
 
 /* ─ RESPONSIVE (mobile) ─ */
