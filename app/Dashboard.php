@@ -145,6 +145,34 @@ final class Dashboard
         return $buckets;
     }
 
+    /**
+     * Offsite-backup health for the admin banner, or null when all is well.
+     * A backup that silently stopped leaving the machine is only discovered
+     * the day it is needed, so staleness is surfaced, not just errors.
+     *
+     * @return array{0:string,1:array}|null [i18n key, sprintf args]
+     */
+    public static function offsite_health(PDO $pdo, array $config, int $now, int $maxAgeHours = 48): ?array
+    {
+        if ((string) ($config['offsite']['driver'] ?? '') === '') {
+            return ['dash_offsite_none', []];
+        }
+        $meta = [];
+        foreach ($pdo->query("SELECT k, v FROM app_meta WHERE k IN ('offsite_last_ok','offsite_last_error')") as $r) {
+            $meta[$r['k']] = (string) $r['v'];
+        }
+        $okAt = isset($meta['offsite_last_ok']) ? strtotime(substr($meta['offsite_last_ok'], 0, 19)) : false;
+        $err = trim($meta['offsite_last_error'] ?? '');
+        if ($err !== '') {
+            return ['dash_offsite_error', [mb_substr($err, 0, 160)]];
+        }
+        if ($okAt === false) {
+            return ['dash_offsite_never', []];
+        }
+        $hours = (int) floor(($now - $okAt) / 3600);
+        return $hours > $maxAgeHours ? ['dash_offsite_stale', [$hours]] : null;
+    }
+
     /** Signed % change, or null when there is nothing to compare with. */
     public static function delta(float $now, float $before): ?float
     {

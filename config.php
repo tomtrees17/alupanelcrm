@@ -1,7 +1,10 @@
 <?php
 declare(strict_types=1);
 
-return [
+// Secrets (API keys, tokens) do NOT belong here: this file is tracked by git,
+// and the server's nightly auto-deploy runs `git reset --hard`. Put them in
+// config.local.php (gitignored, survives deploys) — see config.local.example.php.
+$config = [
     'app_name' => 'AluPanel CRM',
     'brand'    => 'AluPanel',
     'company'  => 'AMI',
@@ -58,5 +61,25 @@ return [
         'daily_limit' => 60,                 // per user per day, guards against cost runaway
     ],
 
+    // ── Offsite backup (tools/backup_db.php uploads each snapshot) ──
+    // driver '' = off, 'oss' = Alibaba Cloud OSS. Credentials go in config.local.php.
+    'offsite' => [
+        'driver'     => '',
+        'region'     => 'ap-southeast-1',   // Singapore: a different region from the server (Jakarta)
+        'bucket'     => '',
+        'key_id'     => '',
+        'key_secret' => '',
+        'prefix'     => 'alupanel/',
+    ],
+
     'db_path'  => __DIR__ . '/data/crm.sqlite',
 ];
+
+$local = __DIR__ . '/config.local.php';
+if (is_file($local)) {
+    $override = require $local;
+    if (is_array($override)) {
+        $config = array_replace_recursive($config, $override);
+    }
+}
+return $config;

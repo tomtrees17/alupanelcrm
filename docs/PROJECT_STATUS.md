@@ -143,7 +143,11 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
   /www/server/php/82/bin/php /www/wwwroot/www.alupanel.cc/tools/backup_db.php
   ```
 - 恢复:停站 → 用某份快照覆盖 `data/crm.sqlite`(并删掉 `-wal/-shm`)→ `chown -R www:www data`。
-- 进阶(建议):把 `backups/` 定期同步到异地/对象存储,防整机故障。
+- **异地备份（2026-10-13）**：`backup_db.php` 每次备份成功后把 zip 上传到**阿里云 OSS 新加坡（`ap-southeast-1`）**——服务器在雅加达（`ap-southeast-5`），不同地域。零依赖实现：`app/Oss.php`（PutObject + 签名 V4，规范请求和最终签名步骤用阿里云文档的示例做了测试锁定）。
+  - **密钥**：放服务器上的 `config.local.php`（git 忽略），格式见 `config.local.example.php`。用的是 **RAM 子账号、权限仅 `oss:PutObject`**——服务器即使被攻破，攻击者也只能往桶里加文件，列不出、读不到、删不掉已上传的备份。存储桶开**版本控制**（同名覆盖也不丢旧版本）、私有读写、服务端加密，生命周期规则 180 天后过期。
+  - **验证配置**：`php tools/backup_db.php --test-offsite`（只上传一个小探针文件，不做备份）。
+  - **失败可见**：上传结果写入 `app_meta`（`offsite_last_ok` / `offsite_last_error`），**管理员打开看板时**，若未配置、从未成功、最近一次失败或超过 48 小时没成功，顶部显示红色提醒（`Dashboard::offsite_health()`）。上传失败时备份脚本退出码 2，但本地备份照常保留。
+  - **恢复**：OSS 控制台 → 存储桶 → `alupanel/` 下载对应日期的 zip → 解压出 `crm.sqlite` 和 `uploads/` → 按上面的恢复步骤覆盖。
 
 ## 6n. 发票尾差订正（2026-10-12）
 
@@ -446,10 +450,10 @@ d62d1eb Invoice header: use company name instead of logo image
 
 发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。（~~真实 logo.png 上传~~ 已完成，见 6 打印一节）
 
-**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **自动化测试**(`tools/run_tests.php`，433 项)。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **自动化测试**(`tools/run_tests.php`，462 项)。
 
 **待办（按优先级）**：
-1. ~~**关闭 SSH 密码认证**~~ —— **已完成**（2026-10-12，见 6f）。**新的第一优先**：**备份异地同步**（目前 14 份备份都在同一台机器上，整机故障即全丢）；**系统安全补丁**（登录提示 72 个安全更新，26 个 Important，挑空闲时段 `dnf upgrade-minimal --security`）
+1. ~~**关闭 SSH 密码认证**~~ —— **已完成**（2026-10-12，见 6f）。~~**备份异地同步**~~ —— **代码已完成**（2026-10-13，见 6e），待用户在阿里云建桶、建 RAM 子账号并在服务器写 `config.local.php`；**系统安全补丁**（登录提示 72 个安全更新，26 个 Important，挑空闲时段 `dnf upgrade-minimal --security`）
 1b. **订单/客户按姓名而非账号关联** —— 85/407 个订单的 `submitter` 对不上任何账号（如账号 `erfandi` 有 29 张发票录成 `erpandi`，他登录后看不到）；改用户姓名会让该销售的订单和客户从视图中消失。修法：下单改为账号下拉选择 + 名字变体合并工具
 2. ~~**审计日志**~~ —— **已完成**（见 6g）
 3. ~~**修发票合计舍入**~~ —— **已完成**（见 6n，Pembulatan）。**金额改整数分**仍未做（REAL 存储本身目前未造成误差，优先级降低）。原记录：现用 REAL 存。**线上已实际发生**：3 张发票(1027/1037/1043 - AMI - INV - 08 - 26)的合计比订单含税额少 1 卢比，客户按整数付款后被判定"超额收款"。根因是 `fulfill_order()` 里逐行 `round()` 后 `total = subtotal + ppn` 与原始含税额不完全相等(代码注释写的就是 `≈ original`)。修法：税额改为 `total - subtotal` 反推，让合计严格等于订单含税金额；历史 3 张可一并订正。涉及数据迁移，越晚成本越高

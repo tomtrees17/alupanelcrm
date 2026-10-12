@@ -160,6 +160,11 @@ const I18N = [
         'msg_user_deleted' => '用户已删除。',
         'msg_no_module' => '无权访问该模块。',
         'msg_order_has_invoice' => '该订单已开票（%s），不能删除；发票和送货单会变成孤儿。如确需清理测试数据，请用 tools/cleanup_test_data.php。',
+        // offsite backup health (admin only)
+        'dash_offsite_none' => '⚠ 异地备份尚未配置：所有备份都在同一台服务器上，服务器出问题会一起丢失。',
+        'dash_offsite_never' => '⚠ 异地备份已配置，但还没有成功上传过。请在服务器上运行 tools/backup_db.php --test-offsite 检查。',
+        'dash_offsite_stale' => '⚠ 异地备份已 %d 小时没有成功上传，请检查服务器的每日备份任务。',
+        'dash_offsite_error' => '⚠ 异地备份最近一次上传失败：%s',
         // dashboard (日 / 周 / 月)
         'dash_day' => '日', 'dash_week' => '周', 'dash_month' => '月',
         'dash_now_day' => '今天', 'dash_now_week' => '本周', 'dash_now_month' => '本月',
@@ -405,6 +410,11 @@ const I18N = [
         'msg_user_deleted' => 'Pengguna berhasil dihapus.',
         'msg_no_module' => 'Anda tidak punya akses ke modul ini.',
         'msg_order_has_invoice' => 'Order ini sudah difakturkan (%s) dan tidak dapat dihapus; faktur & surat jalan akan menjadi yatim. Untuk membersihkan data uji, gunakan tools/cleanup_test_data.php.',
+        // offsite backup health
+        'dash_offsite_none' => '⚠ Backup offsite belum diatur: semua backup ada di server yang sama dan akan hilang bersama server.',
+        'dash_offsite_never' => '⚠ Backup offsite sudah diatur tapi belum pernah berhasil. Jalankan tools/backup_db.php --test-offsite di server.',
+        'dash_offsite_stale' => '⚠ Backup offsite tidak berhasil selama %d jam. Periksa tugas backup harian di server.',
+        'dash_offsite_error' => '⚠ Upload backup offsite terakhir gagal: %s',
         // dashboard
         'dash_day' => 'Hari', 'dash_week' => 'Minggu', 'dash_month' => 'Bulan',
         'dash_now_day' => 'Hari ini', 'dash_now_week' => 'Minggu ini', 'dash_now_month' => 'Bulan ini',

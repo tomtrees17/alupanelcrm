@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 /** @var PDO $pdo */
 /** @var Auth $auth */
+/** @var array $config */
 
 // Figures live in app/Dashboard.php; this file only decides who sees what.
 $today = date('Y-m-d');
@@ -27,6 +28,8 @@ if (sees_only_own()) {
 }
 
 view('dashboard.index', $data + [
+    // Backup health is an admin concern; nobody else can act on it.
+    'offsite' => $auth->isAdmin() ? Dashboard::offsite_health($pdo, $config, time()) : null,
     'recent' => $recent,
     'fin'    => $fin,
     'perf'   => $perf,

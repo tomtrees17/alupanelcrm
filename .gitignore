@@ -17,3 +17,6 @@
 *.log
 .DS_Store
 Thumbs.db
+
+# Server-only secrets (see config.local.example.php)
+/config.local.php

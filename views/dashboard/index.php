@@ -1,7 +1,7 @@
 <?php
 /** @var array $period */ /** @var array $buckets */ /** @var array $kpi */ /** @var array $hot */
 /** @var array $recent */ /** @var bool $fin */ /** @var bool $perf */
-/** @var ?array $receivable */ /** @var ?array $workload */ /** @var ?array $ranking */
+/** @var ?array $receivable */ /** @var ?array $offsite */ /** @var ?array $workload */ /** @var ?array $ranking */
 $lang = current_lang();
 $p = $period['p'];
 $link = fn(string $pp, string $d) => url('dashboard.index', ['p' => $pp, 'd' => $d]);
@@ -47,6 +47,9 @@ $pct = fn(float $v) => $v <= 0 ? 0 : max(1.5, round($v / $axisMax * 100, 1));
 ?>
 
 <div class="dash">
+<?php if (!empty($offsite)): ?>
+    <div class="alert alert-error"><?= e(vsprintf(t($offsite[0]), $offsite[1])) ?></div>
+<?php endif; ?>
 <!-- ── Period selector: one control scopes everything below ── -->
 <div class="period-bar">
     <div class="seg" role="tablist">

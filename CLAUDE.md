@@ -109,6 +109,10 @@ php -S localhost:8000 -t public
 
 **服务器上永远不要直接改代码**：`git status` 应只有宝塔生成的未跟踪文件（`.htaccess` / `404.html` / `index.html` / `public/.user.ini` / `public/.well-known/`）。这些别提交也别删。
 
+**⚠ 服务器每晚 01:30 自动部署**（宝塔计划任务）：`git fetch origin && git reset --hard origin/main`。也就是说 push 到 `main` 的代码最迟次日凌晨自动上线，而**服务器上对任何 git 跟踪文件的手工修改都会在当晚被抹掉**。git 忽略的文件（`data/`、`backups/`、`config.local.php`）不受影响。
+
+**密钥和令牌只能放 `config.local.php`**（git 忽略，见 `config.local.example.php`），绝不能写进 `config.php`：后者在 git 里，写进去要么被提交到 GitHub，要么在服务器上改了当晚就被 reset 掉。`config.php` 末尾用 `array_replace_recursive` 合并 local 覆盖，所以 local 里只写要覆盖的键即可。测试里有一条断言守着「`config.php` 里的凭据字段必须为空」。
+
 **服务器环境要点**（宝塔面板）：站点 `/www/wwwroot/www.alupanel.cc`，PHP 8.2（`pdo_sqlite`/`sqlite3` 已启用），**网站运行目录必须设为 `/public`**，`data/` 需 `www` 用户可写。宝塔 PHP CLI 路径随版本变（`ls /www/server/php/` 查实际版本号），当前为 `/www/server/php/82/bin/php`。
 
 ### 4.3 运维常用
