@@ -5,7 +5,6 @@
 return [
     'offsite' => [
         'driver'     => 'oss',
-        'bucket'     => '',     // e.g. alupanel-backup-xxxx
         'key_id'     => '',     // RAM user AccessKey ID (PutObject-only policy)
         'key_secret' => '',     // RAM user AccessKey Secret
     ],

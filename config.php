@@ -65,8 +65,8 @@ $config = [
     // driver '' = off, 'oss' = Alibaba Cloud OSS. Credentials go in config.local.php.
     'offsite' => [
         'driver'     => '',
-        'region'     => 'ap-southeast-1',   // Singapore: a different region from the server (Jakarta)
-        'bucket'     => '',
+        'region'     => 'ap-southeast-5',   // Jakarta (bucket region is fixed at creation)
+        'bucket'     => 'alupanel-backup-crm',
         'key_id'     => '',
         'key_secret' => '',
         'prefix'     => 'alupanel/',

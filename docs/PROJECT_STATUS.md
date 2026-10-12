@@ -143,8 +143,9 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
   /www/server/php/82/bin/php /www/wwwroot/www.alupanel.cc/tools/backup_db.php
   ```
 - 恢复:停站 → 用某份快照覆盖 `data/crm.sqlite`(并删掉 `-wal/-shm`)→ `chown -R www:www data`。
-- **异地备份（2026-10-13）**：`backup_db.php` 每次备份成功后把 zip 上传到**阿里云 OSS 新加坡（`ap-southeast-1`）**——服务器在雅加达（`ap-southeast-5`），不同地域。零依赖实现：`app/Oss.php`（PutObject + 签名 V4，规范请求和最终签名步骤用阿里云文档的示例做了测试锁定）。
-  - **密钥**：放服务器上的 `config.local.php`（git 忽略），格式见 `config.local.example.php`。用的是 **RAM 子账号、权限仅 `oss:PutObject`**——服务器即使被攻破，攻击者也只能往桶里加文件，列不出、读不到、删不掉已上传的备份。存储桶开**版本控制**（同名覆盖也不丢旧版本）、私有读写、服务端加密，生命周期规则 180 天后过期。
+- **异地备份（2026-10-13）**：`backup_db.php` 每次备份成功后把 zip 上传到**阿里云 OSS 存储桶 `alupanel-backup-crm`（雅加达 `ap-southeast-5`，和服务器同地域；地域建桶后不可改）**。同地域的取舍：防的是服务器被删/被黑/磁盘损坏，不防整个雅加达地域故障——OSS 本身多副本存储，这个风险可接受。桶名和地域写在 `config.php`（不是机密）。零依赖实现：`app/Oss.php`（PutObject + 签名 V4，规范请求和最终签名步骤用阿里云文档的示例做了测试锁定）。
+  - **密钥**：放服务器上的 `config.local.php`（git 忽略），只需 `driver` / `key_id` / `key_secret` 三项，格式见 `config.local.example.php`。用的是 **RAM 子账号、权限仅 `oss:PutObject`**——服务器即使被攻破，攻击者也只能往桶里加文件，列不出、读不到、删不掉已上传的备份。存储桶开**版本控制**（同名覆盖也不丢旧版本）、私有读写、服务端加密，**备份永久保留不过期**（每天几 MB，成本可忽略）；生命周期规则只清理**历史版本 30 天**后删除。
+  - **RAM 策略** `alupanel-backup-putonly`，授权给 RAM 用户 `alupanel-backup`：`Action: oss:PutObject`，`Resource: acs:oss:*:*:alupanel-backup-crm/alupanel/*`（只能写 `alupanel/` 前缀）。
   - **验证配置**：`php tools/backup_db.php --test-offsite`（只上传一个小探针文件，不做备份）。
   - **失败可见**：上传结果写入 `app_meta`（`offsite_last_ok` / `offsite_last_error`），**管理员打开看板时**，若未配置、从未成功、最近一次失败或超过 48 小时没成功，顶部显示红色提醒（`Dashboard::offsite_health()`）。上传失败时备份脚本退出码 2，但本地备份照常保留。
   - **恢复**：OSS 控制台 → 存储桶 → `alupanel/` 下载对应日期的 zip → 解压出 `crm.sqlite` 和 `uploads/` → 按上面的恢复步骤覆盖。
