@@ -47,6 +47,9 @@ app/
   helpers.php               视图辅助：e/url/redirect/input/idr/num/no_cjk、权限判定、各 tr_* 翻译
   i18n.php                  中印双语字典 + t() + current_lang()
   Export.php                Excel 导出   Word.php  Word 导出
+  Claude.php                Anthropic API 唯一出口（token 上限 / 重试 / 每日预算）
+  Enrich.php                客户区域 / 行业推断（地址文本 + Google 地理编码 + 规则 + Claude）
+  CustomerData.php          客户数据清洗（销售名合并、电话、负责人建议）
   Auth.php                  会话鉴权     Csrf.php  CSRF 令牌
   controllers/              dashboard customers pipeline tasks finance orders inventory
                             approvals audit delivery users roles account auth lang
@@ -57,6 +60,9 @@ database/seed_products.sql  269 个产品（由 tools/gen_products.php 从原型
 tools/
   reset_password.php        CLI 重置账号密码（运维）
   backup_db.php             VACUUM INTO 一致快照 + 附件打包，滚动保留 14 份
+  nightly.php               夜间客户分析任务入口（宝塔计划任务调用）
+  enrich_customers.php      区域 / 行业推断（增量；--all / --dry-run）
+  clean_customer_data.php   一次性客户数据清洗（默认预演，--apply 先快照）
   run_tests.php             零依赖测试运行器（见 5.7）
 tests/                      测试用例 *_test.php（内存 SQLite，不碰运行时数据）
 data/                       运行时 SQLite + uploads/（gitignore，**在 web 根之外**）
@@ -111,7 +117,9 @@ php -S localhost:8000 -t public
 
 **⚠ 服务器每晚 01:30 自动部署**（宝塔计划任务）：`git fetch origin && git reset --hard origin/main`。也就是说 push 到 `main` 的代码最迟次日凌晨自动上线，而**服务器上对任何 git 跟踪文件的手工修改都会在当晚被抹掉**。git 忽略的文件（`data/`、`backups/`、`config.local.php`）不受影响。
 
-**密钥和令牌只能放 `config.local.php`**（git 忽略，见 `config.local.example.php`），绝不能写进 `config.php`：后者在 git 里，写进去要么被提交到 GitHub，要么在服务器上改了当晚就被 reset 掉。`config.php` 末尾用 `array_replace_recursive` 合并 local 覆盖，所以 local 里只写要覆盖的键即可。测试里有一条断言守着「`config.php` 里的凭据字段必须为空」。
+**API 密钥放项目根目录的 `.env`**（git 忽略、在 web 根 `public/` 之外，模板 `.env.example`：`ANTHROPIC_API_KEY` / `GOOGLE_MAPS_API_KEY` / 可选 OSS、WA），由 `config.php` 末尾读入；其它服务器专属覆盖仍可放 `config.local.php`（也被 git 忽略，最后合并）。**绝不能写进 `config.php`**：它在 git 里，写进去要么被提交到 GitHub，要么在服务器上改了当晚就被 reset 掉。测试守着「`config.php` 凭据字段为空」和「`.env` 已被 gitignore」。
+
+**所有 AI 调用必须经过 `Claude::send()`**（`app/Claude.php`）：单次输出 token 硬上限 `ai.max_tokens`、请求体大小上限、只对瞬时错误（网络/429/5xx）有限次退避重试、全公司每日 token 预算 `ai.daily_token_budget`（调用前查 `Claude::budget_left()`，用量记在 `ai_queries`）。不要另写直连 Anthropic 的 curl。
 
 **服务器环境要点**（宝塔面板）：站点 `/www/wwwroot/www.alupanel.cc`，PHP 8.2（`pdo_sqlite`/`sqlite3` 已启用），**网站运行目录必须设为 `/public`**，`data/` 需 `www` 用户可写。宝塔 PHP CLI 路径随版本变（`ls /www/server/php/` 查实际版本号），当前为 `/www/server/php/82/bin/php`。
 

@@ -192,9 +192,146 @@ switch ($action) {
         redirect('customers.index');
         break;
 
+    case 'set_industry':
+        // Confirm or correct the inferred industry. A manual answer is final:
+        // the nightly enrichment never overwrites it.
+        Csrf::verify();
+        $customer = find_customer($pdo, (int) input('id', 0));
+        $industry = (string) input('industry', '');
+        if (!in_array($industry, Enrich::INDUSTRIES, true)) {
+            flash(t('msg_bad_industry'), 'error');
+            redirect('customers.show', ['id' => $customer['id']]);
+        }
+        $pdo->prepare("UPDATE customers SET industry = ?, industry_source = 'manual', industry_confidence = 1, industry_pending = 0, industry_note = ? WHERE id = ?")
+            ->execute([$industry, '由 ' . own_name() . ' 确认', $customer['id']]);
+        audit($pdo, 'customers', 'update', 'customer', (int) $customer['id'], (string) $customer['name'],
+            sprintf('行业: %s (%s) → %s (人工确认)',
+                $customer['industry'] ? industry_label((string) $customer['industry']) : '(空)',
+                (string) ($customer['industry_source'] ?? '') ?: '-',
+                industry_label($industry)));
+        flash(t('msg_industry_saved'));
+        redirect('customers.show', ['id' => $customer['id']]);
+        break;
+
+    // ── 数据整理 (admin): salesperson-name variants, owner (re)assignment ──
+    case 'cleanup':
+        require_admin();
+        $variants = CustomerData::name_variants($pdo);
+        $usage = [];
+        foreach ($variants as $raw => $n) {
+            $k = trim((string) $raw);
+            $usage[$k] = ($usage[$k] ?? 0) + $n;
+        }
+        $accounts = $pdo->query('SELECT name, role FROM users ORDER BY name')->fetchAll();
+        $pairs = CustomerData::similar_pairs(array_keys($usage), ignored_name_pairs($pdo));
+
+        $ownerFilter = (string) input('owner', '');
+        $st = $pdo->prepare(
+            "SELECT c.id, c.name, c.company, c.owner,
+                    (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id) AS orders,
+                    (SELECT MAX(date(created_at)) FROM orders o WHERE o.customer_id = c.id) AS last_order
+               FROM customers c WHERE TRIM(COALESCE(c.owner, '')) = ? ORDER BY orders DESC, c.id DESC"
+        );
+        $st->execute([trim($ownerFilter)]);
+        $owners = $pdo->query("SELECT TRIM(COALESCE(owner, '')) o, COUNT(*) c FROM customers GROUP BY o ORDER BY c DESC")->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        view('customers.cleanup', [
+            'pageTitle' => t('cleanup_title'), 'pageSub' => t('cleanup_sub'),
+            'pairs' => $pairs, 'usage' => $usage, 'accounts' => $accounts,
+            'rows' => $st->fetchAll(), 'ownerFilter' => trim($ownerFilter), 'owners' => $owners,
+            'suggest' => CustomerData::suggested_owners($pdo),
+            'enrichLast' => (string) $pdo->query("SELECT v FROM app_meta WHERE k = 'enrich_last_run'")->fetchColumn(),
+        ]);
+        break;
+
+    case 'merge_owner':
+        require_admin();
+        Csrf::verify();
+        $from = trim((string) input('from', ''));
+        $to = trim((string) input('to', ''));
+        if ($from === '' || $to === '' || mb_strtolower($from) === mb_strtolower($to)) {
+            flash(t('msg_merge_invalid'), 'error');
+            redirect('customers.cleanup');
+        }
+        $pdo->beginTransaction();
+        $n = CustomerData::rename_salesperson($pdo, $from, $to);
+        $pdo->commit();
+        audit($pdo, 'customers', 'merge', 'salesperson', null, $from . ' → ' . $to,
+            sprintf('销售名合并: "%s" → "%s"; 客户 %d, 订单 %d', $from, $to, $n['customers'], $n['orders']));
+        flash(sprintf(t('msg_merged'), $from, $to, $n['customers'], $n['orders']));
+        redirect('customers.cleanup');
+        break;
+
+    case 'ignore_pair':
+        require_admin();
+        Csrf::verify();
+        $a = trim((string) input('a', ''));
+        $b = trim((string) input('b', ''));
+        if ($a !== '' && $b !== '') {
+            $list = ignored_name_pairs($pdo);
+            $list[] = CustomerData::pair_key($a, $b);
+            $pdo->prepare("INSERT OR REPLACE INTO app_meta (k, v) VALUES ('salesname_ignored', ?)")
+                ->execute([json_encode(array_values(array_unique($list)), JSON_UNESCAPED_UNICODE)]);
+        }
+        redirect('customers.cleanup');
+        break;
+
+    case 'assign':
+        require_admin();
+        Csrf::verify();
+        $ids = array_values(array_filter(array_map('intval', (array) input('ids', [])), fn($i) => $i > 0));
+        $useSuggest = input('mode', '') === 'suggest';
+        $target = trim((string) input('owner_to', ''));
+        $back = ['owner' => (string) input('owner', '')];
+        if ($ids === [] || (!$useSuggest && $target === '')) {
+            flash(t('msg_assign_none'), 'error');
+            redirect('customers.cleanup', $back);
+        }
+        $suggest = $useSuggest ? CustomerData::suggested_owners($pdo) : [];
+        $get = $pdo->prepare('SELECT id, name, owner FROM customers WHERE id = ?');
+        $set = $pdo->prepare('UPDATE customers SET owner = ? WHERE id = ?');
+        $done = [];
+        $skipped = 0;
+        $pdo->beginTransaction();
+        foreach ($ids as $id) {
+            $get->execute([$id]);
+            $c = $get->fetch();
+            $to = $useSuggest ? ($suggest[$id] ?? '') : $target;
+            if (!$c || $to === '' || trim((string) $c['owner']) === $to) {
+                $skipped++;
+                continue;
+            }
+            $set->execute([$to, $id]);
+            $done[] = [$c, $to];
+        }
+        $pdo->commit();
+        foreach ($done as [$c, $to]) {
+            audit($pdo, 'customers', 'assign', 'customer', (int) $c['id'], (string) $c['name'],
+                sprintf('负责销售: %s → %s', trim((string) $c['owner']) ?: '(空)', $to));
+        }
+        flash(sprintf(t('msg_assigned'), count($done), $skipped));
+        redirect('customers.cleanup', $back);
+        break;
+
     default:
         http_response_code(404);
         echo 'Not found';
+}
+
+function require_admin(): void
+{
+    if (!$GLOBALS['auth']->isAdmin()) {
+        http_response_code(403);
+        flash(t('msg_admin_only'), 'error');
+        redirect('customers.index');
+    }
+}
+
+/** @return string[] "a|b" pairs an admin marked as different people */
+function ignored_name_pairs(PDO $pdo): array
+{
+    $v = $pdo->query("SELECT v FROM app_meta WHERE k = 'salesname_ignored'")->fetchColumn();
+    return is_string($v) ? (json_decode($v, true) ?: []) : [];
 }
 
 /** Staff who can be assigned as a customer owner. */

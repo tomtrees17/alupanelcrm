@@ -39,6 +39,16 @@ $pdo->exec('ALTER TABLE users DROP COLUMN phone');
 $pdo->exec('ALTER TABLE users DROP COLUMN lang');
 $pdo->exec('ALTER TABLE orders DROP COLUMN created_by');
 $pdo->exec("INSERT INTO users (name,email,password_hash,role) VALUES ('Admin','admin@alupanel.local','x','admin')");
+// before the customer analysis: no industry/region columns, no geo columns, no geocode cache.
+$pdo->exec('DROP INDEX IF EXISTS idx_orders_customer');
+$pdo->exec('DROP TABLE IF EXISTS geocode_cache');
+foreach (['industry', 'industry_source', 'industry_confidence', 'industry_pending', 'industry_note', 'region', 'delivery_regions', 'enriched_at'] as $col) {
+    $pdo->exec("ALTER TABLE customers DROP COLUMN {$col}");
+}
+foreach (['delivery_lat', 'delivery_lng', 'delivery_region', 'geo_source'] as $col) {
+    $pdo->exec("ALTER TABLE orders DROP COLUMN {$col}");
+}
+$pdo->exec("INSERT INTO customers (id, name, company, owner, city) VALUES (777, 'Pak Lama', 'Toko Kaca Lama', 'ridwan', 'Kec Koja')");
 $pdo->exec("INSERT INTO role_permissions (role, module) VALUES ('manager','orders'),('sales','orders')");
 // Production has already run every earlier one-time migration; without these
 // markers the old migrations would re-fire and this test would measure them
@@ -97,6 +107,16 @@ $ivc2 = array_column($pdo->query('PRAGMA table_info(invoices)')->fetchAll(), 'na
 ok('invoices gains rounding', in_array('rounding', $ivc2, true));
 $oldInv2 = $pdo->query("SELECT * FROM invoices WHERE invoice_no='INV-LAMA'")->fetch();
 ok('upgrade does not rewrite existing totals (that is the CLI tool\'s job)', (float) $oldInv2['total'] === 5000.0 && (float) $oldInv2['rounding'] === 0.0);
+
+// customer-analysis upgrade: columns added, nothing inferred on a page load.
+$cc = array_column($pdo->query('PRAGMA table_info(customers)')->fetchAll(), 'name');
+ok('customers gains industry/region columns', count(array_intersect(['industry', 'industry_source', 'industry_confidence', 'industry_pending', 'industry_note', 'region', 'delivery_regions', 'enriched_at'], $cc)) === 8, implode(',', $cc));
+$oc = array_column($pdo->query('PRAGMA table_info(orders)')->fetchAll(), 'name');
+ok('orders gains delivery_lat/lng/region + geo_source', count(array_intersect(['delivery_lat', 'delivery_lng', 'delivery_region', 'geo_source'], $oc)) === 4);
+ok('geocode_cache created', $has('geocode_cache'));
+$lama = $pdo->query('SELECT * FROM customers WHERE id = 777')->fetch();
+ok('existing customer untouched, industry/region left for the enrichment job', $lama['name'] === 'Pak Lama' && $lama['owner'] === 'ridwan'
+    && $lama['industry'] === null && $lama['region'] === null && (int) $lama['industry_pending'] === 0);
 
 // 'audit' must NOT be granted to anyone by the migration — admin-only by default.
 $granted = $pdo->query("SELECT COUNT(*) FROM role_permissions WHERE module='audit'")->fetchColumn();

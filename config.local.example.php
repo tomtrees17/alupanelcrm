@@ -9,5 +9,9 @@ return [
         'key_secret' => '',     // RAM user AccessKey Secret
     ],
     // 'wa' => ['driver' => 'fonnte', 'token' => '', 'test_to' => ''],
+    // Anthropic key: industry classification (客户行业) uses it as soon as it is set;
+    // the inventory assistant additionally needs 'driver' => 'claude'.
     // 'ai' => ['driver' => 'claude', 'key' => ''],
+    // Google Geocoding API key (客户区域 + 送货点地图).
+    // 'geo' => ['driver' => 'google', 'key' => ''],
 ];

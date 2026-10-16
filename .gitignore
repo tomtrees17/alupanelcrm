@@ -18,5 +18,7 @@
 .DS_Store
 Thumbs.db
 
-# Server-only secrets (see config.local.example.php)
+# Server-only secrets (see .env.example / config.local.example.php)
+/.env
+/.env.local
 /config.local.php

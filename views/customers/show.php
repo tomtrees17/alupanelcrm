@@ -23,6 +23,44 @@
     <?php if ($customer['note']): ?><p class="notes"><?= nl2br(e($customer['note'])) ?></p><?php endif; ?>
 </div></div>
 
+<?php
+$ind = (string) ($customer['industry'] ?? '');
+$src = (string) ($customer['industry_source'] ?? '');
+$pending = (int) ($customer['industry_pending'] ?? 0) === 1 && $src !== 'manual';
+$dist = json_decode((string) ($customer['delivery_regions'] ?? ''), true) ?: [];
+?>
+<div class="card" id="analysis">
+    <div class="card-header"><span class="card-title"><?= t('cust_analysis') ?></span></div>
+    <div class="card-body">
+        <dl class="detail">
+            <div><dt><?= t('th_industry') ?></dt><dd>
+                <strong><?= e(industry_label($ind)) ?></strong>
+                <?php if ($pending): ?><span class="tag tag-orange"><?= t('ind_pending') ?></span><?php endif; ?>
+                <?php if ($src !== ''): ?>
+                    <div class="muted small"><?= e(industry_source_label($src)) ?><?php if ($src === 'ai' && ($customer['industry_confidence'] ?? null) !== null): ?> · <?= t('ind_confidence') ?> <?= (int) round((float) $customer['industry_confidence'] * 100) ?>%<?php endif; ?><?php if (!empty($customer['industry_note'])): ?> · <?= e($customer['industry_note']) ?><?php endif; ?></div>
+                <?php endif; ?>
+            </dd></div>
+            <div><dt><?= t('th_region') ?></dt><dd>
+                <?= ($customer['region'] ?? null) === null ? '<span class="muted">' . t('reg_none') . '</span>' : e(region_label((string) $customer['region'])) ?>
+                <?php if (count($dist) > 1): ?>
+                    <div class="muted small"><?= t('reg_delivery_spread') ?>: <?php $bits = []; foreach ($dist as $r => $n) { $bits[] = e(region_label((string) $r)) . ' ' . (int) $n; } echo implode(' · ', $bits); ?></div>
+                <?php endif; ?>
+            </dd></div>
+        </dl>
+        <form class="industry-form" method="post" action="<?= url('customers.set_industry') ?>">
+            <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $customer['id'] ?>">
+            <select class="form-select" name="industry" aria-label="<?= t('th_industry') ?>">
+                <?php if ($ind === ''): ?><option value="" disabled selected><?= t('ind_choose') ?></option><?php endif; ?>
+                <?php foreach (Enrich::INDUSTRIES as $code): ?>
+                    <option value="<?= $code ?>" <?= $ind === $code ? 'selected' : '' ?>><?= e(industry_label($code)) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <button class="btn <?= $pending || $ind === '' ? 'btn-primary' : 'btn-ghost' ?>" type="submit"><?= $src === 'manual' ? t('btn_save') : t('ind_confirm') ?></button>
+        </form>
+        <?php if ($src !== 'manual'): ?><p class="muted small"><?= t('ind_confirm_hint') ?></p><?php endif; ?>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-header"><span class="card-title"><?= t('related_deals') ?></span><a class="btn btn-sm btn-ghost" href="<?= url('pipeline.create') ?>"><?= t('btn_add_deal') ?></a></div>
     <div class="table-wrap"><table>

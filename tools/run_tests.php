@@ -21,9 +21,12 @@ require __DIR__ . '/../app/helpers.php';
 require __DIR__ . '/../app/domain.php';
 require __DIR__ . '/../app/Database.php';
 require __DIR__ . '/../app/Notify.php';
+require __DIR__ . '/../app/Claude.php';
 require __DIR__ . '/../app/Ai.php';
 require __DIR__ . '/../app/Dashboard.php';
 require __DIR__ . '/../app/Oss.php';
+require __DIR__ . '/../app/Enrich.php';
+require __DIR__ . '/../app/CustomerData.php';
 
 $_SESSION = [];
 $_SERVER['REMOTE_ADDR'] = '203.0.113.9';

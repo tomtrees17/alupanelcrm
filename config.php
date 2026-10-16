@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 // Secrets (API keys, tokens) do NOT belong here: this file is tracked by git,
 // and the server's nightly auto-deploy runs `git reset --hard`. Put them in
-// config.local.php (gitignored, survives deploys) — see config.local.example.php.
+// .env (see .env.example) — gitignored, outside the web root, survives deploys.
+// config.local.php (gitignored) can still override any other setting.
 $config = [
     'app_name' => 'AluPanel CRM',
     'brand'    => 'AluPanel',
@@ -58,7 +59,53 @@ $config = [
         'driver'      => 'stub',
         'key'         => '',                 // Anthropic API key (console.anthropic.com)
         'model'       => 'claude-opus-5',
-        'daily_limit' => 60,                 // per user per day, guards against cost runaway
+        'daily_limit' => 60,                 // inventory questions per user per day
+        // Spending guards for EVERY AI call (enforced in app/Claude.php):
+        'max_tokens'         => 4096,        // hard cap on output tokens per call
+        'max_input_chars'    => 60000,       // requests larger than this are not sent
+        'retries'            => 2,           // transient failures only (network / 429 / 5xx), with backoff
+        'daily_token_budget' => 300000,      // all features + users per day; 0 = unlimited
+    ],
+
+    // ── Geocoding (tools/enrich_customers.php: order address → lat/lng + kota) ──
+    // driver '' = off: regions come from the address text alone (no coordinates,
+    // so no map). 'google' = Google Geocoding API. Key goes in config.local.php.
+    'geo' => [
+        'driver' => '',
+        'key'    => '',
+    ],
+
+    // ── Customer analysis (区域 / 行业 / 回访清单) ──
+    'insights' => [
+        // Industry classification for customers no rule matches. Uses ai.key;
+        // off automatically while that key is empty.
+        'industry_ai'    => true,
+        'industry_model' => 'claude-opus-5-5',
+        'min_confidence' => 0.7,      // below this the result is marked 待确认
+        'ai_batch'       => 20,       // customers per model call
+        'end_owner_max_qty' => 20,    // "personal name, no company, small orders" ⇒ 终端业主
+
+        // kota / kabupaten (as Google or the address writes it, lowercase,
+        // without the "Kota"/"Kabupaten"/"Adm." prefix) → region.
+        // Anything geocoded to a kota not listed here becomes 'other'.
+        'region_map' => [
+            'jakarta utara' => 'jkt_utara', 'north jakarta' => 'jkt_utara', 'jakut' => 'jkt_utara',
+            'jakarta barat' => 'jkt_barat', 'west jakarta' => 'jkt_barat', 'jakbar' => 'jkt_barat',
+            'jakarta timur' => 'jkt_timur', 'east jakarta' => 'jkt_timur', 'jaktim' => 'jkt_timur',
+            'jakarta selatan' => 'jkt_selatan', 'south jakarta' => 'jkt_selatan', 'jaksel' => 'jkt_selatan',
+            'jakarta pusat' => 'jkt_pusat', 'central jakarta' => 'jkt_pusat', 'jakpus' => 'jkt_pusat',
+            'tangerang' => 'tangerang', 'tangerang selatan' => 'tangerang', 'south tangerang' => 'tangerang', 'tangsel' => 'tangerang',
+            'bekasi' => 'bekasi',
+            'bogor' => 'bogor_depok', 'depok' => 'bogor_depok',
+        ],
+        // Places that are certainly outside the eight regions (address text only).
+        'other_markers' => [
+            'jawa tengah', 'jawa timur', 'yogyakarta', 'bali', 'sumatera', 'sumatra', 'kalimantan',
+            'sulawesi', 'papua', 'lampung', 'riau', 'bandung', 'surabaya', 'semarang', 'medan',
+            'makassar', 'karawang', 'purwakarta', 'serang', 'cilegon', 'sukabumi', 'cianjur', 'jember',
+            'kepulauan seribu', 'tasikmalaya', 'garut', 'cirebon', 'indramayu', 'subang', 'majalengka',
+            'kuningan', 'lebak', 'pandeglang', 'pontianak', 'balikpapan', 'palembang', 'batam', 'pekanbaru',
+        ],
     ],
 
     // ── Offsite backup (tools/backup_db.php uploads each snapshot) ──
@@ -74,6 +121,38 @@ $config = [
 
     'db_path'  => __DIR__ . '/data/crm.sqlite',
 ];
+
+// .env: KEY=VALUE lines. Real environment variables work too.
+$env = [];
+if (is_file(__DIR__ . '/.env')) {
+    foreach (file(__DIR__ . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+        $line = trim($line);
+        if ($line === '' || $line[0] === '#' || !str_contains($line, '=')) {
+            continue;
+        }
+        [$k, $v] = array_map('trim', explode('=', $line, 2));
+        if (strlen($v) >= 2 && ($v[0] === '"' || $v[0] === "'") && $v[-1] === $v[0]) {
+            $v = substr($v, 1, -1);
+        }
+        $env[$k] = trim($v);
+    }
+}
+$secret = fn(string $k): string => (string) ($env[$k] ?? (getenv($k) ?: ''));
+if ($secret('ANTHROPIC_API_KEY') !== '') {
+    $config['ai']['key'] = $secret('ANTHROPIC_API_KEY');
+}
+if ($secret('GOOGLE_MAPS_API_KEY') !== '') {
+    $config['geo'] = ['driver' => 'google', 'key' => $secret('GOOGLE_MAPS_API_KEY')];
+}
+if ($secret('OSS_ACCESS_KEY_ID') !== '' && $secret('OSS_ACCESS_KEY_SECRET') !== '') {
+    $config['offsite']['driver'] = 'oss';
+    $config['offsite']['key_id'] = $secret('OSS_ACCESS_KEY_ID');
+    $config['offsite']['key_secret'] = $secret('OSS_ACCESS_KEY_SECRET');
+}
+if ($secret('WA_TOKEN') !== '') {
+    $config['wa']['token'] = $secret('WA_TOKEN');
+}
+unset($env, $secret);
 
 $local = __DIR__ . '/config.local.php';
 if (is_file($local)) {

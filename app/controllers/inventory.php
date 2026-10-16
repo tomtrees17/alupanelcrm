@@ -89,6 +89,8 @@ switch ($action) {
             Csrf::verify();
             if ($used >= $limit) {
                 $error = sprintf(t('ai_limit_hit'), $limit);
+            } elseif (($config['ai']['driver'] ?? '') === 'claude' && Claude::budget_left($pdo, $config) <= 0) {
+                $error = t('ai_budget_hit');   // company-wide daily token budget, all AI features
             } else {
                 [$parsed, $err, $usage] = Ai::match($config, Ai::catalogue($pdo), $question);
                 if ($parsed === null) {

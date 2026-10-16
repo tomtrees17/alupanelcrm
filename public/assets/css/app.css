@@ -351,6 +351,17 @@ tfoot td { padding: 8px 14px; }
 .pager-off { opacity: .4; pointer-events: none; }
 .audit-detail { max-width: 420px; color: var(--text2); font-size: 12px; word-break: break-word; }
 
+/* ─ CUSTOMER ANALYSIS / DATA CLEANUP ─ */
+.industry-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.industry-form .form-select { max-width: 240px; }
+.pair-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--border); }
+.pair-row:first-of-type { border-top: none; }
+.pair-names { display: flex; gap: 18px; flex-wrap: wrap; }
+.pair-name { display: flex; flex-direction: column; }
+.pair-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.assign-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.check-all { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+
 /* ─ RESPONSIVE (mobile) ─ */
 .nav-toggle { display: none; background: none; border: none; font-size: 22px; line-height: 1; color: var(--text); cursor: pointer; padding: 0 2px; }
 .sidebar-backdrop { display: none; }

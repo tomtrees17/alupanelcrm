@@ -28,6 +28,15 @@ CREATE TABLE customers (
     note         TEXT,
     last_contact TEXT,
     owner        TEXT,                    -- responsible salesperson (name)
+    -- inferred by tools/enrich_customers.php (区域 / 行业), see docs 6p
+    industry            TEXT,             -- contractor|signage|aluminium_shop|renovation|end_owner|distributor|other
+    industry_source     TEXT,             -- rule|ai|manual (manual is never overwritten)
+    industry_confidence REAL,
+    industry_pending    INTEGER NOT NULL DEFAULT 0,  -- 1 = 待确认 (AI confidence below threshold)
+    industry_note       TEXT,             -- which rule hit / the model's reason
+    region              TEXT,             -- jkt_utara..bogor_depok|other|unknown; NULL = no shipped order yet
+    delivery_regions    TEXT,             -- JSON {region: order count} over all shipped orders
+    enriched_at         TEXT,
     created_at   TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -111,6 +120,10 @@ CREATE TABLE orders (
     reject_note  TEXT, reject_by    TEXT, reject_date TEXT,   -- last rejection (sent back to draft)
     do_number        TEXT,
     invoice_number   TEXT,
+    delivery_lat     REAL,                   -- geocoded delivery point (NULL = none / not resolved)
+    delivery_lng     REAL,
+    delivery_region  TEXT,                   -- NULL = not processed yet; 'unknown' = could not resolve
+    geo_source       TEXT,                   -- google|text|none
     created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -319,6 +332,20 @@ CREATE INDEX idx_audit_created ON audit_log(created_at);
 CREATE INDEX idx_audit_user    ON audit_log(user_id);
 CREATE INDEX idx_audit_entity  ON audit_log(entity, entity_id);
 
+-- ── Geocoding results per normalised address (one paid lookup per address, ever) ──
+CREATE TABLE geocode_cache (
+    addr_key   TEXT PRIMARY KEY,          -- normalised address
+    query      TEXT,
+    status     TEXT NOT NULL,             -- ok|coarse|zero|error
+    lat        REAL,
+    lng        REAL,
+    kota       TEXT,
+    kecamatan  TEXT,
+    error      TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE INDEX idx_orders_customer ON orders(customer_id);
 CREATE INDEX idx_deals_customer  ON deals(customer_id);
 CREATE INDEX idx_tasks_customer  ON tasks(customer_id);
 CREATE INDEX idx_items_order     ON order_items(order_id);

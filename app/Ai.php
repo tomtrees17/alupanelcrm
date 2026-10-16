@@ -11,14 +11,10 @@ declare(strict_types=1);
  * quantity is therefore impossible — the worst failure is the wrong product,
  * which the UI shows by full name for the human to catch.
  *
- * Raw HTTP on purpose: this project carries no Composer/vendor directory
- * (see CLAUDE.md), same as the WhatsApp integration.
+ * Transport, token cap and retries: Claude::send().
  */
 final class Ai
 {
-    private const ENDPOINT = 'https://api.anthropic.com/v1/messages';
-    private const API_VERSION = '2023-06-01';
-
     /** What we ask the model to return. Deliberately small: ids and a reason. */
     public static function schema(): array
     {
@@ -132,74 +128,16 @@ final class Ai
             return [self::stub_match($catalogue, $question), '', []];
         }
 
-        $key = (string) ($ai['key'] ?? '');
-        if ($key === '') {
-            return [null, 'ai.key is not configured', []];
+        // Token cap, size guard and bounded retries live in Claude::send().
+        [$json, $err, $usage] = Claude::send($config, self::build_request($ai, $catalogue, $question));
+        if ($json === null) {
+            return [null, $err, $usage];
         }
-
-        [$raw, $err] = self::post($key, self::build_request($ai, $catalogue, $question));
-        if ($err !== '') {
-            return [null, $err, []];
+        $parsed = Claude::text_json($json);
+        if ($parsed === null) {
+            return [null, 'no parsable content in response', $usage];
         }
-
-        $json = json_decode($raw, true);
-        if (!is_array($json)) {
-            return [null, 'malformed API response', []];
-        }
-        if (($json['stop_reason'] ?? '') === 'refusal') {
-            return [null, 'request declined by the model', []];
-        }
-
-        $usage = [
-            'in'     => (int) ($json['usage']['input_tokens'] ?? 0),
-            'cached' => (int) ($json['usage']['cache_read_input_tokens'] ?? 0),
-            'out'    => (int) ($json['usage']['output_tokens'] ?? 0),
-        ];
-
-        // Structured output arrives as JSON in the first text block; thinking
-        // blocks may precede it, so scan rather than assuming content[0].
-        foreach ($json['content'] ?? [] as $block) {
-            if (($block['type'] ?? '') === 'text') {
-                $parsed = json_decode((string) $block['text'], true);
-                if (is_array($parsed)) {
-                    return [$parsed, '', $usage];
-                }
-            }
-        }
-        return [null, 'no parsable content in response', $usage];
-    }
-
-    /** @return array{0:string,1:string} [responseBody, error] */
-    private static function post(string $key, array $body): array
-    {
-        if (!function_exists('curl_init')) {
-            return ['', 'php curl extension is not available'];
-        }
-        $ch = curl_init(self::ENDPOINT);
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($body, JSON_UNESCAPED_UNICODE) ?: '',
-            CURLOPT_HTTPHEADER     => [
-                'content-type: application/json',
-                'x-api-key: ' . $key,
-                'anthropic-version: ' . self::API_VERSION,
-            ],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 45,
-            CURLOPT_CONNECTTIMEOUT => 10,
-        ]);
-        $res  = curl_exec($ch);
-        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $cerr = curl_error($ch);
-        curl_close($ch);
-
-        if ($res === false) {
-            return ['', 'curl: ' . $cerr];
-        }
-        if ($code < 200 || $code >= 300) {
-            return ['', "HTTP {$code}: " . mb_substr((string) $res, 0, 300)];
-        }
-        return [(string) $res, ''];
+        return [$parsed, '', $usage];
     }
 
     /**

@@ -260,6 +260,33 @@ final class Database
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity, entity_id)');
         // No permission seeding on purpose: 'audit' stays admin-only until granted in 权限设置.
 
+        // Customer analysis inputs (区域 / 行业, added later). New columns start
+        // NULL; tools/enrich_customers.php fills them — nothing is inferred on a page load.
+        $ccols2 = array_column($pdo->query('PRAGMA table_info(customers)')->fetchAll(), 'name');
+        foreach ([
+            'industry' => 'TEXT', 'industry_source' => 'TEXT', 'industry_confidence' => 'REAL',
+            'industry_pending' => 'INTEGER NOT NULL DEFAULT 0', 'industry_note' => 'TEXT',
+            'region' => 'TEXT', 'delivery_regions' => 'TEXT', 'enriched_at' => 'TEXT',
+        ] as $col => $type) {
+            if (!in_array($col, $ccols2, true)) {
+                $pdo->exec("ALTER TABLE customers ADD COLUMN {$col} {$type}");
+            }
+        }
+        $ocols2 = array_column($pdo->query('PRAGMA table_info(orders)')->fetchAll(), 'name');
+        foreach (['delivery_lat' => 'REAL', 'delivery_lng' => 'REAL', 'delivery_region' => 'TEXT', 'geo_source' => 'TEXT'] as $col => $type) {
+            if (!in_array($col, $ocols2, true)) {
+                $pdo->exec("ALTER TABLE orders ADD COLUMN {$col} {$type}");
+            }
+        }
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS geocode_cache (
+                addr_key TEXT PRIMARY KEY, query TEXT, status TEXT NOT NULL,
+                lat REAL, lng REAL, kota TEXT, kecamatan TEXT, error TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            )"
+        );
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id)');
+
         // login_attempts table (brute-force throttle, added later).
         $pdo->exec(
             'CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT, email TEXT, attempt_time INTEGER NOT NULL DEFAULT 0)'

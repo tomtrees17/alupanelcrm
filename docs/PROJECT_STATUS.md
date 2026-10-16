@@ -153,6 +153,34 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
   - **失败可见**：上传结果写入 `app_meta`（`offsite_last_ok` / `offsite_last_error`），**管理员打开看板时**，若未配置、从未成功、最近一次失败或超过 48 小时没成功，顶部显示红色提醒（`Dashboard::offsite_health()`）。上传失败时备份脚本退出码 2，但本地备份照常保留。
   - **恢复**：OSS 控制台 → 存储桶 → `alupanel/` 下载对应日期的 zip → 解压出 `crm.sqlite` 和 `uploads/` → 按上面的恢复步骤覆盖。
 
+## 6p. 客户分析 · 一、数据准备（2026-10-16）
+
+任务书：`~/Desktop/印尼crm/印尼CRM任务-客户分析板块.md`（四部分：数据准备 / 三个清单 / 页面 / 权限，逐部分验收）。本节是第一部分。
+
+**现状核对（与任务书的出入）**：订单已按 `customer_id` 关联客户（433/437，4 张无关联且库里没有同名客户）；**没有"跟进记录表"**（只有 `customers.last_contact` 一个字段，`tasks` 表从没关联过客户）——第二部分需要新建；**订单历史只从 2026-08-04 开始**（约 2.5 个月），"近 12 个月""90 天未买"等规则要过一阵才有意义；一半订单是 Self Pickup，送货地址常空或是快递名——所以区域推断按 送货地址 → 订单地址 → 客户地址 依次尝试，取第一个能识别出地点的。
+
+**区域（region）**：`app/Enrich.php`。
+- 地址文本规则（免费、离线）：显式「Kota/Kabupaten X」> 裸写的 kota 名（前两个词是 Jl/Jalan/Raya 时视为路名跳过，"Jl. Raya Bekasi" 在雅加达东）> 「Kec X」（雅加达 + 勿加泗/唐格朗/茂物德波的 kecamatan 表，只在 Kec 前缀后才认，避免与同名 kelurahan 混淆；跨两区同名的 Setu/Cipayung/Tamansari 不收）；同级多处提及取**最右边**（印尼地址由小到大）。`Gn`→Gunung、`Tg`→Tanjung。外地关键词（Surabaya、Tasikmalaya…）→ 其他。
+- Google Geocoding（配 key 后）：给坐标（地图用）+ kota。**文本显式写了 kota 而 Google 定位到别处 → 以文本为准并丢弃坐标**（错点比没点更糟）。按规范化地址缓存在 `geocode_cache`（含"无结果"），每个地址只付费一次；key/网络错误不缓存，下次重试。
+- kota → 区域映射表在 `config.php` 的 `insights.region_map`，外地关键词在 `insights.other_markers`。
+- 客户区域 = 最近 3 张**已出货**（status=approved）订单中出现最多的已知区域，平局取更近的；`delivery_regions` 存全部出货订单的区域计数 JSON。无出货订单的客户 region 为 NULL（不算"未知"）。
+- 线上快照实测（仅文本，无 Google）：**已出货订单 373/429 = 87% 得到区域**。
+
+**行业（industry）**：规则先行、模型兜底、人工最终。
+- 规则（命中即定，source=rule）：公司名/客户名词首匹配 Konstruksi/Kontraktor/Bangun→承包商（"Pembangunan"不算）；Advertising/Reklame/Signage/Printing/Akrilik/Neon→广告招牌；Aluminium/Alumunium/Kaca/Glass→铝材店；Interior/Renovasi/Dekorasi→装修公司；Distributor/Supplier→经销商；**订单表单上客户类型多数为 Contractor/Distributor**→对应行业（"End User"是表单默认值，不作依据）；送货地址含 Proyek/Project/Site→承包商；个人名 + 无公司 + 累计 ≤20 张→终端业主。线上快照：规则直接判定 166/367。
+- 未命中的交给 Claude（`claude-opus-5-5`，effort low，结构化输出，每批 20 个客户，`fallbacks: "default"`），返回行业 + 置信度；**置信度 < 0.7 标「待确认」**。只回填问到的客户 id、只收枚举内的行业。
+- 客户详情页「客户画像」卡片：显示行业、来源（规则/AI/人工）、置信度与理由、区域、送货分布；下拉一键确认/改选 → `industry_source=manual`，**夜间任务永不覆盖**（含 `--all`）。走 `find_customer()`，销售只能改自己的客户；写审计日志。
+
+**运行**：`tools/enrich_customers.php`（增量：未处理的订单、配了 Google 后之前只靠文本的订单、行业为空的客户；规则每次对所有非人工客户重算）。`--all` 全量重跑、`--dry-run` 只报告不写库也不调付费 API。`tools/nightly.php` 是夜间总入口（第二部分会往里加清单计算）。
+
+**AI 花费护栏（所有 AI 调用，`app/Claude.php`）**：单次输出 token 硬上限 `ai.max_tokens`（4096，调用方要更多也会被压下来）；请求体超过 `ai.max_input_chars` 不发送；只对网络错误和 408/409/429/5xx/529 重试，最多 `ai.retries`（2）次，退避 1s/2s，遵守 Retry-After（最长 30s）；400/401/403/404、拒答、被截断**不重试**；全公司每日 token 预算 `ai.daily_token_budget`（30 万，库存助手和行业判断共用，`ai_queries` 记账）；行业判断连续 3 批失败即停止本次运行。
+
+**密钥**：`.env`（项目根目录，git 忽略，模板 `.env.example`）。`ANTHROPIC_API_KEY` 设了即启用行业 AI（库存助手另需 `ai.driver=claude`）；`GOOGLE_MAPS_API_KEY` 设了即启用地理编码。
+
+**1.2 清洗**（`tools/clean_customer_data.php`，默认预演，`--apply` 先 `VACUUM INTO backups/pre_clean_*.sqlite`）：只做机械安全的事——销售名仅大小写/空格不同的统一为账号写法（线上：fera→Fera，18 客户 + 27 订单）；电话统一 08xx，"wechat"等非号码与多余号码移进备注（线上 33 条，6 条移入备注）；无 customer_id 的订单在恰好一个同名客户时补关联（线上 4 张都没有同名客户，未动）。**需要人判断的放在「客户管理 → 数据整理」（仅管理员）**：疑似同一人（编辑距离 1，7 位以上名字允许 2，去掉 Mr/Bapak 后相同；线上只有 erpandi ↔ erfandi）一键合并（客户负责人 + 订单销售名一起改）或标记"不是同一人"（记在 `app_meta.salesname_ignored`）；按负责人筛选客户（默认"无负责人"，线上 70 个），勾选后批量分配给某账号，或"按建议分配"（建议 = 该客户订单上出现最多的销售）。合并/分配均写审计日志（新动作 merge / assign / enrich / cleanup）。客户表原"城市"长地址保留不动，只作区域推断的最后兜底。
+
+**测试**：`tests/enrich_test.php`、`tests/claude_test.php`、`tests/customer_data_test.php`、`tests/migration_test.php`（新增列的迁移）。
+
 ## 6o. 列表分页 + 搜索（2026-10-13）
 
 **为什么**：订单每月约 170 张，订单/发票/送货单/客户都已 360–410 条，原先全量渲染（手机上尤其慢），一年后会到两千条以上。
@@ -422,7 +450,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-users(+must_change_password), customers, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
+users(+must_change_password), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
 
 ## 10. 提交历史（main）
 
@@ -469,11 +497,12 @@ b239ab6 Invoice signature block: title only (no company name, no signer name)
 
 发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。（~~真实 logo.png 上传~~ 已完成，见 6 打印一节）
 
-**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **备份异地同步到 OSS**(见 6e) / **列表分页 + 搜索**(见 6o) / **自动化测试**(`tools/run_tests.php`，500 项)。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **备份异地同步到 OSS**(见 6e) / **列表分页 + 搜索**(见 6o) / **客户分析·数据准备**(见 6p) / **AI 花费护栏**(见 6p) / **自动化测试**(`tools/run_tests.php`，650 项)。
 
 **待办（按优先级）**：
+0. **客户分析板块**（任务书四部分，见 6p）：一、数据准备 ✅ 待验收；二、三个清单计算（需新建跟进记录表）；三、页面；四、权限。上线前需在宝塔加计划任务 `tools/nightly.php`（建议每天 02:30），并在 `.env` 填 `ANTHROPIC_API_KEY` / `GOOGLE_MAPS_API_KEY`。
 1. ~~**关闭 SSH 密码认证**~~ —— **已完成**（2026-10-12，见 6f）。~~**备份异地同步**~~ —— **已完成并启用**（2026-10-13，阿里云 OSS，见 6e）；**系统安全补丁**（登录提示 72 个安全更新，26 个 Important，挑空闲时段 `dnf upgrade-minimal --security`）
-1b. **订单/客户按姓名而非账号关联** —— 85/407 个订单的 `submitter` 对不上任何账号（如账号 `erfandi` 有 29 张发票录成 `erpandi`，他登录后看不到）；改用户姓名会让该销售的订单和客户从视图中消失。修法：下单改为账号下拉选择 + 名字变体合并工具
+1b. **订单/客户按姓名而非账号关联**（erpandi/erfandi 现可在「数据整理」一键合并，见 6p；下单改账号下拉仍未做）—— 85/407 个订单的 `submitter` 对不上任何账号（如账号 `erfandi` 有 29 张发票录成 `erpandi`，他登录后看不到）；改用户姓名会让该销售的订单和客户从视图中消失。修法：下单改为账号下拉选择 + 名字变体合并工具
 2. ~~**审计日志**~~ —— **已完成**（见 6g）
 3. ~~**修发票合计舍入**~~ —— **已完成**（见 6n，Pembulatan）。**金额改整数分**仍未做（REAL 存储本身目前未造成误差，优先级降低）。原记录：现用 REAL 存。**线上已实际发生**：3 张发票(1027/1037/1043 - AMI - INV - 08 - 26)的合计比订单含税额少 1 卢比，客户按整数付款后被判定"超额收款"。根因是 `fulfill_order()` 里逐行 `round()` 后 `total = subtotal + ppn` 与原始含税额不完全相等(代码注释写的就是 `≈ original`)。修法：税额改为 `total - subtotal` 反推，让合计严格等于订单含税金额；历史 3 张可一并订正。涉及数据迁移，越晚成本越高
 4. ~~**列表分页**~~ —— **已完成**（2026-10-13，见 6o，含搜索框和财务列表状态刷新改为单条 SQL）

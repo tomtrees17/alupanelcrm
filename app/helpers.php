@@ -195,6 +195,21 @@ function tr_tag(string $tag): string
     return isset($map[$tag]) ? t($map[$tag]) : $tag;
 }
 
+function industry_label(string $code): string
+{
+    return $code === '' ? '—' : t('ind_' . $code);
+}
+
+function region_label(string $code): string
+{
+    return $code === '' ? '—' : t('reg_' . $code);
+}
+
+function industry_source_label(string $src): string
+{
+    return in_array($src, ['rule', 'ai', 'manual'], true) ? t('indsrc_' . $src) : '—';
+}
+
 function tr_priority(string $p): string
 {
     $map = ['高' => 'pri_high', '中' => 'pri_med', '低' => 'pri_low'];
@@ -509,6 +524,7 @@ function audit_actions(): array
     return [
         'create', 'update', 'delete', 'submit', 'approve', 'reject', 'fulfill',
         'pay', 'reverse', 'void', 'unvoid', 'adjust', 'move', 'permission', 'password', 'login', 'logout', 'login_failed',
+        'merge', 'assign', 'enrich', 'cleanup',
     ];
 }
 
@@ -532,5 +548,6 @@ function audit_action_class(string $a): string
         'reverse' => 'tag-red', 'void' => 'tag-red', 'unvoid' => 'tag-orange',
         'login'   => 'tag-gray',   'logout'      => 'tag-gray',  'login_failed' => 'tag-red',
         'permission' => 'tag-orange', 'password' => 'tag-orange', 'move' => 'tag-blue',
+        'merge' => 'tag-orange', 'assign' => 'tag-blue', 'enrich' => 'tag-blue', 'cleanup' => 'tag-orange',
     ][$a] ?? 'tag-gray';
 }
