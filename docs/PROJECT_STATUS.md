@@ -153,6 +153,23 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
   - **失败可见**：上传结果写入 `app_meta`（`offsite_last_ok` / `offsite_last_error`），**管理员打开看板时**，若未配置、从未成功、最近一次失败或超过 48 小时没成功，顶部显示红色提醒（`Dashboard::offsite_health()`）。上传失败时备份脚本退出码 2，但本地备份照常保留。
   - **恢复**：OSS 控制台 → 存储桶 → `alupanel/` 下载对应日期的 zip → 解压出 `crm.sqlite` 和 `uploads/` → 按上面的恢复步骤覆盖。
 
+## 6r. 客户分析 · 三、页面（2026-10-16）
+
+新模块 `insights`（权限矩阵里叫「回访清单」）：`app/controllers/insights.php`，视图 `views/insights/`。一次性迁移（`app_meta.perm_insights`）把它授予**当时所有能看客户的角色**；之后管理员在权限设置里撤掉的不会被页面加载恢复。左侧导航「回访清单」。
+
+**3.1 销售视角** `insights.index`（所有有该模块权限的人都看到**自己名下**的客户，按 `own_name()`）：三个清单是顶部三个大 tab（数字 + 名称），默认「该回访」；每行一个客户（名字点进客户详情的跟进卡片）：距今天数、通常间隔（只买过一次的标 * = 按同行业估算）、B 的超期天数（超两个间隔整行左侧红条）、C 的近 12 月金额与主要品类、上次购买（SKU 规格 × 数量）；按钮高 44px：打电话（tel:）、WhatsApp（wa.me，号码自动转 62 开头）、记跟进 / 无需求（点开就地填写，提交后回到当前 tab，该客户立即从清单消失）。
+
+**3.2 老板/主管视角** `insights.admin`（`insights_sees_all()`：admin / manager / supervisor / ops_supervisor；第四部分会定最终权限）：
+1. 销售活跃度：名下客户数、30 天内有跟进的客户数与比例、本月清单处理率（本月出现在清单上的客户中，在**上榜当天或之后**记了跟进/无需求的比例；上榜前的跟进不算）。上榜记录来自新表 `insights_history`（夜间计算时写入当天名单）——**上线第一个月的处理率只从上线日起算**。
+2. 成交客户分布：按行业、按区域的客户数与近 12 月金额（表格 + 横条）。
+3. 送货点地图：**不用地图库**——服务端按 Web Mercator 算出覆盖 Jabodetabek 的 OpenStreetMap 瓦片（zoom 10，约 4×4 张）和每个点的像素位置，页面上是一个 SVG（瓦片 `<image>` + `<circle>`），随宽度缩放。圆面积 ∝ 订单金额，悬停显示客户/销售/金额/日期；雅加达周边以外的单数单独注明。**按销售着色的做法**：选一个销售 → 他的点橙色、其他人灰色；不选 → 全部蓝色。没有同时给十几个销售各配一种颜色，是因为散点上超过 3 种颜色就分不清（色弱更甚）。瓦片直接从 tile.openstreetmap.org 加载（页面注明 © OpenStreetMap contributors）。
+4. 三个清单全量（带负责销售列），可按销售筛选（和地图共用一个下拉）。
+5. 数据质量：按销售分列 行业待确认 / 区域未知 / 缺电话——**只统计有出货订单的客户**（6p 里说明了原因）。
+
+**3.3 晨间 WhatsApp 提醒**：未做。任务书写的是"若已有消息渠道"——WhatsApp 目前仍是 `driver=log`、14 个账号里 0 个填了手机号。启用 WhatsApp 后可以用现成的通知队列（6i）加一个每天 8:00 的任务。
+
+**测试**：`tests/insights_view_test.php`（销售只见自己、tab/按钮/回跳、主管与职员的访问控制、活跃度数字与库中一致、分布、数据质量、地图投影与筛选高亮）；迁移测试覆盖授权一次性与"撤销不被恢复"。
+
 ## 6q. 客户分析 · 二、三个清单（2026-10-16）
 
 `app/Insights.php`；夜间 `tools/compute_insights.php`（由 `tools/nightly.php` 在区域/行业推断之后调用）整表重建 `customer_insights`（单事务，读者不会看到半张表）。
@@ -470,7 +487,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
+users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
 
 ## 10. 提交历史（main）
 
@@ -517,10 +534,10 @@ af4bc9f Docs: server pulls over SSH remote now that the repo is private
 
 发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。（~~真实 logo.png 上传~~ 已完成，见 6 打印一节）
 
-**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **备份异地同步到 OSS**(见 6e) / **列表分页 + 搜索**(见 6o) / **客户分析·数据准备**(见 6p) / **AI 花费护栏**(见 6p) / **回访清单计算 + 跟进记录**(见 6q) / **自动化测试**(`tools/run_tests.php`，693 项)。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **备份异地同步到 OSS**(见 6e) / **列表分页 + 搜索**(见 6o) / **客户分析·数据准备**(见 6p) / **AI 花费护栏**(见 6p) / **回访清单计算 + 跟进记录**(见 6q) / **回访清单页 + 客户分析看板 + 送货地图**(见 6r) / **自动化测试**(`tools/run_tests.php`，730 项)。
 
 **待办（按优先级）**：
-0. **客户分析板块**（任务书四部分，见 6p）：一、数据准备 ✅（6p）；二、三个清单 ✅ 待验收（6q）；三、页面；四、权限。宝塔计划任务 `tools/nightly.php` 每天 02:30 已加，`.env` 已配。**`.env` 里的 Anthropic 密钥曾在聊天中明文出现，用户决定继续使用——建议择机在 console.anthropic.com 轮换。** erpandi/erfandi 尚未在「数据整理」合并（合并前 erfandi 看不到 erpandi 名下的客户与清单）。
+0. **客户分析板块**（任务书四部分，见 6p）：一、数据准备 ✅（6p）；二、三个清单 ✅（6q）；三、页面 ✅ 待验收（6r）；四、权限。宝塔计划任务 `tools/nightly.php` 每天 02:30 已加，`.env` 已配。**`.env` 里的 Anthropic 密钥曾在聊天中明文出现，用户决定继续使用——建议择机在 console.anthropic.com 轮换。** erpandi 已于 2026-10-16 合并到 erfandi（21 客户 / 31 订单，快照 `backups/pre_merge_erpandi_*`）。晨间 WhatsApp 提醒待 WhatsApp 启用后再做（6r）。
 1. ~~**关闭 SSH 密码认证**~~ —— **已完成**（2026-10-12，见 6f）。~~**备份异地同步**~~ —— **已完成并启用**（2026-10-13，阿里云 OSS，见 6e）；**系统安全补丁**（登录提示 72 个安全更新，26 个 Important，挑空闲时段 `dnf upgrade-minimal --security`）
 1b. **订单/客户按姓名而非账号关联**（erpandi/erfandi 现可在「数据整理」一键合并，见 6p；下单改账号下拉仍未做）—— 85/407 个订单的 `submitter` 对不上任何账号（如账号 `erfandi` 有 29 张发票录成 `erpandi`，他登录后看不到）；改用户姓名会让该销售的订单和客户从视图中消失。修法：下单改为账号下拉选择 + 名字变体合并工具
 2. ~~**审计日志**~~ —— **已完成**（见 6g）

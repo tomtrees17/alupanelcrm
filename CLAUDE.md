@@ -52,7 +52,7 @@ app/
   CustomerData.php          客户数据清洗（销售名合并、电话、负责人建议）
   Insights.php              回访清单 A/B/C 计算 + 跟进记录与屏蔽
   Auth.php                  会话鉴权     Csrf.php  CSRF 令牌
-  controllers/              dashboard customers pipeline tasks finance orders inventory
+  controllers/              dashboard customers insights pipeline tasks finance orders inventory
                             approvals audit delivery users roles account auth lang
 
 views/                      按模块分目录 + layout.php + print/ + word/ + errors/

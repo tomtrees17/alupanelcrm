@@ -376,6 +376,14 @@ CREATE TABLE customer_insights (
     top_specs       TEXT
 );
 
+-- ── Who was on which list each day (manager view: list processing rate) ──
+CREATE TABLE insights_history (
+    day         TEXT    NOT NULL,
+    customer_id INTEGER NOT NULL,
+    lists       TEXT    NOT NULL,   -- e.g. "a", "bc"
+    PRIMARY KEY (day, customer_id)
+);
+
 CREATE INDEX idx_orders_customer ON orders(customer_id);
 CREATE INDEX idx_deals_customer  ON deals(customer_id);
 CREATE INDEX idx_tasks_customer  ON tasks(customer_id);

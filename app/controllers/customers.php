@@ -229,7 +229,11 @@ switch ($action) {
         Csrf::verify();
         $customer = find_customer($pdo, (int) input('id', 0));
         $note = trim((string) input('note', ''));
-        $back = input('back', '') === 'insights' ? ['insights.index', array_filter(['tab' => (string) input('tab', '')])] : ['customers.show', ['id' => $customer['id']]];
+        $back = match ((string) input('back', '')) {
+            'insights'       => ['insights.index', array_filter(['tab' => (string) input('tab', '')])],
+            'insights_admin' => ['insights.admin', array_filter(['tab' => (string) input('tab', ''), 'owner' => (string) input('owner', '')])],
+            default          => ['customers.show', ['id' => $customer['id']]],
+        };
         if ($note === '') {
             flash(t($action === 'no_need' ? 'msg_no_need_reason' : 'msg_followup_note'), 'error');
             redirect($back[0], $back[1]);

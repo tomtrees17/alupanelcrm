@@ -306,6 +306,15 @@ final class Database
             )'
         );
 
+        $pdo->exec('CREATE TABLE IF NOT EXISTS insights_history (day TEXT NOT NULL, customer_id INTEGER NOT NULL, lists TEXT NOT NULL, PRIMARY KEY (day, customer_id))');
+
+        // 回访清单 module: one-time grant to every role that can already see
+        // customers. Marker-guarded so an admin's later revocation sticks.
+        if (!$pdo->query("SELECT 1 FROM app_meta WHERE k = 'perm_insights'")->fetchColumn()) {
+            $pdo->exec("INSERT OR IGNORE INTO role_permissions (role, module) SELECT role, 'insights' FROM role_permissions WHERE module = 'customers'");
+            $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_insights', '1')");
+        }
+
         // login_attempts table (brute-force throttle, added later).
         $pdo->exec(
             'CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT, email TEXT, attempt_time INTEGER NOT NULL DEFAULT 0)'
@@ -622,7 +631,7 @@ final class Database
 
         self::seedPermissions($pdo);
         $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (k TEXT PRIMARY KEY, v TEXT)');
-        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1'), ('pwd_policy_v1', '1'), ('perm_approvals', '1')");
+        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1'), ('pwd_policy_v1', '1'), ('perm_approvals', '1'), ('perm_insights', '1')");
 
         $pdo->commit();
     }

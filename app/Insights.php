@@ -163,6 +163,16 @@ final class Insights
         foreach ($rows as $row) {
             $ins->execute($row);
         }
+        // Daily membership log: the manager view's "processing rate" needs to
+        // know who was on a list this month, after the table is rebuilt.
+        $hist = $pdo->prepare('INSERT OR REPLACE INTO insights_history (day, customer_id, lists) VALUES (?,?,?)');
+        $pdo->prepare('DELETE FROM insights_history WHERE day = ?')->execute([$today]);
+        foreach ($rows as $row) {
+            $l = ($row[11] ? 'a' : '') . ($row[12] ? 'b' : '') . ($row[13] ? 'c' : '');
+            if ($l !== '') {
+                $hist->execute([$today, $row[0], $l]);
+            }
+        }
         $pdo->prepare("INSERT OR REPLACE INTO app_meta (k, v) VALUES ('insights_computed_on', ?)")->execute([$today]);
         $pdo->commit();
 
@@ -238,6 +248,135 @@ final class Insights
             }
         }
         return $out;
+    }
+
+    // ───────────────────────────── manager view ─────────────────────────────
+
+    /**
+     * Per salesperson: customers owned, customers followed up in the last 30
+     * days, and this month's list processing rate (customers that appeared on
+     * any list this month and got a follow-up or "no need" on/after that day).
+     * @return array<string,array{customers:int,fu30:int,listed:int,handled:int}>
+     */
+    public static function activity(PDO $pdo, string $today): array
+    {
+        $out = [];
+        foreach ($pdo->query("SELECT TRIM(owner) o, COUNT(*) n FROM customers WHERE TRIM(COALESCE(owner,'')) <> '' GROUP BY TRIM(owner)") as $r) {
+            $out[(string) $r['o']] = ['customers' => (int) $r['n'], 'fu30' => 0, 'listed' => 0, 'handled' => 0];
+        }
+        $since30 = date('Y-m-d', strtotime($today . ' -30 days'));
+        $st = $pdo->prepare("SELECT TRIM(c.owner) o, COUNT(DISTINCT f.customer_id) n FROM customer_followups f JOIN customers c ON c.id = f.customer_id
+                              WHERE f.kind = 'followup' AND date(f.created_at) > ? AND TRIM(COALESCE(c.owner,'')) <> '' GROUP BY TRIM(c.owner)");
+        $st->execute([$since30]);
+        foreach ($st->fetchAll() as $r) {
+            if (isset($out[$r['o']])) {
+                $out[$r['o']]['fu30'] = (int) $r['n'];
+            }
+        }
+        $month = substr($today, 0, 7) . '-01';
+        $st = $pdo->prepare("SELECT TRIM(c.owner) o, h.customer_id, MIN(h.day) first_day
+               FROM insights_history h JOIN customers c ON c.id = h.customer_id
+              WHERE h.day >= ? AND h.day <= ? AND TRIM(COALESCE(c.owner,'')) <> ''
+              GROUP BY h.customer_id, TRIM(c.owner)");
+        $st->execute([$month, $today]);
+        $done = $pdo->prepare('SELECT 1 FROM customer_followups WHERE customer_id = ? AND date(created_at) >= ? AND date(created_at) <= ? LIMIT 1');
+        foreach ($st->fetchAll() as $r) {
+            if (!isset($out[$r['o']])) {
+                continue;
+            }
+            $out[$r['o']]['listed']++;
+            $done->execute([$r['customer_id'], $r['first_day'], $today]);
+            $out[$r['o']]['handled'] += $done->fetchColumn() ? 1 : 0;
+        }
+        uasort($out, fn($a, $b) => $b['customers'] <=> $a['customers']);
+        return $out;
+    }
+
+    /**
+     * Customers with shipped orders, grouped by industry or region: count and
+     * 12-month amount.
+     * @return array<string,array{n:int,amount:float}>
+     */
+    public static function distribution(PDO $pdo, string $field): array
+    {
+        if (!in_array($field, ['industry', 'region'], true)) {
+            throw new InvalidArgumentException('field');
+        }
+        $out = [];
+        $rows = $pdo->query("SELECT COALESCE(NULLIF(c.{$field}, ''), 'unknown') k, COUNT(*) n, COALESCE(SUM(i.total_amount), 0) a
+                               FROM customer_insights i JOIN customers c ON c.id = i.customer_id GROUP BY k ORDER BY a DESC");
+        foreach ($rows as $r) {
+            $out[(string) $r['k']] = ['n' => (int) $r['n'], 'amount' => (float) $r['a']];
+        }
+        return $out;
+    }
+
+    /**
+     * Data gaps among customers that matter (those with shipped orders), per
+     * salesperson. Customers who never ordered are left out on purpose: most
+     * are a bare name, and counting them would bury the gaps that affect the lists.
+     * @return array<string,array{customers:int,industry:int,region:int,phone:int}>
+     */
+    public static function quality(PDO $pdo): array
+    {
+        $out = [];
+        $rows = $pdo->query("SELECT COALESCE(NULLIF(TRIM(c.owner), ''), '') o, COUNT(*) n,
+                    SUM(c.industry IS NULL OR (c.industry_pending = 1 AND COALESCE(c.industry_source, '') <> 'manual')) ind,
+                    SUM(COALESCE(c.region, 'unknown') = 'unknown') reg,
+                    SUM(TRIM(COALESCE(c.phone, '')) = '') ph
+               FROM customer_insights i JOIN customers c ON c.id = i.customer_id GROUP BY o ORDER BY n DESC");
+        foreach ($rows as $r) {
+            $out[(string) $r['o']] = ['customers' => (int) $r['n'], 'industry' => (int) $r['ind'], 'region' => (int) $r['reg'], 'phone' => (int) $r['ph']];
+        }
+        return $out;
+    }
+
+    /**
+     * Shipped orders with a map point.
+     * @return array<int,array{lat:float,lng:float,amount:float,owner:string,customer:string,customer_id:int,day:string}>
+     */
+    public static function map_points(PDO $pdo): array
+    {
+        $rows = $pdo->query("SELECT o.delivery_lat lat, o.delivery_lng lng, TRIM(COALESCE(o.submitter, '')) owner, o.customer_id, COALESCE(c.name, o.customer_name) customer,
+                    date(o.created_at) day, COALESCE((SELECT SUM(qty * price) FROM order_items WHERE order_id = o.id), 0) + COALESCE(o.shipping_cost, 0) amount
+               FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
+              WHERE o." . Enrich::SHIPPED . ' AND o.delivery_lat IS NOT NULL AND o.delivery_lng IS NOT NULL ORDER BY amount DESC');
+        return array_map(fn($r) => [
+            'lat' => (float) $r['lat'], 'lng' => (float) $r['lng'], 'amount' => (float) $r['amount'], 'owner' => (string) $r['owner'],
+            'customer' => (string) $r['customer'], 'customer_id' => (int) $r['customer_id'], 'day' => (string) $r['day'],
+        ], $rows->fetchAll());
+    }
+
+    /**
+     * Web-Mercator layout for a fixed OpenStreetMap tile grid covering the
+     * given box: which tiles to draw and where each point lands, in pixels of
+     * that grid. Plain SVG on the page; no map library.
+     * @return array{zoom:int,x0:int,y0:int,cols:int,rows:int,points:array}
+     */
+    public static function map_layout(array $points, array $box, int $zoom): array
+    {
+        $px = function (float $lat, float $lng) use ($zoom): array {
+            $n = 256 * (2 ** $zoom);
+            $x = ($lng + 180) / 360 * $n;
+            $s = sin(deg2rad($lat));
+            $y = (0.5 - log((1 + $s) / (1 - $s)) / (4 * M_PI)) * $n;
+            return [$x, $y];
+        };
+        [$xa, $ya] = $px($box['north'], $box['west']);
+        [$xb, $yb] = $px($box['south'], $box['east']);
+        $x0 = (int) floor($xa / 256);
+        $y0 = (int) floor($ya / 256);
+        $cols = (int) floor($xb / 256) - $x0 + 1;
+        $rows = (int) floor($yb / 256) - $y0 + 1;
+        $inside = [];
+        foreach ($points as $p) {
+            if ($p['lat'] > $box['north'] || $p['lat'] < $box['south'] || $p['lng'] < $box['west'] || $p['lng'] > $box['east']) {
+                continue;
+            }
+            [$x, $y] = $px($p['lat'], $p['lng']);
+            $inside[] = $p + ['x' => round($x - $x0 * 256, 1), 'y' => round($y - $y0 * 256, 1)];
+        }
+        return ['zoom' => $zoom, 'x0' => $x0, 'y0' => $y0, 'cols' => $cols, 'rows' => $rows, 'points' => $inside];
     }
 
     /** Record a follow-up or a "no need" (reason required). Also stamps customers.last_contact. */

@@ -44,6 +44,8 @@ $pdo->exec('DROP INDEX IF EXISTS idx_orders_customer');
 $pdo->exec('DROP INDEX IF EXISTS idx_followups_customer');
 $pdo->exec('DROP TABLE IF EXISTS customer_followups');
 $pdo->exec('DROP TABLE IF EXISTS customer_insights');
+$pdo->exec('DROP TABLE IF EXISTS insights_history');
+$pdo->exec("INSERT INTO role_permissions (role, module) VALUES ('clerk','customers'),('sales','customers')");
 $pdo->exec('DROP TABLE IF EXISTS geocode_cache');
 foreach (['industry', 'industry_source', 'industry_confidence', 'industry_pending', 'industry_note', 'region', 'delivery_regions', 'enriched_at'] as $col) {
     $pdo->exec("ALTER TABLE customers DROP COLUMN {$col}");
@@ -117,7 +119,13 @@ ok('customers gains industry/region columns', count(array_intersect(['industry',
 $oc = array_column($pdo->query('PRAGMA table_info(orders)')->fetchAll(), 'name');
 ok('orders gains delivery_lat/lng/region + geo_source', count(array_intersect(['delivery_lat', 'delivery_lng', 'delivery_region', 'geo_source'], $oc)) === 4);
 ok('geocode_cache created', $has('geocode_cache'));
-ok('call-list tables created (followups + insights)', $has('customer_followups') && $has('customer_insights'));
+ok('call-list tables created (followups + insights + history)', $has('customer_followups') && $has('customer_insights') && $has('insights_history'));
+$insRoles = $pdo->query("SELECT role FROM role_permissions WHERE module = 'insights' ORDER BY role")->fetchAll(PDO::FETCH_COLUMN);
+$custRoles = $pdo->query("SELECT role FROM role_permissions WHERE module = 'customers' ORDER BY role")->fetchAll(PDO::FETCH_COLUMN);
+ok('回访清单 granted once to exactly the roles that see customers', $insRoles === $custRoles, implode(',', $insRoles));
+$pdo->exec("DELETE FROM role_permissions WHERE module = 'insights' AND role = 'clerk'");
+Database::migrate($pdo);
+ok('an admin revoking 回访清单 later is not undone by the next page load', !in_array('clerk', $pdo->query("SELECT role FROM role_permissions WHERE module = 'insights'")->fetchAll(PDO::FETCH_COLUMN), true));
 $lama = $pdo->query('SELECT * FROM customers WHERE id = 777')->fetch();
 ok('existing customer untouched, industry/region left for the enrichment job', $lama['name'] === 'Pak Lama' && $lama['owner'] === 'ridwan'
     && $lama['industry'] === null && $lama['region'] === null && (int) $lama['industry_pending'] === 0);

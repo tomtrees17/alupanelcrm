@@ -273,7 +273,7 @@ function role_label(string $r): string
 /** Modules whose access is route-guarded + configurable per role. */
 function controllable_modules(): array
 {
-    return ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'audit'];
+    return ['customers', 'insights', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'audit'];
 }
 
 /** Non-route view permissions (dashboard widgets, export, etc.), configurable per role. */
@@ -292,16 +292,29 @@ function permission_keys(): array
 function default_permissions(): array
 {
     return [
-        'manager'         => ['customers', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'export'],
-        'finance_manager' => ['customers', 'finance', 'orders', 'inventory', 'approvals', 'performance'],
-        'ops_supervisor'  => ['customers', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals', 'performance'],
-        'supervisor'      => ['customers', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
-        'sales'           => ['customers', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
+        'manager'         => ['customers', 'insights', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'export'],
+        'finance_manager' => ['customers', 'insights', 'finance', 'orders', 'inventory', 'approvals', 'performance'],
+        'ops_supervisor'  => ['customers', 'insights', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals', 'performance'],
+        'supervisor'      => ['customers', 'insights', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
+        'sales'           => ['customers', 'insights', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
         'warehouse'       => ['orders', 'inventory', 'approvals'],
-        'hr'              => ['customers', 'tasks', 'approvals'],
-        'clerk'           => ['customers', 'tasks', 'orders', 'approvals'],
+        'hr'              => ['customers', 'insights', 'tasks', 'approvals'],
+        'clerk'           => ['customers', 'insights', 'tasks', 'orders', 'approvals'],
         // admin is omitted on purpose → always full access.
     ];
+}
+
+/**
+ * Who sees every salesperson's call lists and the manager view (老板/主管).
+ * Everyone else with the module sees only customers they own.
+ */
+function insights_sees_all(): bool
+{
+    $auth = $GLOBALS['auth'] ?? null;
+    if ($auth === null) {
+        return false;
+    }
+    return $auth->isAdmin() || in_array($auth->user()['role'] ?? '', ['manager', 'supervisor', 'ops_supervisor'], true);
 }
 
 /** Only admin and warehouse(库存管理员) may modify inventory; others are read-only. */
