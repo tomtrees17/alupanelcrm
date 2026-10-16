@@ -113,6 +113,9 @@ final class Ai
                 'effort' => 'low',            // a lookup, not a reasoning problem
                 'format' => ['type' => 'json_schema', 'schema' => self::schema()],
             ],
+            // A safety-classifier false positive is retried server-side on the
+            // model Anthropic recommends, instead of failing the question.
+            'fallbacks' => 'default',
         ];
     }
 
@@ -129,7 +132,7 @@ final class Ai
         }
 
         // Token cap, size guard and bounded retries live in Claude::send().
-        [$json, $err, $usage] = Claude::send($config, self::build_request($ai, $catalogue, $question));
+        [$json, $err, $usage] = Claude::send($config, self::build_request($ai, $catalogue, $question), ['server-side-fallback-2026-07-01']);
         if ($json === null) {
             return [null, $err, $usage];
         }

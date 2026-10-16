@@ -189,6 +189,7 @@ ok('structured output requested', ($req['output_config']['format']['type'] ?? ''
 ok('schema travels with the request', ($req['output_config']['format']['schema']['properties']['product_ids']['items']['type'] ?? '') === 'integer');
 ok('effort tuned down for a lookup', ($req['output_config']['effort'] ?? '') === 'low');
 ok('no deprecated budget_tokens', !isset($req['thinking']['budget_tokens']));
+ok('server-side fallback on a refusal', ($req['fallbacks'] ?? null) === 'default');
 ok('max_tokens leaves room for the answer', (int) $req['max_tokens'] >= 1000);
 
 // It must survive JSON encoding with Chinese text intact (not \uXXXX-mangled).

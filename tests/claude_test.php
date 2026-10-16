@@ -111,6 +111,7 @@ $queue = [[500, 'x', []], [500, 'x', []], [500, 'x', []]];
 [$p, $e] = Ai::match(['ai' => ['driver' => 'claude', 'key' => 'k', 'retries' => 2, 'max_tokens' => 2000]], '1|SJ|x|a/b|4.0|1.22', 'q');
 ok('inventory assistant: bounded retries, then a clean failure', $p === null && count($calls) === 3 && str_contains($e, 'after 3 attempts'), $e);
 ok('inventory assistant: its 4000-token request is clamped', $calls[0]['body']['max_tokens'] === 2000);
+ok('inventory assistant: fallback beta header sent with the fallbacks field', in_array('anthropic-beta: server-side-fallback-2026-07-01', $calls[0]['headers'], true) && $calls[0]['body']['fallbacks'] === 'default');
 
 Claude::$http = null;
 Claude::$sleep = null;
