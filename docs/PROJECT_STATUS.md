@@ -454,9 +454,11 @@ users(+must_change_password), customers(+industry/industry_source/industry_confi
 
 ## 10. 提交历史（main）
 
-最近 30 条（共 86 条，含本条文档提交；完整历史用 `git log --oneline`）：
+最近 30 条（共 88 条，含本条文档提交；完整历史用 `git log --oneline`）：
 
 ```
+8821ea4 Customers: infer region and industry from orders, data cleanup tools, AI spending guards
+aecd3ad Docs: refresh commit history
 88f0e2e Paginate and search the order, invoice, customer, delivery and approval lists
 329274a Offsite: trim pasted credentials; record OSS backups as live
 73ac833 Offsite: default to the Jakarta bucket alupanel-backup-crm
@@ -485,8 +487,6 @@ beaf52c Finance: editable invoice number on the invoice page
 28915e0 Invoice: ALUSIGNPANEL logo in the letterhead (print-only asset)
 bfe2816 Invoice: drop company name from the letterhead (address box + title only)
 b239ab6 Invoice signature block: title only (no company name, no signer name)
-0c3a755 Backup: bundle DB snapshot + attachments (data/uploads) into a rotated zip
-7e3cb15 Approvals: HR review stage for trip / expense / leave requests
 ```
 
 ## 11. 用户偏好
