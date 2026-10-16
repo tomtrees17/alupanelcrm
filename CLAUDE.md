@@ -50,6 +50,7 @@ app/
   Claude.php                Anthropic API 唯一出口（token 上限 / 重试 / 每日预算）
   Enrich.php                客户区域 / 行业推断（地址文本 + Google 地理编码 + 规则 + Claude）
   CustomerData.php          客户数据清洗（销售名合并、电话、负责人建议）
+  Insights.php              回访清单 A/B/C 计算 + 跟进记录与屏蔽
   Auth.php                  会话鉴权     Csrf.php  CSRF 令牌
   controllers/              dashboard customers pipeline tasks finance orders inventory
                             approvals audit delivery users roles account auth lang
@@ -62,6 +63,7 @@ tools/
   backup_db.php             VACUUM INTO 一致快照 + 附件打包，滚动保留 14 份
   nightly.php               夜间客户分析任务入口（宝塔计划任务调用）
   enrich_customers.php      区域 / 行业推断（增量；--all / --dry-run）
+  compute_insights.php      重建回访清单（--date 试算、--show 打印）
   clean_customer_data.php   一次性客户数据清洗（默认预演，--apply 先快照）
   run_tests.php             零依赖测试运行器（见 5.7）
 tests/                      测试用例 *_test.php（内存 SQLite，不碰运行时数据）

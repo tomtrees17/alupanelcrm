@@ -27,6 +27,7 @@ require __DIR__ . '/../app/Dashboard.php';
 require __DIR__ . '/../app/Oss.php';
 require __DIR__ . '/../app/Enrich.php';
 require __DIR__ . '/../app/CustomerData.php';
+require __DIR__ . '/../app/Insights.php';
 
 $_SESSION = [];
 $_SERVER['REMOTE_ADDR'] = '203.0.113.9';

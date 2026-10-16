@@ -362,6 +362,11 @@ tfoot td { padding: 8px 14px; }
 .assign-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
 .check-all { display: flex; align-items: center; gap: 6px; font-size: 13px; }
 
+.followup-form textarea { width: 100%; }
+.followup-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.followup-list { list-style: none; margin: 14px 0 0; padding: 0; }
+.followup-list li { padding: 8px 0; border-top: 1px solid var(--border); }
+
 /* ─ RESPONSIVE (mobile) ─ */
 .nav-toggle { display: none; background: none; border: none; font-size: 22px; line-height: 1; color: var(--text); cursor: pointer; padding: 0 2px; }
 .sidebar-backdrop { display: none; }

@@ -41,6 +41,9 @@ $pdo->exec('ALTER TABLE orders DROP COLUMN created_by');
 $pdo->exec("INSERT INTO users (name,email,password_hash,role) VALUES ('Admin','admin@alupanel.local','x','admin')");
 // before the customer analysis: no industry/region columns, no geo columns, no geocode cache.
 $pdo->exec('DROP INDEX IF EXISTS idx_orders_customer');
+$pdo->exec('DROP INDEX IF EXISTS idx_followups_customer');
+$pdo->exec('DROP TABLE IF EXISTS customer_followups');
+$pdo->exec('DROP TABLE IF EXISTS customer_insights');
 $pdo->exec('DROP TABLE IF EXISTS geocode_cache');
 foreach (['industry', 'industry_source', 'industry_confidence', 'industry_pending', 'industry_note', 'region', 'delivery_regions', 'enriched_at'] as $col) {
     $pdo->exec("ALTER TABLE customers DROP COLUMN {$col}");
@@ -114,6 +117,7 @@ ok('customers gains industry/region columns', count(array_intersect(['industry',
 $oc = array_column($pdo->query('PRAGMA table_info(orders)')->fetchAll(), 'name');
 ok('orders gains delivery_lat/lng/region + geo_source', count(array_intersect(['delivery_lat', 'delivery_lng', 'delivery_region', 'geo_source'], $oc)) === 4);
 ok('geocode_cache created', $has('geocode_cache'));
+ok('call-list tables created (followups + insights)', $has('customer_followups') && $has('customer_insights'));
 $lama = $pdo->query('SELECT * FROM customers WHERE id = 777')->fetch();
 ok('existing customer untouched, industry/region left for the enrichment job', $lama['name'] === 'Pak Lama' && $lama['owner'] === 'ridwan'
     && $lama['industry'] === null && $lama['region'] === null && (int) $lama['industry_pending'] === 0);

@@ -345,6 +345,37 @@ CREATE TABLE geocode_cache (
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+-- ── Follow-ups (跟进记录) and "no need" dismissals of call-list items ──
+CREATE TABLE customer_followups (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    user_id     INTEGER,
+    user_name   TEXT,
+    kind        TEXT NOT NULL DEFAULT 'followup',   -- followup (hides 7 days) | no_need (reason; hides 30 days)
+    note        TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_followups_customer ON customer_followups(customer_id, created_at);
+
+-- ── Call lists, recomputed nightly by tools/compute_insights.php (read-only to users) ──
+CREATE TABLE customer_insights (
+    customer_id     INTEGER PRIMARY KEY,
+    computed_on     TEXT NOT NULL,
+    last_order_date TEXT,
+    last_order_id   INTEGER,
+    last_items      TEXT,          -- "SJ8010 3.0*0.06 ×20, ..." of the last purchase
+    order_count     INTEGER,       -- shipped orders, last 12 months
+    purchase_days   INTEGER,       -- distinct purchase days (all time)
+    total_amount    REAL,          -- last 12 months, tax-inclusive
+    avg_interval    REAL,          -- days; NULL = no basis
+    interval_source TEXT,          -- own|industry|global
+    days_since      INTEGER,
+    in_a INTEGER NOT NULL DEFAULT 0, in_b INTEGER NOT NULL DEFAULT 0, in_c INTEGER NOT NULL DEFAULT 0,
+    overdue_days    INTEGER,       -- days_since − avg_interval
+    overdue_red     INTEGER NOT NULL DEFAULT 0,
+    top_specs       TEXT
+);
+
 CREATE INDEX idx_orders_customer ON orders(customer_id);
 CREATE INDEX idx_deals_customer  ON deals(customer_id);
 CREATE INDEX idx_tasks_customer  ON tasks(customer_id);

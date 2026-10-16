@@ -85,6 +85,15 @@ $config = [
         'ai_batch'       => 20,       // customers per model call
         'end_owner_max_qty' => 20,    // "personal name, no company, small orders" ⇒ 终端业主
 
+        // Call lists (回访清单), see app/Insights.php
+        'due_low'    => 0.9,          // A 该回访: days since ≥ 0.9 × usual interval …
+        'due_high'   => 1.5,          // … and ≤ 1.5 ×; B 快流失: beyond 1.5 ×
+        'red_factor' => 2.0,          // B: overdue by more than 2 × the interval → red
+        'top_share'  => 0.2,          // C 值得多跑: top 20% by 12-month amount …
+        'idle_days'  => 90,           // … and no purchase for more than 90 days
+        'snooze_followup_days' => 7,  // after 记跟进 the customer leaves the lists for 7 days
+        'snooze_no_need_days'  => 30, // after 无需求 for 30 days
+
         // kota / kabupaten (as Google or the address writes it, lowercase,
         // without the "Kota"/"Kabupaten"/"Adm." prefix) → region.
         // Anything geocoded to a kota not listed here becomes 'other'.

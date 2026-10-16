@@ -287,6 +287,25 @@ final class Database
         );
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id)');
 
+        // Call lists + follow-ups (回访清单, added later). Lists are rebuilt
+        // nightly; an empty table just means no list until the first run.
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS customer_followups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER NOT NULL,
+                user_id INTEGER, user_name TEXT, kind TEXT NOT NULL DEFAULT 'followup', note TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            )"
+        );
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_followups_customer ON customer_followups(customer_id, created_at)');
+        $pdo->exec(
+            'CREATE TABLE IF NOT EXISTS customer_insights (
+                customer_id INTEGER PRIMARY KEY, computed_on TEXT NOT NULL, last_order_date TEXT, last_order_id INTEGER,
+                last_items TEXT, order_count INTEGER, purchase_days INTEGER, total_amount REAL, avg_interval REAL,
+                interval_source TEXT, days_since INTEGER, in_a INTEGER NOT NULL DEFAULT 0, in_b INTEGER NOT NULL DEFAULT 0,
+                in_c INTEGER NOT NULL DEFAULT 0, overdue_days INTEGER, overdue_red INTEGER NOT NULL DEFAULT 0, top_specs TEXT
+            )'
+        );
+
         // login_attempts table (brute-force throttle, added later).
         $pdo->exec(
             'CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT, email TEXT, attempt_time INTEGER NOT NULL DEFAULT 0)'

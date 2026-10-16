@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 /** @var string $action */
 /** @var PDO $pdo */
+/** @var Auth $auth */
+/** @var array $config */
 
 $fields = ['name', 'company', 'phone', 'email', 'city', 'tag', 'value', 'note', 'last_contact'];
 
@@ -125,9 +127,15 @@ switch ($action) {
         $deals->execute([$customer['id']]);
         $orders = $pdo->prepare('SELECT * FROM orders WHERE customer_id = ? ORDER BY id DESC');
         $orders->execute([$customer['id']]);
+        $fu = $pdo->prepare('SELECT * FROM customer_followups WHERE customer_id = ? ORDER BY id DESC LIMIT 30');
+        $fu->execute([$customer['id']]);
+        $ins = $pdo->prepare('SELECT * FROM customer_insights WHERE customer_id = ?');
+        $ins->execute([$customer['id']]);
         view('customers.show', [
             'pageTitle' => $customer['name'], 'pageSub' => $customer['company'],
             'customer' => $customer, 'deals' => $deals->fetchAll(), 'orders' => $orders->fetchAll(),
+            'followups' => $fu->fetchAll(), 'insight' => $ins->fetch() ?: null,
+            'snooze' => Insights::snoozed($pdo, $config, date('Y-m-d'))[(int) $customer['id']] ?? null,
         ]);
         break;
 
@@ -211,6 +219,24 @@ switch ($action) {
                 industry_label($industry)));
         flash(t('msg_industry_saved'));
         redirect('customers.show', ['id' => $customer['id']]);
+        break;
+
+    case 'followup':
+    case 'no_need':
+        // 记跟进 / 无需求. Either hides the customer from the call lists (7 / 30
+        // days, read live). Not written to audit_log: high-frequency, and the
+        // follow-up table is itself the record of who did what when.
+        Csrf::verify();
+        $customer = find_customer($pdo, (int) input('id', 0));
+        $note = trim((string) input('note', ''));
+        $back = input('back', '') === 'insights' ? ['insights.index', array_filter(['tab' => (string) input('tab', '')])] : ['customers.show', ['id' => $customer['id']]];
+        if ($note === '') {
+            flash(t($action === 'no_need' ? 'msg_no_need_reason' : 'msg_followup_note'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        Insights::record($pdo, (int) $customer['id'], $action === 'no_need' ? 'no_need' : 'followup', mb_substr($note, 0, 1000), $auth->user(), date('Y-m-d'));
+        flash(t($action === 'no_need' ? 'msg_no_need_saved' : 'msg_followup_saved'));
+        redirect($back[0], $back[1]);
         break;
 
     // ── 数据整理 (admin): salesperson-name variants, owner (re)assignment ──

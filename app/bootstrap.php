@@ -37,6 +37,7 @@ require __DIR__ . '/Ai.php';
 require __DIR__ . '/Dashboard.php';
 require __DIR__ . '/Enrich.php';
 require __DIR__ . '/CustomerData.php';
+require __DIR__ . '/Insights.php';
 require __DIR__ . '/Database.php';
 require __DIR__ . '/Csrf.php';
 require __DIR__ . '/Auth.php';

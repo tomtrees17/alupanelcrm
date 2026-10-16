@@ -1,4 +1,4 @@
-<?php /** @var array $customer */ /** @var array $deals */ /** @var array $orders */ ?>
+<?php /** @var array $customer */ /** @var array $deals */ /** @var array $orders */ /** @var array $followups */ /** @var ?array $insight */ /** @var ?array $snooze */ ?>
 <div class="page-head">
     <h1><?= e($customer['name']) ?> <span class="tag <?= customer_tag_class($customer['tag']) ?>"><?= e(tr_tag($customer['tag'])) ?></span></h1>
     <div class="head-actions">
@@ -58,6 +58,40 @@ $dist = json_decode((string) ($customer['delivery_regions'] ?? ''), true) ?: [];
             <button class="btn <?= $pending || $ind === '' ? 'btn-primary' : 'btn-ghost' ?>" type="submit"><?= $src === 'manual' ? t('btn_save') : t('ind_confirm') ?></button>
         </form>
         <?php if ($src !== 'manual'): ?><p class="muted small"><?= t('ind_confirm_hint') ?></p><?php endif; ?>
+    </div>
+</div>
+
+<div class="card" id="followups">
+    <div class="card-header"><span class="card-title"><?= t('followups') ?></span></div>
+    <div class="card-body">
+        <?php if (!empty($insight)): ?>
+            <p class="muted small">
+                <?= sprintf(t('fu_rhythm'), e((string) $insight['last_order_date']), (int) $insight['days_since']) ?>
+                <?php if ($insight['avg_interval'] !== null): ?> · <?= sprintf(t('fu_usually'), (int) round((float) $insight['avg_interval'])) ?><?php if ($insight['interval_source'] !== 'own'): ?> (<?= t('fu_src_' . $insight['interval_source']) ?>)<?php endif; ?><?php endif; ?>
+                <?php foreach (Insights::LISTS as $l): ?><?php if ((int) $insight['in_' . $l] === 1): ?> <span class="tag <?= $l === 'b' ? 'tag-red' : ($l === 'a' ? 'tag-orange' : 'tag-blue') ?>"><?= t('list_' . $l) ?></span><?php endif; ?><?php endforeach; ?>
+            </p>
+        <?php endif; ?>
+        <?php if (!empty($snooze)): ?>
+            <p class="muted small"><?= sprintf(t($snooze['kind'] === 'no_need' ? 'fu_snoozed_no_need' : 'fu_snoozed'), e($snooze['until'])) ?></p>
+        <?php endif; ?>
+        <form class="followup-form" method="post" action="<?= url('customers.followup') ?>">
+            <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $customer['id'] ?>">
+            <textarea class="form-input" name="note" rows="2" required placeholder="<?= t('fu_placeholder') ?>"></textarea>
+            <div class="followup-actions">
+                <button class="btn btn-primary" type="submit"><?= t('btn_followup') ?></button>
+                <button class="btn btn-ghost" type="submit" formaction="<?= url('customers.no_need') ?>"><?= t('btn_no_need') ?></button>
+            </div>
+            <p class="muted small"><?= t('fu_hint') ?></p>
+        </form>
+        <?php if ($followups): ?>
+            <ul class="followup-list">
+                <?php foreach ($followups as $f): ?>
+                    <li><span class="muted small"><?= e(substr((string) $f['created_at'], 0, 16)) ?> · <?= e((string) $f['user_name']) ?></span>
+                        <?php if ($f['kind'] === 'no_need'): ?><span class="tag tag-gray"><?= t('btn_no_need') ?></span><?php endif; ?>
+                        <div><?= nl2br(e((string) $f['note'])) ?></div></li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
     </div>
 </div>
 
