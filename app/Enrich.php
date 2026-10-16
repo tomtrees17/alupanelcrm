@@ -81,7 +81,12 @@ final class Enrich
         if (mb_strlen($n) < 5 || !preg_match('/\p{L}/u', $n)) {
             return false;
         }
-        return !in_array($n, self::NOT_AN_ADDRESS, true);
+        if (in_array($n, self::NOT_AN_ADDRESS, true)) {
+            return false;
+        }
+        // Courier / pickup notes ("kirim ke expedisi sahabat", "cust datang ke
+        // showroom"): Google happily geocodes them to a town of that name.
+        return !preg_match('/\b(e[kx]s?pedisi|expedition|kirim ke|dikirim|via|kurir|courier|datang ke|showroom|showeroom|ambil)\b/u', $n);
     }
 
     /**

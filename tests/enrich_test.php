@@ -59,6 +59,14 @@ $tmpPdo = new PDO('sqlite::memory:');
 $tmpPdo->exec('CREATE TABLE geocode_cache (addr_key TEXT PRIMARY KEY, query TEXT, status TEXT, lat REAL, lng REAL, kota TEXT, kecamatan TEXT, error TEXT, created_at TEXT)');
 $ro = Enrich::resolve_order($tmpPdo, ['insights' => $icfg, 'geo' => ['driver' => '']], ['delivery_address' => 'cust datang ke showroom', 'address' => 'Tambun Utara Bekasi']);
 ok('a delivery box with no place in it falls through to the order address', $ro['region'] === 'bekasi');
+foreach (['Expedisi', 'expedisi sahabat', 'kirim ke expedisi sahabat', 'dikirim expedisi', 'Ekspedisi JNE', 'cust datang ke showeroom', 'via lalamove'] as $note) {
+    if (Enrich::usable_address($note)) {
+        ok("courier note is not an address: {$note}", false);
+    }
+}
+ok('courier / pickup notes are never geocoded', true);
+ok('…and the order address is used instead', Enrich::order_address(['delivery_address' => 'kirim ke expedisi sahabat', 'address' => 'Jl Kaca 1, Kec Koja']) === 'Jl Kaca 1, Kec Koja');
+ok('a real address mentioning a street is still fine', Enrich::usable_address('Jl. Swatantra V RT 09, Jatiasih, Bekasi'));
 ok('order address: nothing usable → empty', Enrich::order_address(['delivery_address' => '-', 'address' => '']) === '');
 
 // 2) Google response parsing.

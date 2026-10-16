@@ -164,7 +164,8 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 - Google Geocoding（配 key 后）：给坐标（地图用）+ kota。**文本显式写了 kota 而 Google 定位到别处 → 以文本为准并丢弃坐标**（错点比没点更糟）。按规范化地址缓存在 `geocode_cache`（含"无结果"），每个地址只付费一次；key/网络错误不缓存，下次重试。
 - kota → 区域映射表在 `config.php` 的 `insights.region_map`，外地关键词在 `insights.other_markers`。
 - 客户区域 = 最近 3 张**已出货**（status=approved）订单中出现最多的已知区域，平局取更近的；`delivery_regions` 存全部出货订单的区域计数 JSON。无出货订单的客户 region 为 NULL（不算"未知"）。
-- 线上快照实测（仅文本，无 Google）：**已出货订单 373/429 = 87% 得到区域**。
+- 线上实测：仅文本 **373/429 = 87%**；接入 Google 后（2026-10-16）**404/429 = 94%**，400 张有地图坐标，Google 缓存 228 个地址（11 个只到省级）。
+- 送货栏里的快递/自提备注（"Expedisi"、"kirim ke expedisi sahabat"、"cust datang ke showroom"、"via …"）**不算地址**——Google 会把它们定位到同名小镇（实际出现过 5 单被定位到东爪哇/廖内），改为跳到订单地址。
 
 **行业（industry）**：规则先行、模型兜底、人工最终。
 - 规则（命中即定，source=rule）：公司名/客户名词首匹配 Konstruksi/Kontraktor/Bangun→承包商（"Pembangunan"不算）；Advertising/Reklame/Signage/Printing/Akrilik/Neon→广告招牌；Aluminium/Alumunium/Kaca/Glass→铝材店；Interior/Renovasi/Dekorasi→装修公司；Distributor/Supplier→经销商；**订单表单上客户类型多数为 Contractor/Distributor**→对应行业（"End User"是表单默认值，不作依据）；送货地址含 Proyek/Project/Site→承包商；个人名 + 无公司 + 累计 ≤20 张→终端业主。线上快照：规则直接判定 166/367。
