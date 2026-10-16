@@ -6,6 +6,10 @@
  * @var bool   $showOwner
  * @var string $route       insights.index | insights.admin (tab links + post-back target)
  * @var array  $routeParams extra query params to keep (e.g. owner filter)
+ * @var array  $recent      customer id => latest follow-ups
+ *
+ * Every write posts to insights.* — it must work for sales, who have this
+ * module but not 客户管理.
  */
 $backKey = $route === 'insights.admin' ? 'insights_admin' : 'insights';
 $days = fn($n) => sprintf(t('ins_days'), (int) $n);
@@ -36,7 +40,11 @@ $wa = function (string $phone): string {
     <?php $cid = (int) $r['customer_id']; $red = $tab === 'b' && (int) $r['overdue_red'] === 1; ?>
     <article class="ins-item<?= $red ? ' ins-red' : '' ?>">
         <div class="ins-head">
-            <a class="ins-name" href="<?= url('customers.show', ['id' => $cid]) ?>#followups"><?= e($r['name']) ?></a>
+            <?php if (can_access('customers')): ?>
+                <a class="ins-name" href="<?= url('customers.show', ['id' => $cid]) ?>#followups"><?= e($r['name']) ?></a>
+            <?php else: ?>
+                <span class="ins-name"><?= e($r['name']) ?></span>
+            <?php endif; ?>
             <?php if ($showOwner): ?><span class="ins-owner"><?= e(trim((string) $r['owner']) ?: '—') ?></span><?php endif; ?>
         </div>
         <?php if (!empty($r['company']) && mb_strtolower(trim((string) $r['company'])) !== mb_strtolower(trim((string) $r['name']))): ?>
@@ -63,6 +71,32 @@ $wa = function (string $phone): string {
             <?php endif; ?>
         </div>
 
+        <details class="ins-more">
+            <summary><?= t('ins_details') ?></summary>
+            <dl class="ins-detail">
+                <div><dt><?= t('th_phone') ?></dt><dd><?= e((string) $r['phone']) ?: '—' ?></dd></div>
+                <div><dt><?= t('th_region') ?></dt><dd><?= $r['region'] === null ? '—' : e(region_label((string) $r['region'])) ?></dd></div>
+                <div><dt><?= t('th_industry') ?></dt><dd>
+                    <?= e(industry_label((string) ($r['industry'] ?? ''))) ?>
+                    <?php if ((int) $r['industry_pending'] === 1 && $r['industry_source'] !== 'manual'): ?><span class="tag tag-orange"><?= t('ind_pending') ?></span><?php endif; ?>
+                    <?php if ($r['industry_source'] === 'manual'): ?><span class="muted small"><?= t('indsrc_manual') ?></span><?php endif; ?>
+                </dd></div>
+            </dl>
+            <form class="industry-form" method="post" action="<?= url('insights.set_industry') ?>">
+                <?= Csrf::field() ?>
+                <input type="hidden" name="id" value="<?= $cid ?>"><input type="hidden" name="back" value="<?= $backKey ?>"><input type="hidden" name="tab" value="<?= e($tab) ?>">
+                <?php foreach ($routeParams as $k => $v): ?><input type="hidden" name="<?= e((string) $k) ?>" value="<?= e((string) $v) ?>"><?php endforeach; ?>
+                <select class="form-select" name="industry" aria-label="<?= t('th_industry') ?>">
+                    <?php if (empty($r['industry'])): ?><option value="" disabled selected><?= t('ind_choose') ?></option><?php endif; ?>
+                    <?php foreach (Enrich::INDUSTRIES as $code): ?><option value="<?= $code ?>" <?= ($r['industry'] ?? '') === $code ? 'selected' : '' ?>><?= e(industry_label($code)) ?></option><?php endforeach; ?>
+                </select>
+                <button class="btn btn-ghost ins-btn" type="submit"><?= t('ind_confirm') ?></button>
+            </form>
+            <?php foreach ($recent[$cid] ?? [] as $f): ?>
+                <p class="small"><span class="muted"><?= e(substr((string) $f['created_at'], 0, 10)) ?> · <?= e((string) $f['user_name']) ?><?= $f['kind'] === 'no_need' ? ' · ' . t('btn_no_need') : '' ?>:</span> <?= e(mb_strimwidth((string) $f['note'], 0, 120, '…')) ?></p>
+            <?php endforeach; ?>
+        </details>
+
         <div class="ins-actions">
             <?php if (!empty($r['phone'])): ?>
                 <a class="btn btn-ghost ins-btn" href="tel:<?= e(preg_replace('/[^\d+]/', '', (string) $r['phone'])) ?>"><?= t('ins_call') ?></a>
@@ -71,7 +105,7 @@ $wa = function (string $phone): string {
             <?php foreach (['followup' => ['btn_followup', 'fu_placeholder', 'btn-primary'], 'no_need' => ['btn_no_need', 'ins_no_need_placeholder', 'btn-ghost']] as $act => [$label, $ph, $cls]): ?>
                 <details class="ins-form">
                     <summary class="btn <?= $cls ?> ins-btn"><?= t($label) ?></summary>
-                    <form method="post" action="<?= url('customers.' . $act) ?>">
+                    <form method="post" action="<?= url('insights.' . $act) ?>">
                         <?= Csrf::field() ?>
                         <input type="hidden" name="id" value="<?= $cid ?>">
                         <input type="hidden" name="back" value="<?= $backKey ?>">

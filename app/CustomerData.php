@@ -164,6 +164,23 @@ final class CustomerData
     }
 
     /**
+     * Confirm or correct a customer's industry: final, never overwritten by
+     * the nightly enrichment. Returns the audit summary, or null if invalid.
+     */
+    public static function set_industry(PDO $pdo, array $customer, string $industry, string $by): ?string
+    {
+        if (!in_array($industry, Enrich::INDUSTRIES, true)) {
+            return null;
+        }
+        $pdo->prepare("UPDATE customers SET industry = ?, industry_source = 'manual', industry_confidence = 1, industry_pending = 0, industry_note = ? WHERE id = ?")
+            ->execute([$industry, '由 ' . $by . ' 确认', $customer['id']]);
+        return sprintf('行业: %s (%s) → %s (人工确认)',
+            !empty($customer['industry']) ? industry_label((string) $customer['industry']) : '(空)',
+            (string) ($customer['industry_source'] ?? '') ?: '-',
+            industry_label($industry));
+    }
+
+    /**
      * Who most likely owns a customer: the salesperson on most of its orders
      * (ties → the most recent order's).
      * @return array<int,string> customer id => name

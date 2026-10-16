@@ -174,6 +174,8 @@ php -S localhost:8000 -t public
 
 **权限必须服务端二次校验**，隐藏按钮只是 UI，不算防护。
 
+客户分析（回访清单）另有一套：模块 `insights` 看自己名下客户、视图权限 `insights_all` 看全部（`insights_sees_all()`）；清单页的每个写操作都要过 `insights_can_touch($customer)`。销售在线上**没有**「客户管理」权限，所以清单功能不能依赖 `customers.*` 路由。
+
 ### 5.5 业务不变量（改动前务必确认没破坏）
 
 - **价格含税**：订单单价是含税价，开票反算 pre-tax = 含税价 / 1.11；DPP = Subtotal × 11/12，VAT12% = DPP × 12%。已与公司真实模板核对一致，**不要随手改税率计算**。

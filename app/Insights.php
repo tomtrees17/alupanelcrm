@@ -225,7 +225,7 @@ final class Insights
     public static function lists(PDO $pdo, array $config, string $today, ?string $owner = null): array
     {
         $snoozed = self::snoozed($pdo, $config, $today);
-        $sql = 'SELECT i.*, c.name, c.company, c.owner, c.phone, c.industry, c.region
+        $sql = 'SELECT i.*, c.name, c.company, c.owner, c.phone, c.industry, c.industry_source, c.industry_pending, c.region
                   FROM customer_insights i JOIN customers c ON c.id = i.customer_id
                  WHERE (i.in_a = 1 OR i.in_b = 1 OR i.in_c = 1)';
         $args = [];
@@ -377,6 +377,27 @@ final class Insights
             $inside[] = $p + ['x' => round($x - $x0 * 256, 1), 'y' => round($y - $y0 * 256, 1)];
         }
         return ['zoom' => $zoom, 'x0' => $x0, 'y0' => $y0, 'cols' => $cols, 'rows' => $rows, 'points' => $inside];
+    }
+
+    /**
+     * The latest follow-ups of the given customers, newest first.
+     * @return array<int,array> customer id => rows
+     */
+    public static function recent_followups(PDO $pdo, array $customerIds, int $per = 2): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $customerIds)));
+        if ($ids === []) {
+            return [];
+        }
+        $out = [];
+        $rows = $pdo->query('SELECT * FROM customer_followups WHERE customer_id IN (' . implode(',', $ids) . ') ORDER BY id DESC');
+        foreach ($rows as $r) {
+            $cid = (int) $r['customer_id'];
+            if (count($out[$cid] ?? []) < $per) {
+                $out[$cid][] = $r;
+            }
+        }
+        return $out;
     }
 
     /** Record a follow-up or a "no need" (reason required). Also stamps customers.last_contact. */

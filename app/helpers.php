@@ -279,7 +279,7 @@ function controllable_modules(): array
 /** Non-route view permissions (dashboard widgets, export, etc.), configurable per role. */
 function view_permissions(): array
 {
-    return ['performance', 'export'];   // 全员销售业绩 / 导出 Excel
+    return ['performance', 'export', 'insights_all'];   // 全员销售业绩 / 导出 Excel / 全部客户分析
 }
 
 /** All permission keys shown in the 权限设置 matrix. */
@@ -292,10 +292,10 @@ function permission_keys(): array
 function default_permissions(): array
 {
     return [
-        'manager'         => ['customers', 'insights', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'export'],
+        'manager'         => ['customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'export'],
         'finance_manager' => ['customers', 'insights', 'finance', 'orders', 'inventory', 'approvals', 'performance'],
-        'ops_supervisor'  => ['customers', 'insights', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals', 'performance'],
-        'supervisor'      => ['customers', 'insights', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
+        'ops_supervisor'  => ['customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals', 'performance'],
+        'supervisor'      => ['customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
         'sales'           => ['customers', 'insights', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
         'warehouse'       => ['orders', 'inventory', 'approvals'],
         'hr'              => ['customers', 'insights', 'tasks', 'approvals'],
@@ -305,16 +305,24 @@ function default_permissions(): array
 }
 
 /**
- * Who sees every salesperson's call lists and the manager view (老板/主管).
- * Everyone else with the module sees only customers they own.
+ * Who sees every salesperson's call lists and the manager view (老板/主管):
+ * admin, or a role granted 全部客户分析 in 权限设置. Everyone else with the
+ * 回访清单 module sees only customers they own.
  */
 function insights_sees_all(): bool
 {
     $auth = $GLOBALS['auth'] ?? null;
-    if ($auth === null) {
-        return false;
+    return $auth !== null && ($auth->isAdmin() || can_access('insights_all'));
+}
+
+/** May the current user act on this customer from the call lists? (record-level check) */
+function insights_can_touch(array $customer): bool
+{
+    if (insights_sees_all()) {
+        return true;
     }
-    return $auth->isAdmin() || in_array($auth->user()['role'] ?? '', ['manager', 'supervisor', 'ops_supervisor'], true);
+    $own = mb_strtolower(trim(own_name()));
+    return $own !== '' && mb_strtolower(trim((string) ($customer['owner'] ?? ''))) === $own;
 }
 
 /** Only admin and warehouse(库存管理员) may modify inventory; others are read-only. */

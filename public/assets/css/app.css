@@ -405,6 +405,11 @@ tfoot td { padding: 8px 14px; }
 .pt-other { fill: #94a3b8; fill-opacity: .55 !important; background: #94a3b8; }
 .map-legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 8px 0 4px; align-items: center; }
 .map-legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.ins-more { margin: 2px 0 8px; }
+.ins-more > summary { cursor: pointer; color: var(--text2); font-size: 13px; padding: 4px 0; }
+.ins-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px 14px; margin: 6px 0; }
+.ins-detail dt { font-size: 11px; color: var(--text3, #94a3b8); }
+.ins-detail dd { margin: 0; font-size: 14px; }
 .q-gap { color: var(--accent3, #d96c25); font-weight: 600; }
 
 /* ─ RESPONSIVE (mobile) ─ */

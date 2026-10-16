@@ -315,6 +315,15 @@ final class Database
             $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_insights', '1')");
         }
 
+        // Customer-analysis permissions, final (第四部分): sales get 回访清单
+        // (their own customers only — they have no 客户管理 here), and the
+        // supervisory roles get 全部客户分析. Once; later admin edits stick.
+        if (!$pdo->query("SELECT 1 FROM app_meta WHERE k = 'perm_insights_v2'")->fetchColumn()) {
+            $pdo->exec("INSERT OR IGNORE INTO role_permissions (role, module) VALUES ('sales', 'insights')");
+            $pdo->exec("INSERT OR IGNORE INTO role_permissions (role, module) VALUES ('manager', 'insights_all'), ('supervisor', 'insights_all'), ('ops_supervisor', 'insights_all')");
+            $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_insights_v2', '1')");
+        }
+
         // login_attempts table (brute-force throttle, added later).
         $pdo->exec(
             'CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT, email TEXT, attempt_time INTEGER NOT NULL DEFAULT 0)'
@@ -631,7 +640,7 @@ final class Database
 
         self::seedPermissions($pdo);
         $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (k TEXT PRIMARY KEY, v TEXT)');
-        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1'), ('pwd_policy_v1', '1'), ('perm_approvals', '1'), ('perm_insights', '1')");
+        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1'), ('pwd_policy_v1', '1'), ('perm_approvals', '1'), ('perm_insights', '1'), ('perm_insights_v2', '1')");
 
         $pdo->commit();
     }

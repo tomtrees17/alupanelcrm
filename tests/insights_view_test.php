@@ -85,6 +85,7 @@ $harness = __DIR__ . '/support/run_controller.php';
 if (function_exists('exec') && is_file($harness)) {
     $db = tempnam(sys_get_temp_dir(), 'insview');
     $pdo->exec("INSERT OR REPLACE INTO app_meta (k, v) VALUES ('insights_computed_on', '{$today}')");
+    $pdo->exec("INSERT OR IGNORE INTO role_permissions (role, module) VALUES ('supervisor', 'insights'), ('supervisor', 'insights_all'), ('sales', 'insights'), ('clerk', 'insights')");
     $pdo->exec('VACUUM INTO ' . $pdo->quote($db));
     $run = function (string $ctl, string $action, array $get, array $user, ?array $post = null) use ($db, $harness): string {
         $args = [PHP_BINARY, $harness, $db, $ctl, $action, json_encode($get), json_encode($user)];

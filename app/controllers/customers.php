@@ -205,18 +205,12 @@ switch ($action) {
         // the nightly enrichment never overwrites it.
         Csrf::verify();
         $customer = find_customer($pdo, (int) input('id', 0));
-        $industry = (string) input('industry', '');
-        if (!in_array($industry, Enrich::INDUSTRIES, true)) {
+        $summary = CustomerData::set_industry($pdo, $customer, (string) input('industry', ''), own_name());
+        if ($summary === null) {
             flash(t('msg_bad_industry'), 'error');
             redirect('customers.show', ['id' => $customer['id']]);
         }
-        $pdo->prepare("UPDATE customers SET industry = ?, industry_source = 'manual', industry_confidence = 1, industry_pending = 0, industry_note = ? WHERE id = ?")
-            ->execute([$industry, '由 ' . own_name() . ' 确认', $customer['id']]);
-        audit($pdo, 'customers', 'update', 'customer', (int) $customer['id'], (string) $customer['name'],
-            sprintf('行业: %s (%s) → %s (人工确认)',
-                $customer['industry'] ? industry_label((string) $customer['industry']) : '(空)',
-                (string) ($customer['industry_source'] ?? '') ?: '-',
-                industry_label($industry)));
+        audit($pdo, 'customers', 'update', 'customer', (int) $customer['id'], (string) $customer['name'], $summary);
         flash(t('msg_industry_saved'));
         redirect('customers.show', ['id' => $customer['id']]);
         break;

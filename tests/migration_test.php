@@ -45,7 +45,7 @@ $pdo->exec('DROP INDEX IF EXISTS idx_followups_customer');
 $pdo->exec('DROP TABLE IF EXISTS customer_followups');
 $pdo->exec('DROP TABLE IF EXISTS customer_insights');
 $pdo->exec('DROP TABLE IF EXISTS insights_history');
-$pdo->exec("INSERT INTO role_permissions (role, module) VALUES ('clerk','customers'),('sales','customers')");
+$pdo->exec("INSERT INTO role_permissions (role, module) VALUES ('clerk','customers')");   // like production: sales has no 客户管理
 $pdo->exec('DROP TABLE IF EXISTS geocode_cache');
 foreach (['industry', 'industry_source', 'industry_confidence', 'industry_pending', 'industry_note', 'region', 'delivery_regions', 'enriched_at'] as $col) {
     $pdo->exec("ALTER TABLE customers DROP COLUMN {$col}");
@@ -122,10 +122,14 @@ ok('geocode_cache created', $has('geocode_cache'));
 ok('call-list tables created (followups + insights + history)', $has('customer_followups') && $has('customer_insights') && $has('insights_history'));
 $insRoles = $pdo->query("SELECT role FROM role_permissions WHERE module = 'insights' ORDER BY role")->fetchAll(PDO::FETCH_COLUMN);
 $custRoles = $pdo->query("SELECT role FROM role_permissions WHERE module = 'customers' ORDER BY role")->fetchAll(PDO::FETCH_COLUMN);
-ok('回访清单 granted once to exactly the roles that see customers', $insRoles === $custRoles, implode(',', $insRoles));
+ok('回访清单 granted to the roles that see customers, plus sales (who do not)', array_values(array_diff($insRoles, ['sales'])) === array_values(array_diff($custRoles, ['sales'])) && !in_array('sales', $custRoles, true), implode(',', $insRoles));
+ok('sales get 回访清单; supervisory roles get 全部客户分析', in_array('sales', $insRoles, true)
+    && $pdo->query("SELECT GROUP_CONCAT(role) FROM (SELECT role FROM role_permissions WHERE module = 'insights_all' ORDER BY role)")->fetchColumn() === 'manager,ops_supervisor,supervisor');
 $pdo->exec("DELETE FROM role_permissions WHERE module = 'insights' AND role = 'clerk'");
+$pdo->exec("DELETE FROM role_permissions WHERE module = 'insights_all' AND role = 'supervisor'");
 Database::migrate($pdo);
-ok('an admin revoking 回访清单 later is not undone by the next page load', !in_array('clerk', $pdo->query("SELECT role FROM role_permissions WHERE module = 'insights'")->fetchAll(PDO::FETCH_COLUMN), true));
+ok('an admin revoking 回访清单 later is not undone by the next page load', !in_array('clerk', $pdo->query("SELECT role FROM role_permissions WHERE module = 'insights'")->fetchAll(PDO::FETCH_COLUMN), true)
+    && !in_array('supervisor', $pdo->query("SELECT role FROM role_permissions WHERE module = 'insights_all'")->fetchAll(PDO::FETCH_COLUMN), true));
 $lama = $pdo->query('SELECT * FROM customers WHERE id = 777')->fetch();
 ok('existing customer untouched, industry/region left for the enrichment job', $lama['name'] === 'Pak Lama' && $lama['owner'] === 'ridwan'
     && $lama['industry'] === null && $lama['region'] === null && (int) $lama['industry_pending'] === 0);
