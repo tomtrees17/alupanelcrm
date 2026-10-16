@@ -474,9 +474,13 @@ users(+must_change_password), customer_followups(跟进记录), customer_insight
 
 ## 10. 提交历史（main）
 
-最近 30 条（共 88 条，含本条文档提交；完整历史用 `git log --oneline`）：
+最近 30 条（共 92 条，含本条文档提交；完整历史用 `git log --oneline`）：
 
 ```
+4e9339e Customers: nightly call lists (due / at risk / worth visiting) and follow-up records
+f65e35d Docs: first production run of customer enrichment
+a7c8526 Enrich: never geocode courier notes in the delivery-address box
+54a0a60 Docs: refresh commit history
 8821ea4 Customers: infer region and industry from orders, data cleanup tools, AI spending guards
 aecd3ad Docs: refresh commit history
 88f0e2e Paginate and search the order, invoice, customer, delivery and approval lists
@@ -503,10 +507,6 @@ c6d14db Add append-only audit log across every write operation
 af4bc9f Docs: server pulls over SSH remote now that the repo is private
 0a90600 Docs: real SSH endpoint and macOS local path in CLAUDE.md / PROJECT_STATUS
 1a39556 Add CLAUDE.md with stack, layout, deploy flow and code conventions
-beaf52c Finance: editable invoice number on the invoice page
-28915e0 Invoice: ALUSIGNPANEL logo in the letterhead (print-only asset)
-bfe2816 Invoice: drop company name from the letterhead (address box + title only)
-b239ab6 Invoice signature block: title only (no company name, no signer name)
 ```
 
 ## 11. 用户偏好
