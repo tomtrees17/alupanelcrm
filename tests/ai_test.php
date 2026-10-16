@@ -174,8 +174,11 @@ $_SESSION['lang'] = 'zh';
 // Use a marker the prompt template cannot contain — the rules section quotes
 // realistic examples like "4.0 银色拉丝", which would confound the check below.
 $marker = 'ZQX-UNIQUE-QUESTION-7731';
-$req = Ai::build_request(['model' => 'claude-opus-5'], $cat, $marker);
-ok('model is Opus 5 by default', $req['model'] === 'claude-opus-5');
+$req = Ai::build_request(['model' => 'claude-opus-5-5'], $cat, $marker);
+ok('model from config', $req['model'] === 'claude-opus-5-5');
+ok('model defaults to Opus 5.5 when unset', Ai::build_request([], $cat, 'x')['model'] === 'claude-opus-5-5');
+$cfgModel = ((array) (@include __DIR__ . '/../config.php'))['ai']['model'] ?? 'claude-opus-5-5';
+ok('config.php ships Opus 5.5 for the inventory assistant', $cfgModel === 'claude-opus-5-5', (string) $cfgModel);
 ok('config can override the model', Ai::build_request(['model' => 'claude-haiku-4-5'], $cat, 'x')['model'] === 'claude-haiku-4-5');
 
 // The cache breakpoint must sit on the catalogue, with the question after it —

@@ -98,7 +98,7 @@ final class Ai
     public static function build_request(array $ai, string $catalogue, string $question): array
     {
         return [
-            'model' => (string) ($ai['model'] ?? 'claude-opus-5'),
+            'model' => (string) ($ai['model'] ?? 'claude-opus-5-5'),
             'max_tokens' => 4000,
             // The catalogue is the stable prefix; the cache breakpoint sits at
             // its end so every later question is billed at the cached rate.

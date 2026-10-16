@@ -58,7 +58,7 @@ $config = [
     'ai' => [
         'driver'      => 'stub',
         'key'         => '',                 // Anthropic API key (console.anthropic.com)
-        'model'       => 'claude-opus-5',
+        'model'       => 'claude-opus-5-5',
         'daily_limit' => 60,                 // inventory questions per user per day
         // Spending guards for EVERY AI call (enforced in app/Claude.php):
         'max_tokens'         => 4096,        // hard cap on output tokens per call
