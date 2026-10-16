@@ -22,3 +22,11 @@ Thumbs.db
 /.env
 /.env.local
 /config.local.php
+
+# Business documents dropped into the project folder (customer lists, briefs) — never commit
+/*.xlsx
+/*.xls
+/*.docx
+/*.doc
+/*.csv
+/*.pdf
