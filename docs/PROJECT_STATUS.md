@@ -169,6 +169,7 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 
 **行业（industry）**：规则先行、模型兜底、人工最终。
 - 规则（命中即定，source=rule）：公司名/客户名词首匹配 Konstruksi/Kontraktor/Bangun→承包商（"Pembangunan"不算）；Advertising/Reklame/Signage/Printing/Akrilik/Neon→广告招牌；Aluminium/Alumunium/Kaca/Glass→铝材店；Interior/Renovasi/Dekorasi→装修公司；Distributor/Supplier→经销商；**订单表单上客户类型多数为 Contractor/Distributor**→对应行业（"End User"是表单默认值，不作依据）；送货地址含 Proyek/Project/Site→承包商；个人名 + 无公司 + 累计 ≤20 张→终端业主。线上快照：规则直接判定 166/367。
+- **线上首次运行（2026-10-16）**：规则 166 个；AI 201 个，耗时 112 秒，约 2.8 万输入 + 0.77 万输出 token（约 0.27 美元）。AI 结果中 **197 个低于 0.7 被标待确认**——不是故障：其中 155 个客户**没有任何订单**，只有一个人名（模型如实给 0.3–0.4，理由多为"个人名无数据"）；有订单的只有 46 个。真正影响清单的是有订单的那部分（约 40 个待确认），第三部分数据质量统计应只计有出货订单的客户。清洗已于同日 `--apply`（快照 `backups/pre_clean_20261016_194323.sqlite`）。
 - 未命中的交给 Claude（`claude-opus-5-5`，effort low，结构化输出，每批 20 个客户，`fallbacks: "default"`），返回行业 + 置信度；**置信度 < 0.7 标「待确认」**。只回填问到的客户 id、只收枚举内的行业。
 - 客户详情页「客户画像」卡片：显示行业、来源（规则/AI/人工）、置信度与理由、区域、送货分布；下拉一键确认/改选 → `industry_source=manual`，**夜间任务永不覆盖**（含 `--all`）。走 `find_customer()`，销售只能改自己的客户；写审计日志。
 
