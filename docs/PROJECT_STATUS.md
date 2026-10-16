@@ -491,9 +491,11 @@ users(+must_change_password), customer_followups(跟进记录), customer_insight
 
 ## 10. 提交历史（main）
 
-最近 30 条（共 92 条，含本条文档提交；完整历史用 `git log --oneline`）：
+最近 30 条（共 94 条，含本条文档提交；完整历史用 `git log --oneline`）：
 
 ```
+b40fe6f Insights: call-list pages for sales, manager view with activity, distribution, delivery map and data quality
+4d46f39 Docs: refresh commit history
 4e9339e Customers: nightly call lists (due / at risk / worth visiting) and follow-up records
 f65e35d Docs: first production run of customer enrichment
 a7c8526 Enrich: never geocode courier notes in the delivery-address box
@@ -522,8 +524,6 @@ f307130 Translate the 55 operation messages staff see every day
 c6d14db Add append-only audit log across every write operation
 6b37ae1 Docs: record private-repo SSH deploy, server security audit; track print logo
 af4bc9f Docs: server pulls over SSH remote now that the repo is private
-0a90600 Docs: real SSH endpoint and macOS local path in CLAUDE.md / PROJECT_STATUS
-1a39556 Add CLAUDE.md with stack, layout, deploy flow and code conventions
 ```
 
 ## 11. 用户偏好
