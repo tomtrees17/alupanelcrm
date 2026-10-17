@@ -84,6 +84,11 @@ $pct = fn(float $v) => $v <= 0 ? 0 : max(1.5, round($v / $axisMax * 100, 1));
         <div class="stat-value"><?= num($kpi['orders']) ?></div>
         <div class="stat-sub"><?= $delta((float) $kpi['orders'], (float) $kpi['orders_cmp']) ?></div>
     </div>
+    <div class="stat-card">
+        <div class="stat-label"><?= t($perf ? 'dash_sheets_total' : 'dash_my_sheets') ?></div>
+        <div class="stat-value"><?= num($kpi['sheets']) ?></div>
+        <div class="stat-sub"><?= $delta($kpi['sheets'], $kpi['sheets_cmp']) ?></div>
+    </div>
     <?php if ($fin): ?>
         <div class="stat-card">
             <div class="stat-label"><?= t('dash_collected') ?></div>

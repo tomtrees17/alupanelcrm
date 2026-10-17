@@ -163,6 +163,11 @@ $rk = array_column(Dashboard::data($pdo, $m, $today, null, true, true)['ranking'
 ok('sheets: sum of order quantities in the period', $rk['ridwan']['sheets'] === 25.0, (string) $rk['ridwan']['sheets']);
 ok('sheets: drafts and other periods excluded', $rk['ridwan']['sheets'] !== 624.0 && $rk['ridwan']['sheets'] !== 124.0);
 ok('sheets: zero for someone with orders but no lines', ($rk['angga']['sheets'] ?? null) === 0.0);
+$kd = Dashboard::data($pdo, $m, $today, null, true, true)['kpi'];
+ok('sheets tile = period total, same as the ranking column', $kd['sheets'] === 25.0 && $kd['sheets'] === array_sum(array_column($rk, 'sheets')));
+ok('sheets tile compares with the like-for-like window (o4 on 3 Sep)', $kd['sheets_cmp'] === 99.0, (string) $kd['sheets_cmp']);
+$ka = Dashboard::data($pdo, $m, $today, 'angga', false, false, 'sales')['kpi'];
+ok("a salesperson's tile counts only their own sheets", $ka['sheets'] === 0.0);
 $pdo->exec("DELETE FROM order_items WHERE sku = 'ZZ-SHEETS'");   // keep the fixture clean for the tests below
 $pdo->prepare('DELETE FROM orders WHERE id = ?')->execute([$draftOrder]);
 
@@ -220,6 +225,7 @@ ok('two-series legend when cash is shown', str_contains($html, 'class="sw sales"
 ok('table view exists', str_contains($html, t('dash_table_view')));
 ok('ranking shown', str_contains($html, t('dash_ranking')) && str_contains($html, 'ridwan'));
 ok('ranking has the 张数 column', str_contains($html, t('dash_sheets')));
+ok('tiles include total sheets', str_contains($html, t('dash_sheets_total')));
 ok('aging shown', str_contains($html, t('dash_aging')) && str_contains($html, 'age-90'));
 ok('overdue called out on the receivable tile', str_contains($html, '⚠'));
 ok('no next arrow from the current period', str_contains($html, 'btn-disabled'));

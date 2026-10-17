@@ -96,6 +96,7 @@ final class Dashboard
 
         $invoices = self::invoice_rows($pdo, $from, $to, $owner);
         $orders = self::order_rows($pdo, $from, $to, $owner);
+        $sheets = self::sheet_rows($pdo, $from, $to, $owner);
         $payments = $fin ? self::payment_rows($pdo, $from, $to) : [];
 
         foreach ($buckets as &$b) {
@@ -110,6 +111,8 @@ final class Dashboard
             'sales_cmp'     => self::sum_in($invoices, $period['cmp_start'], $period['cmp_end']),
             'orders'        => self::count_in($orders, $period['start'], $period['to']),
             'orders_cmp'    => self::count_in($orders, $period['cmp_start'], $period['cmp_end']),
+            'sheets'        => self::sum_in($sheets, $period['start'], $period['to']),
+            'sheets_cmp'    => self::sum_in($sheets, $period['cmp_start'], $period['cmp_end']),
             'collected'     => self::sum_in($payments, $period['start'], $period['to']),
             'collected_cmp' => self::sum_in($payments, $period['cmp_start'], $period['cmp_end']),
         ];
@@ -227,6 +230,21 @@ final class Dashboard
             $args[] = $owner;
         }
         $st = $pdo->prepare($sql);
+        $st->execute($args);
+        return $st->fetchAll();
+    }
+
+    /** Sheets (张数) per order day, on the same orders order_rows() counts. */
+    private static function sheet_rows(PDO $pdo, string $from, string $to, ?string $owner): array
+    {
+        $sql = "SELECT date(o.created_at) AS d, SUM(oi.qty) AS v FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                 WHERE o.status <> 'draft' AND date(o.created_at) BETWEEN ? AND ?";
+        $args = [$from, $to];
+        if ($owner !== null) {
+            $sql .= ' AND o.submitter = ?';
+            $args[] = $owner;
+        }
+        $st = $pdo->prepare($sql . ' GROUP BY date(o.created_at)');
         $st->execute($args);
         return $st->fetchAll();
     }
