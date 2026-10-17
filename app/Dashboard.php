@@ -234,17 +234,26 @@ final class Dashboard
         return $st->fetchAll();
     }
 
-    /** Sheets (张数) per order day, on the same orders order_rows() counts. */
+    /**
+     * Sheets count on the shipping basis (出货口径): orders the warehouse
+     * confirmed, dated by that confirmation — the day the invoice is issued —
+     * leaving out orders whose invoice was voided, exactly as sales does. So a
+     * period's sheets and its sales describe the same goods.
+     */
+    private const SHIPPED_SHEETS = "o.status = 'approved' AND COALESCE(o.wh_date, '') <> ''
+        AND NOT EXISTS (SELECT 1 FROM invoices vi WHERE vi.order_id = o.id AND vi.voided_at IS NOT NULL)";
+
+    /** Shipped sheets (张数) per ship day. */
     private static function sheet_rows(PDO $pdo, string $from, string $to, ?string $owner): array
     {
-        $sql = "SELECT date(o.created_at) AS d, SUM(oi.qty) AS v FROM order_items oi JOIN orders o ON o.id = oi.order_id
-                 WHERE o.status <> 'draft' AND date(o.created_at) BETWEEN ? AND ?";
+        $sql = 'SELECT date(o.wh_date) AS d, SUM(oi.qty) AS v FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                 WHERE ' . self::SHIPPED_SHEETS . ' AND date(o.wh_date) BETWEEN ? AND ?';
         $args = [$from, $to];
         if ($owner !== null) {
             $sql .= ' AND o.submitter = ?';
             $args[] = $owner;
         }
-        $st = $pdo->prepare($sql . ' GROUP BY date(o.created_at)');
+        $st = $pdo->prepare($sql . ' GROUP BY date(o.wh_date)');
         $st->execute($args);
         return $st->fetchAll();
     }
@@ -351,10 +360,10 @@ final class Dashboard
             $add((string) $r['submitter'], 'orders', (float) $r['c']);
         }
 
-        // Sheets (张数) on the same orders the order count covers: every
-        // order line is ACP sheets (unit "Unit"), so quantities add up.
-        $st = $pdo->prepare("SELECT o.submitter, SUM(oi.qty) q FROM order_items oi JOIN orders o ON o.id = oi.order_id
-                              WHERE o.status <> 'draft' AND date(o.created_at) BETWEEN ? AND ? GROUP BY o.submitter");
+        // Sheets (张数) on the shipping basis, same goods as the sales column:
+        // see SHIPPED_SHEETS. Every order line is ACP sheets, so quantities add up.
+        $st = $pdo->prepare('SELECT o.submitter, SUM(oi.qty) q FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                              WHERE ' . self::SHIPPED_SHEETS . ' AND date(o.wh_date) BETWEEN ? AND ? GROUP BY o.submitter');
         $st->execute([$from, $to]);
         foreach ($st as $r) {
             $add((string) $r['submitter'], 'sheets', (float) $r['q']);

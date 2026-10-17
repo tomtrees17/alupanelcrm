@@ -155,21 +155,31 @@ ok('angga outstanding counts his old September debt too', $rank['angga']['outsta
 ok('orphan invoices show as —, not dropped', isset($rank['—']) && $rank['—']['sales'] === 250000.0);
 ok('ranking totals match the tile', array_sum(array_column($data['ranking'], 'sales')) === $k['sales']);
 
-// Sheets (张数) per salesperson: same orders as the order count.
+// Sheets (张数) on the shipping basis: warehouse-confirmed orders, by confirmation date.
 $line = fn(int $oid, float $q) => $pdo->prepare("INSERT INTO order_items (order_id,sku,spec,qty,price) VALUES (?, 'ZZ-SHEETS', 'x', ?, 100000)")->execute([$oid, $q]);
-$line($o1, 20); $line($o1, 5); $line($o4, 99);                  // o4 is September: outside the period
+$ship = fn(int $oid, ?string $d, string $status = 'approved') => $pdo->prepare('UPDATE orders SET status = ?, wh_date = ? WHERE id = ?')->execute([$status, $d, $oid]);
+$line($o1, 20); $line($o1, 5); $ship($o1, '2026-10-02');            // shipped in the period
+$late = $order('ridwan', '2026-09-29'); $line($late, 40); $ship($late, '2026-10-03');   // ordered Sep, shipped Oct → October
+$early = $order('ridwan', '2026-10-05'); $line($early, 70); $ship($early, null, 'pending_wh');   // ordered Oct, not shipped yet
+$line($o4, 99); $ship($o4, '2026-09-03');                           // September: comparison window only
+$voidO = $order('ridwan', '2026-10-06'); $line($voidO, 300); $ship($voidO, '2026-10-06');
+$invoice($voidO, '2026-10-06', 1000, 0, '2099-01-01', 'Void Co', '2026-10-07 09:00:00');   // invoice voided
 $draftOrder = $order('ridwan', '2026-10-08', 'draft'); $line($draftOrder, 500);
 $rk = array_column(Dashboard::data($pdo, $m, $today, null, true, true)['ranking'], null, 'name');
-ok('sheets: sum of order quantities in the period', $rk['ridwan']['sheets'] === 25.0, (string) $rk['ridwan']['sheets']);
-ok('sheets: drafts and other periods excluded', $rk['ridwan']['sheets'] !== 624.0 && $rk['ridwan']['sheets'] !== 124.0);
-ok('sheets: zero for someone with orders but no lines', ($rk['angga']['sheets'] ?? null) === 0.0);
+ok('sheets: shipped in the period, by ship date (25 + 40 ordered in Sep)', $rk['ridwan']['sheets'] === 65.0, (string) $rk['ridwan']['sheets']);
+ok('sheets: not-yet-shipped, voided-invoice and draft orders excluded', $rk['ridwan']['sheets'] !== 135.0 && $rk['ridwan']['sheets'] < 300);
+ok('sheets: zero for someone with orders but nothing shipped', ($rk['angga']['sheets'] ?? null) === 0.0);
 $kd = Dashboard::data($pdo, $m, $today, null, true, true)['kpi'];
-ok('sheets tile = period total, same as the ranking column', $kd['sheets'] === 25.0 && $kd['sheets'] === array_sum(array_column($rk, 'sheets')));
-ok('sheets tile compares with the like-for-like window (o4 on 3 Sep)', $kd['sheets_cmp'] === 99.0, (string) $kd['sheets_cmp']);
+ok('sheets tile = period total, same as the ranking column', $kd['sheets'] === 65.0 && $kd['sheets'] === array_sum(array_column($rk, 'sheets')));
+ok('sheets tile compares with the like-for-like window by ship date', $kd['sheets_cmp'] === 99.0, (string) $kd['sheets_cmp']);
 $ka = Dashboard::data($pdo, $m, $today, 'angga', false, false, 'sales')['kpi'];
 ok("a salesperson's tile counts only their own sheets", $ka['sheets'] === 0.0);
 $pdo->exec("DELETE FROM order_items WHERE sku = 'ZZ-SHEETS'");   // keep the fixture clean for the tests below
-$pdo->prepare('DELETE FROM orders WHERE id = ?')->execute([$draftOrder]);
+foreach ([$draftOrder, $late, $early, $voidO] as $tmpId) {
+    $pdo->prepare('DELETE FROM invoices WHERE order_id = ?')->execute([$tmpId]);
+    $pdo->prepare('DELETE FROM orders WHERE id = ?')->execute([$tmpId]);
+}
+$ship($o1, null); $ship($o4, null);
 
 // ── 5) Permissions ───────────────────────────────────────────────────────────
 $mine = Dashboard::data($pdo, $m, $today, 'angga', false, false, 'sales');
