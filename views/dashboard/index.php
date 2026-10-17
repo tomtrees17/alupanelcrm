@@ -188,6 +188,7 @@ $pct = fn(float $v) => $v <= 0 ? 0 : max(1.5, round($v / $axisMax * 100, 1));
         <thead><tr>
             <th><?= t('th_submitter') ?></th>
             <th class="right"><?= t('dash_orders') ?></th>
+            <th class="right"><?= t('dash_sheets') ?></th>
             <th class="right"><?= t('dash_sales') ?></th>
             <?php if ($fin): ?>
                 <th class="right"><?= t('dash_rank_collected') ?></th>
@@ -195,10 +196,10 @@ $pct = fn(float $v) => $v <= 0 ? 0 : max(1.5, round($v / $axisMax * 100, 1));
             <?php endif; ?>
         </tr></thead>
         <tbody>
-        <?php if (!$ranking): ?><tr><td colspan="5" class="empty"><?= t('no_data') ?></td></tr><?php endif; ?>
+        <?php if (!$ranking): ?><tr><td colspan="<?= $fin ? 6 : 4 ?>" class="empty"><?= t('no_data') ?></td></tr><?php endif; ?>
         <?php
         $topSales = max(1.0, ...array_map(fn($r) => $r['sales'], $ranking ?: [['sales' => 0]]));
-        $sum = ['orders' => 0, 'sales' => 0.0, 'collected' => 0.0, 'outstanding' => 0.0];
+        $sum = ['orders' => 0, 'sheets' => 0.0, 'sales' => 0.0, 'collected' => 0.0, 'outstanding' => 0.0];
         ?>
         <?php foreach ($ranking as $i => $r): ?>
             <?php foreach ($sum as $k => $_) { $sum[$k] += $r[$k]; } ?>
@@ -208,6 +209,7 @@ $pct = fn(float $v) => $v <= 0 ? 0 : max(1.5, round($v / $axisMax * 100, 1));
                     <div class="bar"><div class="bar-fill" style="width:<?= round($r['sales'] / $topSales * 100) ?>%;background:var(--c-sales)"></div></div>
                 </td>
                 <td class="right num"><?= (int) $r['orders'] ?></td>
+                <td class="right num"><?= num($r['sheets']) ?></td>
                 <td class="right num"><strong><?= idr_short($r['sales']) ?></strong></td>
                 <?php if ($fin): ?>
                     <td class="right num"><?= idr_short($r['collected']) ?></td>
@@ -220,6 +222,7 @@ $pct = fn(float $v) => $v <= 0 ? 0 : max(1.5, round($v / $axisMax * 100, 1));
             <tfoot><tr class="total-row">
                 <td><?= t('dash_total') ?></td>
                 <td class="right num"><?= (int) $sum['orders'] ?></td>
+                <td class="right num"><?= num($sum['sheets']) ?></td>
                 <td class="right num"><?= idr_short($sum['sales']) ?></td>
                 <?php if ($fin): ?>
                     <td class="right num"><?= idr_short($sum['collected']) ?></td>

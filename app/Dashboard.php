@@ -316,13 +316,13 @@ final class Dashboard
         ];
     }
 
-    /** Per salesperson: orders and invoiced sales in the period, plus cash if allowed. */
+    /** Per salesperson: orders, sheets and invoiced sales in the period, plus cash if allowed. */
     private static function ranking(PDO $pdo, string $from, string $to, string $today, bool $fin): array
     {
         $rows = [];
         $add = function (string $name, string $field, float $v) use (&$rows): void {
             $name = trim($name) !== '' ? trim($name) : '—';
-            $rows[$name] ??= ['name' => $name, 'orders' => 0, 'sales' => 0.0, 'collected' => 0.0, 'outstanding' => 0.0];
+            $rows[$name] ??= ['name' => $name, 'orders' => 0, 'sheets' => 0.0, 'sales' => 0.0, 'collected' => 0.0, 'outstanding' => 0.0];
             $rows[$name][$field] += $v;
         };
 
@@ -331,6 +331,15 @@ final class Dashboard
         $st->execute([$from, $to]);
         foreach ($st as $r) {
             $add((string) $r['submitter'], 'orders', (float) $r['c']);
+        }
+
+        // Sheets (张数) on the same orders the order count covers: every
+        // order line is ACP sheets (unit "Unit"), so quantities add up.
+        $st = $pdo->prepare("SELECT o.submitter, SUM(oi.qty) q FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                              WHERE o.status <> 'draft' AND date(o.created_at) BETWEEN ? AND ? GROUP BY o.submitter");
+        $st->execute([$from, $to]);
+        foreach ($st as $r) {
+            $add((string) $r['submitter'], 'sheets', (float) $r['q']);
         }
 
         $st = $pdo->prepare('SELECT o.submitter, SUM(i.total) s FROM invoices i LEFT JOIN orders o ON o.id = i.order_id

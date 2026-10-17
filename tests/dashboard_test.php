@@ -155,6 +155,17 @@ ok('angga outstanding counts his old September debt too', $rank['angga']['outsta
 ok('orphan invoices show as —, not dropped', isset($rank['—']) && $rank['—']['sales'] === 250000.0);
 ok('ranking totals match the tile', array_sum(array_column($data['ranking'], 'sales')) === $k['sales']);
 
+// Sheets (张数) per salesperson: same orders as the order count.
+$line = fn(int $oid, float $q) => $pdo->prepare("INSERT INTO order_items (order_id,sku,spec,qty,price) VALUES (?, 'ZZ-SHEETS', 'x', ?, 100000)")->execute([$oid, $q]);
+$line($o1, 20); $line($o1, 5); $line($o4, 99);                  // o4 is September: outside the period
+$draftOrder = $order('ridwan', '2026-10-08', 'draft'); $line($draftOrder, 500);
+$rk = array_column(Dashboard::data($pdo, $m, $today, null, true, true)['ranking'], null, 'name');
+ok('sheets: sum of order quantities in the period', $rk['ridwan']['sheets'] === 25.0, (string) $rk['ridwan']['sheets']);
+ok('sheets: drafts and other periods excluded', $rk['ridwan']['sheets'] !== 624.0 && $rk['ridwan']['sheets'] !== 124.0);
+ok('sheets: zero for someone with orders but no lines', ($rk['angga']['sheets'] ?? null) === 0.0);
+$pdo->exec("DELETE FROM order_items WHERE sku = 'ZZ-SHEETS'");   // keep the fixture clean for the tests below
+$pdo->prepare('DELETE FROM orders WHERE id = ?')->execute([$draftOrder]);
+
 // ── 5) Permissions ───────────────────────────────────────────────────────────
 $mine = Dashboard::data($pdo, $m, $today, 'angga', false, false, 'sales');
 ok('own scope: only angga\'s sales', $mine['kpi']['sales'] === 2500000.0, (string) $mine['kpi']['sales']);
@@ -208,6 +219,7 @@ ok('columns drill into their period', str_contains($html, 'p=month&d=2026-09-01'
 ok('two-series legend when cash is shown', str_contains($html, 'class="sw sales"') && str_contains($html, 'class="sw paid"'));
 ok('table view exists', str_contains($html, t('dash_table_view')));
 ok('ranking shown', str_contains($html, t('dash_ranking')) && str_contains($html, 'ridwan'));
+ok('ranking has the 张数 column', str_contains($html, t('dash_sheets')));
 ok('aging shown', str_contains($html, t('dash_aging')) && str_contains($html, 'age-90'));
 ok('overdue called out on the receivable tile', str_contains($html, '⚠'));
 ok('no next arrow from the current period', str_contains($html, 'btn-disabled'));
