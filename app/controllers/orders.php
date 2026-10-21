@@ -516,7 +516,11 @@ function fulfill_order(PDO $pdo, array $order, string $name, string $note, strin
 
         // 3) Invoice — order prices are TAX-INCLUSIVE; see invoice_amounts() for
         //    how the tax is backed out and why the total carries a Pembulatan.
-        $amt = invoice_amounts($rows, (float) $order['shipping_cost'], (float) ($GLOBALS['config']['ppn_rate'] ?? 11));
+        $cfgAll = $GLOBALS['config'];
+        $calc = ($cfgAll['invoice_calc'] ?? 'coretax') === 'legacy' ? 'legacy' : 'coretax';
+        $amt = $calc === 'coretax'
+            ? invoice_amounts_coretax($rows, (float) $order['shipping_cost'], (string) ($cfgAll['coretax_decimals'] ?? 'truncate'))
+            : invoice_amounts($rows, (float) $order['shipping_cost'], (float) ($cfgAll['ppn_rate'] ?? 11));
         $lines = [];
         foreach ($rows as $k => $it) {
             $lines[] = [$it, $amt['units'][$k]];
@@ -531,11 +535,11 @@ function fulfill_order(PDO $pdo, array $order, string $name, string $note, strin
         $invNo = next_invoice_no($pdo);
 
         $pdo->prepare(
-            'INSERT INTO invoices (invoice_no,order_id,do_number,customer,bill_to_name,address,currency,shipping_cost,subtotal,ppn,rounding,total,invoice_date,due_date,issued_by,payment_term,custom_days,payment_status)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+            'INSERT INTO invoices (invoice_no,order_id,do_number,customer,bill_to_name,address,currency,shipping_cost,subtotal,ppn,rounding,total,calc,dpp,invoice_date,due_date,issued_by,payment_term,custom_days,payment_status)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
         )->execute([
             $invNo, $order['id'], $doNo, $order['company'] ?: $order['customer_name'], $order['customer_name'],
-            $order['address'], 'IDR', $pretaxShip, $subtotal, $ppn, $rounding, $total, $today, $due,
+            $order['address'], 'IDR', $pretaxShip, $subtotal, $ppn, $rounding, $total, $calc, $amt['dpp'] ?? null, $today, $due,
             $name, $order['payment_term'], $order['custom_days'], 'pending',
         ]);
         $invId = (int) $pdo->lastInsertId();

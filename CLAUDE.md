@@ -179,7 +179,8 @@ php -S localhost:8000 -t public
 ### 5.5 业务不变量（改动前务必确认没破坏）
 
 - **价格含税**：订单单价是含税价，开票反算 pre-tax = 含税价 / 1.11；DPP = Subtotal × 11/12，VAT12% = DPP × 12%。已与公司真实模板核对一致，**不要随手改税率计算**。
-- **尾差（Pembulatan）**：发票合计 = 订单含税额，与 Subtotal + VAT 的 ±Rp1–3 差额存在 `invoices.rounding`；`ppn` 永远存 DPP × 12%。**呈现**统一走 `invoice_display()`，默认并入 VAT 行（财务要求，`config.php` 的 `invoice_rounding`）——改发票模板时不要自己算 VAT。
+- **新发票按 Coretax 口径**（2026-10-21 起，`invoices.calc='coretax'`）：两位小数截断，PPN = DPP Nilai Lain(11/12) × 12%，Total Invoice = Subtotal + PPN，Total Amount = 报价含税额，见 `invoice_amounts_coretax()`；存量发票是 `legacy`，永不重算。
+- **尾差（Pembulatan，legacy 发票）**：发票合计 = 订单含税额，与 Subtotal + VAT 的 ±Rp1–3 差额存在 `invoices.rounding`；`ppn` 永远存 DPP × 12%。**呈现**统一走 `invoice_display()`，默认并入 VAT 行（财务要求，`config.php` 的 `invoice_rounding`）——改发票模板时不要自己算 VAT。
 - **库存可用量** = `stock − reserved`。下单预留、驳回/删除释放、出货实扣并释放，统一走 `recompute_reservations()`。
 - **驳回 = 退回草稿**（订单与行政审批都是）：记录 reject_note/by/date、清空已有审批、释放预留，申请人改后可重新提交。
 - **职责分离**：非 admin 不能审批自己提交的行政申请。

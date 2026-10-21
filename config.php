@@ -17,7 +17,13 @@ $config = [
     // and the invoice screen alike (see invoice_display() in app/domain.php):
     // 'vat' = folded into the VAT line (finance's spreadsheet does this; chosen
     // 2026-10-21), 'line' = its own row, 'hide' = not shown.
-    'invoice_rounding' => 'vat',
+    'invoice_rounding' => 'vat',          // invoices issued before 2026-10-21 only
+
+    // How new invoices are calculated. 'coretax' = like DJP Coretax: 2 decimals
+    // throughout, PPN = DPP Nilai Lain (11/12) × 12%, so the invoice matches the
+    // tax invoice; 'legacy' = the old whole-rupiah method.
+    'invoice_calc'      => 'coretax',
+    'coretax_decimals'  => 'truncate',    // 'truncate' (Coretax drops the rest) or 'round'
 
     // ── Company letterhead (printed invoices / delivery orders) ──
     'company_full'  => 'PT ALUPANEL MULIA INDONESIA',

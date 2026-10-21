@@ -17,9 +17,10 @@ $subtotal = $disp['subtotal'];
 $dpp = $disp['dpp'];
 $vat = $disp['vat'];
 $total = $disp['total'];
+$dec = $disp['decimals'];                  // 2 for Coretax-calculated invoices
 $fdate = fn($d) => $d ? date('j/M/y', strtotime((string) $d)) : '';
 $fdate2 = fn($d) => $d ? date('j-M-y', strtotime((string) $d)) : '';
-$rp = fn($n) => 'Rp' . num($n);
+$rp = fn($n) => 'Rp' . num($n, $dec);
 $W = $doc->width();                       // 10546 twips on A4 with 12 mm sides
 
 $body = '';
@@ -79,7 +80,7 @@ foreach ($items as $i => $it) {
         ['text' => $desc, 'size' => 9.5],
         ['text' => num($it['qty']), 'align' => 'center', 'size' => 9.5],
         ['text' => num($it['price'], 2), 'align' => 'right', 'size' => 9.5],
-        ['text' => num((float) $it['qty'] * (float) $it['price']), 'align' => 'right', 'size' => 9.5],
+        ['text' => num((float) $it['qty'] * (float) $it['price'], $dec), 'align' => 'right', 'size' => 9.5],
     ];
 }
 if ((float) $invoice['shipping_cost'] > 0) {
@@ -88,7 +89,7 @@ if ((float) $invoice['shipping_cost'] > 0) {
         ['text' => 'Ongkir', 'size' => 9.5],
         ['text' => '1', 'align' => 'center', 'size' => 9.5],
         ['text' => num($invoice['shipping_cost'], 2), 'align' => 'right', 'size' => 9.5],
-        ['text' => num($invoice['shipping_cost']), 'align' => 'right', 'size' => 9.5],
+        ['text' => num($invoice['shipping_cost'], $dec), 'align' => 'right', 'size' => 9.5],
     ];
 }
 $body .= Docx::table($cols, $rows, ['borders' => true]);
@@ -102,7 +103,7 @@ $tot = [[$k('Subtotal'), $v($rp($subtotal))], [$k('DPP'), $v($rp($dpp))], [$k('V
 if ($disp['rounding_line'] !== null) {
     $tot[] = [$k('Pembulatan'), $v(rp_signed($disp['rounding_line']))];
 }
-$tot[] = [$k('Total Invoice'), $v($rp($total))];
+$tot[] = [$k('Total Invoice'), $v($rp($disp['invoice_total']))];
 $tot[] = [$k('Total Amount', true, true), $v($rp($total), true, true)];
 $body .= Docx::table([$W - $totW, $totW], [[
     ['xml' => Docx::p('Say : ' . terbilang($total), ['i' => true, 'size' => 9])],

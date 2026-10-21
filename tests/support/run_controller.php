@@ -63,7 +63,16 @@ $_SERVER['REMOTE_ADDR'] = '203.0.113.9';
 
 $config = (array) (require __DIR__ . '/../../config.php');
 $pdo = new PDO('sqlite:' . $dbFile, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
-$auth = new AuthStub((array) json_decode($userJson, true));
+$userArr = (array) json_decode($userJson, true);
+if (!empty($userArr['real'])) {
+    // Code typed against the real Auth class (e.g. order approval): log the
+    // user in through the session, like the front controller does.
+    require_once __DIR__ . '/../../app/Auth.php';
+    $_SESSION['user_id'] = (int) $userArr['id'];
+    $auth = new Auth($pdo);
+} else {
+    $auth = new AuthStub($userArr);
+}
 $GLOBALS['config'] = $config;
 $GLOBALS['pdo'] = $pdo;
 $GLOBALS['auth'] = $auth;

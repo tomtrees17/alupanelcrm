@@ -7,9 +7,10 @@ $subtotal = $disp['subtotal'];
 $dpp = $disp['dpp'];
 $vat = $disp['vat'];
 $total = $disp['total'];
+$dec = $disp['decimals'];                 // 2 for Coretax-calculated invoices
 $fdate = fn($d) => $d ? date('j/M/y', strtotime($d)) : '';
 $fdate2 = fn($d) => $d ? date('j-M-y', strtotime($d)) : '';
-$rp = fn($n) => 'Rp' . num($n);
+$rp = fn($n) => 'Rp' . num($n, $dec);
 // Print-only letterhead logo: drop a logo-print.png into public/assets/img/ to
 // override the committed SVG recreation (sidebar branding is unaffected).
 $printLogo = null;
@@ -81,7 +82,7 @@ foreach (['logo-print.png', 'logo-print.svg', 'logo-print.jpg'] as $cand) {
                 ?></td>
                 <td class="q"><?= num($it['qty']) ?></td>
                 <td class="up"><?= num($it['price'], 2) ?></td>
-                <td class="amt"><?= num($it['qty'] * $it['price']) ?></td>
+                <td class="amt"><?= num($it['qty'] * $it['price'], $dec) ?></td>
             </tr>
         <?php endforeach; ?>
         <?php if ($invoice['shipping_cost'] > 0): ?>
@@ -90,7 +91,7 @@ foreach (['logo-print.png', 'logo-print.svg', 'logo-print.jpg'] as $cand) {
                 <td>Ongkir</td>
                 <td class="q">1</td>
                 <td class="up"><?= num($invoice['shipping_cost'], 2) ?></td>
-                <td class="amt"><?= num($invoice['shipping_cost']) ?></td>
+                <td class="amt"><?= num($invoice['shipping_cost'], $dec) ?></td>
             </tr>
         <?php endif; ?>
         </tbody>
@@ -107,7 +108,7 @@ foreach (['logo-print.png', 'logo-print.svg', 'logo-print.jpg'] as $cand) {
                 <?php if ($disp['rounding_line'] !== null): ?>
                     <tr><td class="k">Pembulatan</td><td class="v"><?= rp_signed($disp['rounding_line']) ?></td></tr>
                 <?php endif; ?>
-                <tr><td class="k">Total Invoice</td><td class="v"><?= $rp($total) ?></td></tr>
+                <tr><td class="k">Total Invoice</td><td class="v"><?= $rp($disp['invoice_total']) ?></td></tr>
                 <tr class="grand"><td class="k">Total Amount</td><td class="v"><?= $rp($total) ?></td></tr>
             </table>
         </td>

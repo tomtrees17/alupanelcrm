@@ -561,12 +561,30 @@ function payment_reversal_block(PDO $pdo, array $payment): ?string
  *   'line' — separate "Pembulatan" row.
  *   'hide' — not shown (Subtotal + VAT then misses Total by the gap).
  *
- * @return array{subtotal:float,dpp:float,vat:float,rounding:float,rounding_line:?float,total:float}
+ * Invoices issued after the Coretax alignment (calc = 'coretax') ignore this
+ * setting: see invoice_amounts_coretax().
+ *
+ * @return array{subtotal:float,dpp:float,vat:float,rounding:float,rounding_line:?float,invoice_total:float,total:float,decimals:int}
  */
 function invoice_display(array $invoice, array $cfg): array
 {
     $subtotal = (float) $invoice['subtotal'];
     $rounding = (float) ($invoice['rounding'] ?? 0);
+    if (($invoice['calc'] ?? 'legacy') === 'coretax') {
+        // Coretax invoices: every figure as on the tax invoice, 2 decimals;
+        // the gap is "Total Invoice" vs "Total Amount", PPN is never adjusted.
+        $ppn = (float) $invoice['ppn'];
+        return [
+            'subtotal'      => $subtotal,
+            'dpp'           => (float) ($invoice['dpp'] ?? 0),
+            'vat'           => $ppn,
+            'rounding'      => $rounding,
+            'rounding_line' => null,
+            'invoice_total' => round($subtotal + $ppn, 2),
+            'total'         => (float) $invoice['total'],
+            'decimals'      => 2,
+        ];
+    }
     $hasGap = abs($rounding) >= 0.005;
     $mode = (string) ($cfg['invoice_rounding'] ?? 'vat');
     return [
@@ -575,7 +593,9 @@ function invoice_display(array $invoice, array $cfg): array
         'vat'           => (float) $invoice['ppn'] + ($mode === 'vat' ? $rounding : 0.0),
         'rounding'      => $rounding,
         'rounding_line' => ($mode === 'line' && $hasGap) ? $rounding : null,
+        'invoice_total' => (float) $invoice['total'],
         'total'         => (float) $invoice['total'],
+        'decimals'      => 0,
     ];
 }
 
@@ -622,6 +642,62 @@ function invoice_amounts(array $items, float $shipping, float $ppnRate): array
 }
 
 /**
+ * Invoice figures the way Coretax (DJP e-Faktur) computes them, so the invoice
+ * and the tax invoice agree to the sen. Chosen 2026-10-21 (docs 6w).
+ *
+ *   Harga Satuan   = inclusive price ÷ 1.11, kept to 2 decimals
+ *   line amount    = qty × Harga Satuan (exact)
+ *   Subtotal       = Σ lines + shipping ÷ 1.11
+ *   DPP Nilai Lain = Subtotal × 11/12
+ *   PPN            = DPP Nilai Lain × 12%
+ * each kept to 2 decimals by $mode: 'truncate' (Coretax drops the rest — the
+ * company's observation) or 'round'. Everything is done in integer sen so
+ * floating point never turns ,69 into ,6899….
+ *
+ * total = what the customer was quoted (Σ qty × inclusive price + shipping);
+ * invoice_total = Subtotal + PPN (= the tax invoice). The small gap between
+ * them is `rounding`; it is shown as the difference between the invoice's
+ * "Total Invoice" and "Total Amount" rows, never folded into PPN.
+ */
+function invoice_amounts_coretax(array $items, float $shipping, string $mode = 'truncate'): array
+{
+    // a / b on non-negative integer sen, to whole sen.
+    $div = $mode === 'round'
+        ? fn(int $a, int $b): int => intdiv(2 * $a + $b, 2 * $b)
+        : fn(int $a, int $b): int => intdiv($a, $b);
+
+    $units = [];
+    $subSen = 0;
+    $inclusiveSen = (int) round($shipping * 100);
+    foreach ($items as $k => $it) {
+        $priceSen = (int) round((float) $it['price'] * 100);
+        $qty100 = (int) round((float) $it['qty'] * 100);       // quantities are whole sheets; ×100 keeps the maths exact anyway
+        $unitSen = $div($priceSen * 100, 111);
+        $units[$k] = $unitSen / 100.0;
+        $subSen += $div($qty100 * $unitSen, 100);
+        $inclusiveSen += $div($qty100 * $priceSen, 100);
+    }
+    $shipSen = $div((int) round($shipping * 100) * 100, 111);
+    $subSen += $shipSen;
+    $dppSen = $div($subSen * 11, 12);
+    $ppnSen = $div($dppSen * 12, 100);
+    // (float) everywhere: PHP's "/" returns an int when the division is exact.
+    $total = $inclusiveSen / 100.0;                            // the quoted amount, to the sen
+    $invoiceTotal = ($subSen + $ppnSen) / 100.0;
+
+    return [
+        'units'         => $units,
+        'pretax_ship'   => $shipSen / 100.0,
+        'subtotal'      => $subSen / 100.0,
+        'dpp'           => $dppSen / 100.0,
+        'ppn'           => $ppnSen / 100.0,
+        'invoice_total' => $invoiceTotal,
+        'rounding'      => ($inclusiveSen - $subSen - $ppnSen) / 100.0,
+        'total'         => $total,
+    ];
+}
+
+/**
  * What tools/fix_invoice_rounding.php would do to one existing invoice.
  *
  * Returns ['action' => 'ok'|'fix'|'skip', 'rounding' => .., 'total' => .., 'reason' => ..].
@@ -633,6 +709,10 @@ function invoice_amounts(array $items, float $shipping, float $ppnRate): array
 function invoice_rounding_plan(PDO $pdo, array $invoice, float $ppnRate): array
 {
     $skip = fn(string $why) => ['action' => 'skip', 'rounding' => 0.0, 'total' => (float) $invoice['total'], 'reason' => $why];
+
+    if (($invoice['calc'] ?? 'legacy') === 'coretax') {
+        return $skip('Coretax-calculated invoice');
+    }
 
     if (empty($invoice['order_id'])) {
         return $skip('no linked order');

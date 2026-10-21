@@ -55,19 +55,23 @@ $voidBlock = $voidBlock ?? null;
         <div class="card-header"><span class="card-title"><?= t('details') ?></span></div>
         <div class="table-wrap"><table>
             <thead><tr><th><?= t('th_sku') ?></th><th><?= t('th_color_spec') ?></th><th class="right"><?= t('th_qty') ?></th><th class="right"><?= t('th_unit_price') ?></th><th class="right"><?= t('th_subtotal') ?></th></tr></thead>
+            <?php $disp = invoice_display($invoice, $GLOBALS['config'] ?? []); ?>
             <tbody>
             <?php foreach ($items as $it): ?>
                 <tr><td><code><?= e($it['sku']) ?></code></td><td><?= e($it['color']) ?> · <?= e($it['spec']) ?></td>
                     <td class="right"><?= (int) $it['qty'] ?></td><td class="right"><?= idr($it['price'], 2) ?></td>
-                    <td class="right"><?= idr($it['qty'] * $it['price']) ?></td></tr>
+                    <td class="right"><?= idr($it['qty'] * $it['price'], $disp['decimals']) ?></td></tr>
             <?php endforeach; ?>
             </tbody>
             <tfoot>
-                <tr><td colspan="4" class="right"><?= t('shipping') ?></td><td class="right"><?= idr($invoice['shipping_cost']) ?></td></tr>
-                <tr><td colspan="4" class="right"><?= t('th_subtotal') ?></td><td class="right"><?= idr($invoice['subtotal']) ?></td></tr>
-                <?php $disp = invoice_display($invoice, $GLOBALS['config'] ?? []); ?>
-                <tr><td colspan="4" class="right">DPP</td><td class="right"><?= idr($disp['dpp']) ?></td></tr>
-                <tr><td colspan="4" class="right">VAT 12%<?php if ($disp['vat'] !== (float) $invoice['ppn']): ?> <span class="muted small">(<?= sprintf(t('inv_vat_incl_rounding'), ((float) $invoice['rounding'] < 0 ? '-' : '') . idr(abs((float) $invoice['rounding']))) ?>)</span><?php endif; ?></td><td class="right"><?= idr($disp['vat']) ?></td></tr>
+                <?php $dec = $disp['decimals']; ?>
+                <tr><td colspan="4" class="right"><?= t('shipping') ?></td><td class="right"><?= idr($invoice['shipping_cost'], $dec) ?></td></tr>
+                <tr><td colspan="4" class="right"><?= t('th_subtotal') ?></td><td class="right"><?= idr($invoice['subtotal'], $dec) ?></td></tr>
+                <tr><td colspan="4" class="right">DPP<?= $dec ? ' Nilai Lain' : '' ?></td><td class="right"><?= idr($disp['dpp'], $dec) ?></td></tr>
+                <tr><td colspan="4" class="right">VAT 12%<?php if ($disp['vat'] !== (float) $invoice['ppn']): ?> <span class="muted small">(<?= sprintf(t('inv_vat_incl_rounding'), ((float) $invoice['rounding'] < 0 ? '-' : '') . idr(abs((float) $invoice['rounding']))) ?>)</span><?php endif; ?></td><td class="right"><?= idr($disp['vat'], $dec) ?></td></tr>
+                <?php if ($dec): ?>
+                    <tr><td colspan="4" class="right">Total Invoice <span class="muted small">(= Coretax)</span></td><td class="right"><?= idr($disp['invoice_total'], 2) ?></td></tr>
+                <?php endif; ?>
                 <?php if ($disp['rounding_line'] !== null): ?>
                     <tr><td colspan="4" class="right"><?= t('inv_rounding') ?></td><td class="right"><?= ((float) $invoice['rounding'] < 0 ? '-' : '') . idr(abs((float) $invoice['rounding'])) ?></td></tr>
                 <?php endif; ?>

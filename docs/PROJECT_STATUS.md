@@ -254,6 +254,23 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 
 **测试**：`tests/pagination_test.php`；控制器渲染测试通过 `tests/support/run_controller.php` 子进程执行（控制器文件里声明了函数，同一进程不能 include 两次）。
 
+## 6w. 发票按 Coretax 口径计算（2026-10-21）
+
+**为什么**：财务在 Coretax 开税票（Faktur Pajak）时手算税前单价、DPP、PPN；系统发票按整数卢比逐行四舍五入，和 Coretax 对不上（例：系统 VAT 148.649，Coretax 148.648,64）。用户要求与 Coretax 统一：**保留两位小数、不四舍五入（截断）**。
+
+**新发票的算法**（`invoice_amounts_coretax()`，全程整数"分"运算，避免浮点把 ,69 算成 ,6899…）：
+- Harga Satuan = 含税价 ÷ 1,11，截到 2 位小数（150.000 → 135.135,13）
+- 每行金额 = 数量 × Harga Satuan（精确）；Subtotal = Σ 行 + 运费 ÷ 1,11
+- DPP Nilai Lain = Subtotal × 11/12，截到 2 位；PPN = DPP × 12%，截到 2 位
+- **Total Invoice = Subtotal + PPN**（= 税票合计），**Total Amount = 客户报价含税总额**（精确到分，客户实付）。二者之差（几分钱，截断只会让 Total Invoice 略小；大约每张 ≤1,1 分）存 `rounding`，**不并进 PPN、不单列 Pembulatan 行**，发票上就是这两行之差（用户选定）。
+- 发票 11752：Subtotal 1.351.351,30 / DPP 1.238.738,69 / PPN 148.648,64 / Total Invoice 1.499.999,94 / Total Amount 1.500.000,00。
+
+**数据**：`invoices.calc`（`legacy` | `coretax`）+ `invoices.dpp`（ensureSchema 加列，存量全部标 legacy、不重算——已开给客户）。新发票由 `fulfill_order()` 按 `config.php` 的 `invoice_calc`（默认 `coretax`）和 `coretax_decimals`（默认 `truncate`，可改 `round`）生成。`invoice_display()` 对 coretax 发票：PPN 原样、两位小数、`invoice_total` = Subtotal + PPN；对 legacy 发票保持原样（`invoice_rounding` 仍只作用于它们）。打印、Word、系统详情页（显示 "DPP Nilai Lain" 和 "Total Invoice (= Coretax)"）三处一致。`tools/fix_invoice_rounding.php` 的计划函数跳过 coretax 发票。
+- **待核实**：截断是用户的观察，尚未用一张实际税票逐项比对 Harga Satuan / DPP Nilai Lain / PPN。若发现 Coretax 是四舍五入，把 `coretax_decimals` 改成 `round`（只影响之后新开的发票）。
+- 后续可做：从系统直接生成 Coretax 可导入的税票文件，彻底免去手工录入。
+
+**测试**：`tests/coretax_test.php`（例子逐项、3000 单随机校验每一步都是正确的截断/四舍五入、展示三处、legacy 不变、仓库确认出货端到端开出 coretax 发票）；迁移测试覆盖新列。测试夹具 `run_controller.php` 支持 `{"real": true}` 用真正的 `Auth` 登录（订单审批函数要求 `Auth` 类型）。
+
 ## 6v. 表单过期不再停在 "CSRF token mismatch"（2026-10-21）
 
 **现象**：登录时出现白页 "CSRF token mismatch. 请刷新页面重试。"。**原因**：登录页（或任何表单）打开后停留超过会话寿命（PHP-FPM `session.gc_maxlifetime = 1440` 秒 = 24 分钟空闲），会话被回收，表单里的令牌对不上；在别的标签页登录/退出过也会这样。正常流程经外部实测无问题（地址栏显示 `alupanel.cc` 只是 Chrome 隐藏了 www，裸域名本身没有 DNS 解析）。
@@ -539,7 +556,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
+users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
 
 ## 10. 提交历史（main）
 
@@ -586,7 +603,7 @@ c6d14db Add append-only audit log across every write operation
 
 发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。（~~真实 logo.png 上传~~ 已完成，见 6 打印一节）
 
-**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **备份异地同步到 OSS**(见 6e) / **列表分页 + 搜索**(见 6o) / **客户分析·数据准备**(见 6p) / **AI 花费护栏**(见 6p) / **回访清单计算 + 跟进记录**(见 6q) / **回访清单页 + 客户分析看板 + 送货地图**(见 6r) / **客户分析权限**(见 6s) / **看板张数列 + 张数卡片**(见 6t) / **订单小数 + 发票 .docx + 尾差并入 VAT**(见 6u) / **表单过期友好提示**(见 6v) / **自动化测试**(`tools/run_tests.php`，820 项)。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **备份异地同步到 OSS**(见 6e) / **列表分页 + 搜索**(见 6o) / **客户分析·数据准备**(见 6p) / **AI 花费护栏**(见 6p) / **回访清单计算 + 跟进记录**(见 6q) / **回访清单页 + 客户分析看板 + 送货地图**(见 6r) / **客户分析权限**(见 6s) / **看板张数列 + 张数卡片**(见 6t) / **订单小数 + 发票 .docx + 尾差并入 VAT**(见 6u) / **表单过期友好提示**(见 6v) / **发票按 Coretax 口径**(见 6w) / **自动化测试**(`tools/run_tests.php`，853 项)。
 
 **待办（按优先级）**：
 0. **客户分析板块**（任务书四部分，见 6p）：一、数据准备 ✅（6p）；二、三个清单 ✅（6q）；三、页面 ✅（6r）；四、权限 ✅ 待验收（6s）。宝塔计划任务 `tools/nightly.php` 每天 02:30 已加，`.env` 已配。四部分均已上线（2026-10-16）。**智能查库存已启用 Claude（2026-10-16；服务器 `config.local.php` 加了 `'ai' => ['driver' => 'claude']`），模型 `claude-opus-5-5`**——曾短暂用 `claude-opus-5`，比较后改回 5.5（更便宜且更新；用户不需要 Sonnet/Haiku 对比测试）。请求带 `fallbacks: "default"`；行业判断同为 `claude-opus-5-5`。剩余：70 个无负责人客户待在「数据整理」分配。**`.env` 里的 Anthropic 密钥曾在聊天中明文出现，用户决定继续使用——建议择机在 console.anthropic.com 轮换。** erpandi 已于 2026-10-16 合并到 erfandi（21 客户 / 31 订单，快照 `backups/pre_merge_erpandi_*`）。晨间 WhatsApp 提醒待 WhatsApp 启用后再做（6r）。

@@ -175,6 +175,8 @@ CREATE TABLE invoices (
     subtotal      REAL    DEFAULT 0,
     ppn           REAL    DEFAULT 0,         -- VAT 11%
     rounding      REAL    NOT NULL DEFAULT 0,-- Pembulatan: makes total equal the order's inclusive amount
+    calc          TEXT    NOT NULL DEFAULT 'legacy', -- legacy (whole rupiah, before 2026-10-21) | coretax (2 decimals)
+    dpp           REAL,                      -- DPP Nilai Lain as on the tax invoice (coretax invoices only)
     total         REAL    DEFAULT 0,
     invoice_date  TEXT,
     due_date      TEXT,

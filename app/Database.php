@@ -208,6 +208,14 @@ final class Database
         if (!in_array('rounding', $ivcols, true)) {
             $pdo->exec('ALTER TABLE invoices ADD COLUMN rounding REAL NOT NULL DEFAULT 0');
         }
+        // invoices.calc / dpp (Coretax-aligned invoices, added 2026-10-21).
+        // Existing invoices stay 'legacy': already issued, never recomputed.
+        if (!in_array('calc', $ivcols, true)) {
+            $pdo->exec("ALTER TABLE invoices ADD COLUMN calc TEXT NOT NULL DEFAULT 'legacy'");
+        }
+        if (!in_array('dpp', $ivcols, true)) {
+            $pdo->exec('ALTER TABLE invoices ADD COLUMN dpp REAL');
+        }
 
         // ai_queries (AI 库存查询用量与限流, added later).
         $pdo->exec(

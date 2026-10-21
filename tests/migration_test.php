@@ -34,6 +34,8 @@ $pdo->exec('ALTER TABLE invoices DROP COLUMN voided_at');
 $pdo->exec('ALTER TABLE invoices DROP COLUMN voided_by');
 $pdo->exec('ALTER TABLE invoices DROP COLUMN void_reason');
 $pdo->exec('ALTER TABLE invoices DROP COLUMN rounding');
+$pdo->exec('ALTER TABLE invoices DROP COLUMN calc');
+$pdo->exec('ALTER TABLE invoices DROP COLUMN dpp');
 $pdo->exec("INSERT INTO invoices (invoice_no,customer,total,payment_status) VALUES ('INV-LAMA','PT Lama',5000,'pending')");
 $pdo->exec('ALTER TABLE users DROP COLUMN phone');
 $pdo->exec('ALTER TABLE users DROP COLUMN lang');
@@ -112,6 +114,7 @@ $ivc2 = array_column($pdo->query('PRAGMA table_info(invoices)')->fetchAll(), 'na
 ok('invoices gains rounding', in_array('rounding', $ivc2, true));
 $oldInv2 = $pdo->query("SELECT * FROM invoices WHERE invoice_no='INV-LAMA'")->fetch();
 ok('upgrade does not rewrite existing totals (that is the CLI tool\'s job)', (float) $oldInv2['total'] === 5000.0 && (float) $oldInv2['rounding'] === 0.0);
+ok('existing invoices are marked legacy, no DPP stored (never recomputed)', $oldInv2['calc'] === 'legacy' && $oldInv2['dpp'] === null);
 
 // customer-analysis upgrade: columns added, nothing inferred on a page load.
 $cc = array_column($pdo->query('PRAGMA table_info(customers)')->fetchAll(), 'name');
