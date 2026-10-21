@@ -213,8 +213,8 @@ if (function_exists('exec') && is_file($harness)) {
     $run('contract_upload', $hr, [], ['id' => $l1['id']], $scan());
     $run('contract_activate', $hr, [], ['id' => $l1['id']]);
     $pe = HrContract::probation_end($l1);
-    $pt = $todo('probation_end', (int) $l1['id']);
-    ok('试用期到期 todo within 7 days of the end', $pe >= $T && $pe <= $d(7) && $pt !== null && $pt['due_date'] === $pe, "{$pStart} → {$pe}");
+    [$h] = $run('contract', $hr, ['id' => $l1['id']]);
+    ok('probation end kept as data on the contract, no todo (收尾)', $pe >= $T && $pe <= $d(7) && $todo('probation_end', (int) $l1['id']) === null && str_contains($h, Hr::dmy($pe)), "{$pStart} → {$pe}");
 
     // historical contract: past dates → straight to expired, no reminder (a later contract exists)
     $run('contract_store', $hr, [], ['employee_id' => $lid, 'contract_type' => 'PKWT', 'start_date' => '2023-01-02', 'end_date' => '2023-12-31', 'position' => 'Gudang', 'work_location' => 'Jakarta']);
@@ -235,14 +235,14 @@ if (function_exists('exec') && is_file($harness)) {
         && $r['employment_status'] === 'resigned' && $r['resign_date'] === $T && $r['resign_reason'] === 'Mengundurkan diri');
     ok('terminate: CRM account deactivated', (int) $q()->query('SELECT active FROM users WHERE id = 4')->fetchColumn() === 0);
     $rt = $q()->query("SELECT type, status FROM hr_todos WHERE employee_id = {$rid} AND ref LIKE 'resign:%'")->fetchAll(PDO::FETCH_KEY_PAIR);
-    ok('terminate: 合同终止 todo already done, BPJS / account todos open', $rt === ['contract_end' => 'done', 'bpjs_stop' => 'open', 'account_off' => 'open'], json_encode($rt));
+    ok('terminate: only the BPJS 停保 todo is raised', $rt === ['bpjs_stop' => 'open'], json_encode($rt));
     ok('terminate: audited', (int) $q()->query("SELECT COUNT(*) FROM audit_log WHERE action = 'terminate'")->fetchColumn() >= 1 && (int) $q()->query("SELECT COUNT(*) FROM audit_log WHERE action = 'resign'")->fetchColumn() >= 1);
     ok('nothing deleted', (int) $q()->query('SELECT COUNT(*) FROM employment_contracts')->fetchColumn() === 7);
 
     // resigned via HR-01 first, then the contract is terminated: no second resignation
     $run('resign', $hr, [], ['id' => $lid, 'resign_date' => $T, 'resign_reason' => 'Pindah']);
     [, $fl] = $run('contract_terminate', $hr, [], ['id' => $l1['id'], 'termination_date' => $T, 'termination_reason' => 'Pindah']);
-    ok('already resigned: contract closed, its 合同终止 todo done, still one resignation', $q()->query("SELECT status FROM hr_todos WHERE employee_id = {$lid} AND type = 'contract_end'")->fetchColumn() === 'done'
+    ok('already resigned: contract closed, still one resignation', $q()->query("SELECT status FROM employment_contracts WHERE id = {$l1['id']}")->fetchColumn() === 'terminated'
         && (int) $q()->query("SELECT COUNT(*) FROM employee_changes WHERE employee_id = {$lid} AND new_value = 'resigned'")->fetchColumn() === 1);
 
     foreach (glob("{$root}/*/*") ?: [] as $f) {

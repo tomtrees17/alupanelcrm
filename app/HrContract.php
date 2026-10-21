@@ -195,7 +195,7 @@ final class HrContract
      * Idempotent housekeeping, run on every 人力 page load (owner: no cron):
      * active → expired after the end date; sync contracts that have started;
      * reminders — PKWT 30 days before the end, "expired, undecided" from the end
-     * date on, probation 7 days before it ends.
+     * date on. (Probation end is shown on the contract, not raised as a todo: 收尾.)
      */
     public static function scan(PDO $pdo, string $today): void
     {
@@ -222,15 +222,6 @@ final class HrContract
                 Hr::add_todo($pdo, 'contract_expired', (int) $c['employee_id'], (string) $c['end_date'], 'contract:' . $c['id']);
             } elseif ($c['end_date'] <= self::add_days($today, 30)) {
                 Hr::add_todo($pdo, 'contract_expiring', (int) $c['employee_id'], (string) $c['end_date'], 'contract:' . $c['id']);
-            }
-        }
-        $pr = $pdo->query("SELECT c.* FROM employment_contracts c JOIN employees e ON e.id = c.employee_id
-            WHERE c.status = 'active' AND c.contract_type = 'PKWTT' AND c.is_probation = 1 AND e.employment_status <> 'resigned'");
-        foreach ($pr->fetchAll() as $c) {
-            $end = self::probation_end($c);
-            // From 7 days before the end; a probation that ended long ago (history) is not raised.
-            if ($end !== null && self::add_days($end, -7) <= $today && $end >= self::add_days($today, -30)) {
-                Hr::add_todo($pdo, 'probation_end', (int) $c['employee_id'], $end, 'contract:' . $c['id']);
             }
         }
     }

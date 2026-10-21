@@ -37,7 +37,7 @@ $valueOf = function (?string $field, ?string $v) use ($salaryVisible): string {
 
 <div class="hr-meta muted small">
     <code><?= e($e['employee_no']) ?></code>
-    · <?= t('hr_completeness') ?> <strong class="<?= $pct < 80 ? 'hr-low' : '' ?>"><?= $pct ?>%</strong>
+    · <?= t('hr_completeness') ?> <?= $pct ?>%
     <?php if ($account): ?> · <?= t('hr_crm_account') ?>: <?= e($account['email']) ?><?= (int) $account['active'] === 1 ? '' : ' <span class="tag tag-gray">' . t('hr_account_off') . '</span>' ?><?php endif; ?>
 </div>
 

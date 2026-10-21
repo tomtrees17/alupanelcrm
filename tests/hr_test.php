@@ -152,8 +152,8 @@ if (function_exists('exec') && is_file($harness)) {
     ok('create: NIK must be 16 digits', $isErr($fl, t('hr_err_nik_format')));
     [, $fl] = $run('store', $hr, [], ['join_date' => '2099-01-01'] + $new);
     ok('create: join date not in the future', $isErr($fl, t('hr_err_join_future')));
-    [, $fl] = $run('store', $hr, [], ['position' => ''] + $new);
-    ok('create: department / position / location required', $isErr($fl, t('hr_err_job_req')));
+    [, $fl] = $run('store', $hr, [], ['join_date' => ''] + $new);
+    ok('create: join date required', $isErr($fl, t('hr_err_join_req')));
     [, $fl] = $run('store', $hr, [], $new, ['TEST_HR_KEY' => '']);
     ok('create: salary refused without a key (never stored in clear)', $isErr($fl, t('hr_err_no_key')) && (int) $q()->query('SELECT COUNT(*) FROM employees')->fetchColumn() === 6);
     [, $fl] = $run('store', $hr, [], $new);
@@ -164,6 +164,12 @@ if (function_exists('exec') && is_file($harness)) {
     [, $fl] = $run('store', $hr, [], ['full_name' => 'Orang Lain'] + $new);
     ok('create: duplicate NIK names the existing record', $isErr($fl, 'AMI-0007'));
     $sid = (int) ($siti['id'] ?? 0);
+    [, $fl] = $run('store', $hr, [], ['full_name' => 'Joko Minimal', 'nik' => '3171234567890002', 'join_date' => '2026-10-05']);
+    $joko = $q()->query("SELECT * FROM employees WHERE nik = '3171234567890002'")->fetch() ?: [];
+    ok('create: name + NIK + join date are enough (收尾)', ($fl[0]['type'] ?? '') === 'success' && ($joko['employee_no'] ?? '') === 'AMI-0008'
+        && $joko['department'] === null && $joko['position'] === null && $joko['work_location'] === null && $joko['birth_date'] === null, json_encode($fl));
+    [$h] = $run('create', $hr);
+    ok('create form: only name, NIK, join date marked required', substr_count($h, ' required') === 3 && !str_contains($h, 'hr-pct'), (string) substr_count($h, ' required'));
 
     // 1b. link the new hire to her CRM account (dropdown on the detail page)
     [$h] = $run('show', $hr, ['id' => $sid, 'tab' => 'job']);
@@ -245,7 +251,7 @@ if (function_exists('exec') && is_file($harness)) {
     [$h] = $run('employees', $hr, ['location' => 'Surabaya']);
     ok('list: filter by location', str_contains($h, 'Siti Aminah') && !str_contains($h, 'Rina Wati'));
     ok('list: dates DD-MM-YYYY', str_contains($h, '01-10-2026'));
-    ok('list: completeness under 80% flagged yellow', Hr::completeness($siti) < 80 && str_contains($h, 'tag-yellow'));
+    ok('list: no colour marks (收尾)', Hr::completeness($siti) < 80 && !str_contains($h, 'tag-yellow') && !str_contains($h, 'hr-low'));
     ok('list: no salary column', !str_contains($h, '9.000.000') && !str_contains($h, t('hr_base_salary')));
 
     // 5. resign Rina (has a CRM account)
@@ -256,7 +262,7 @@ if (function_exists('exec') && is_file($harness)) {
     $r = $q()->query("SELECT * FROM employees WHERE id = {$rid}")->fetch();
     ok('resign: status resigned with date and reason', $r['employment_status'] === 'resigned' && $r['resign_date'] === '2026-10-20' && $r['resign_reason'] === 'Pindah kerja');
     $todos = $q()->query("SELECT type FROM hr_todos WHERE employee_id = {$rid} AND status = 'open' ORDER BY type")->fetchAll(PDO::FETCH_COLUMN);
-    ok('resign: three todos', $todos === ['account_off', 'bpjs_stop', 'contract_end'], json_encode($todos));
+    ok('resign: only the BPJS 停保 todo (收尾: four todo types)', $todos === ['bpjs_stop'], json_encode($todos));
     ok('resign: CRM account deactivated, not deleted', (int) $q()->query('SELECT active FROM users WHERE id = 4')->fetchColumn() === 0);
     ok('resign: history row', (int) $q()->query("SELECT COUNT(*) FROM employee_changes WHERE employee_id = {$rid} AND change_type = 'status' AND new_value = 'resigned'")->fetchColumn() === 1);
     ok('resign: audited (record + account)', $auditCount('resign') >= 4 && str_contains(implode("\n", $q()->query("SELECT detail FROM audit_log WHERE action = 'resign'")->fetchAll(PDO::FETCH_COLUMN)), 'users.active: 1 → 0'));
@@ -267,12 +273,16 @@ if (function_exists('exec') && is_file($harness)) {
     ok('resign: an open session is logged out', (new Auth($q()))->user() === null);
     $_SESSION = $savedSession;
     [, $fl] = $run('resign', $hr, [], ['id' => $rid, 'resign_date' => '2026-10-21', 'resign_reason' => 'again']);
-    ok('resign: not twice', $isErr($fl, t('hr_err_already_resigned')) && (int) $q()->query("SELECT COUNT(*) FROM hr_todos WHERE employee_id = {$rid}")->fetchColumn() === 3);
+    ok('resign: not twice', $isErr($fl, t('hr_err_already_resigned')) && (int) $q()->query("SELECT COUNT(*) FROM hr_todos WHERE employee_id = {$rid}")->fetchColumn() === 1);
 
     // 6. the 人力 home: todos, mark done
     [$h] = $run('index', $hr);
-    ok('home lists the todos, overdue marked', str_contains($h, t('hrtodo_account_off')) && str_contains($h, 'hr-overdue') && str_contains($h, '20-10-2026'));
-    $tid = (int) $q()->query("SELECT id FROM hr_todos WHERE type = 'account_off'")->fetchColumn();
+    ok('home lists the todos, overdue marked', str_contains($h, t('hrtodo_bpjs_stop')) && str_contains($h, 'hr-overdue') && str_contains($h, '20-10-2026'));
+    $p3 = $q();
+    $p3->exec("INSERT INTO hr_todos (type, employee_id, ref, due_date) VALUES ('probation_end', {$rid}, 'legacy', '2026-10-01')");
+    [$h] = $run('index', $hr);
+    ok('home shows only the four todo types (an old other-type row stays hidden)', !str_contains($h, '2026-10-01') && !str_contains($h, 'probation_end'));
+    $tid = (int) $q()->query("SELECT id FROM hr_todos WHERE type = 'bpjs_stop'")->fetchColumn();
     [, $fl] = $run('todo_done', $tania, [], ['id' => $tid]);
     ok('todo: only HR handles it', $isErr($fl, t('hr_msg_read_only')));
     $run('todo_done', $hr, [], ['id' => $tid, 'note' => 'done in CRM']);
@@ -289,18 +299,18 @@ if (function_exists('exec') && is_file($harness)) {
     $r = $q()->query("SELECT * FROM employees WHERE id = {$rid}")->fetch();
     ok('unresign: status back, resign fields cleared', $r['employment_status'] === 'active' && $r['resign_date'] === null && $r['resign_reason'] === null, json_encode($fl));
     $st = $q()->query("SELECT type, status FROM hr_todos WHERE employee_id = {$rid} ORDER BY type")->fetchAll(PDO::FETCH_KEY_PAIR);
-    ok('unresign: open todos cancelled, handled ones kept', $st === ['account_off' => 'done', 'bpjs_stop' => 'cancelled', 'contract_end' => 'cancelled'], json_encode($st));
+    ok('unresign: handled todo kept as handled', ($st['bpjs_stop'] ?? '') === 'done', json_encode($st));
     ok('unresign: CRM account re-enabled', (int) $q()->query('SELECT active FROM users WHERE id = 4')->fetchColumn() === 1);
     ok('unresign: login works again', @(new Auth($q()))->attempt('rina@t', 'Rahasia#2026'));
     ok('unresign: history row', (int) $q()->query("SELECT COUNT(*) FROM employee_changes WHERE employee_id = {$rid} AND old_value = 'resigned' AND new_value = 'active' AND note = 'Salah input'")->fetchColumn() === 1);
     $ud = implode("\n", $q()->query("SELECT detail FROM audit_log WHERE action = 'unresign'")->fetchAll(PDO::FETCH_COLUMN));
-    ok('unresign: audited (record, todos, account)', str_contains($ud, 'employees.employment_status: resigned → active') && str_contains($ud, 'open → cancelled') && str_contains($ud, 'users.active: 0 → 1'));
+    ok('unresign: audited (record, account)', str_contains($ud, 'employees.employment_status: resigned → active') && str_contains($ud, 'users.active: 0 → 1'));
     [$h] = $run('index', $hr);
     ok('unresign: cancelled todos leave the home list', !str_contains($h, t('hrtodo_bpjs_stop')));
     $run('resign', $hr, [], ['id' => $rid, 'resign_date' => '2026-10-21', 'resign_reason' => 'Pindah kerja']);
-    ok('resign again: a fresh set of three todos', (int) $q()->query("SELECT COUNT(*) FROM hr_todos WHERE employee_id = {$rid} AND status = 'open'")->fetchColumn() === 3
+    ok('resign again: a fresh BPJS 停保 todo', (int) $q()->query("SELECT COUNT(*) FROM hr_todos WHERE employee_id = {$rid} AND status = 'open' AND type = 'bpjs_stop'")->fetchColumn() === 1
         && (int) $q()->query('SELECT active FROM users WHERE id = 4')->fetchColumn() === 0);
-    ok('nothing in employees was deleted', (int) $q()->query('SELECT COUNT(*) FROM employees')->fetchColumn() === 7);
+    ok('nothing in employees was deleted', (int) $q()->query('SELECT COUNT(*) FROM employees')->fetchColumn() === 8);
 
     @unlink($tmp);
     @unlink($fake);

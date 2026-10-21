@@ -24,6 +24,12 @@ final class Hr
     public const PTKP = ['TK/0', 'TK/1', 'TK/2', 'TK/3', 'K/0', 'K/1', 'K/2', 'K/3'];
     public const DOC_TYPES = ['ktp', 'npwp', 'kk', 'ijazah', 'foto', 'lainnya', 'bpjs_kes', 'bpjs_tk'];
     public const CHANGE_TYPES = ['position', 'salary', 'location', 'supervisor', 'status'];
+    /**
+     * The only todos the platform raises (收尾 2026-10-21, "不加负担"): contract
+     * ending / ended undecided, BPJS not registered in time, BPJS to stop after
+     * a resignation. Anything else (probation end, …) stays as data, no todo.
+     */
+    public const TODO_TYPES = ['contract_expiring', 'contract_expired', 'bpjs_overdue', 'bpjs_stop'];
 
     /** Fields HR fills on the basic-info form (no effective date needed). */
     public const BASIC_FIELDS = [
@@ -259,9 +265,12 @@ final class Hr
             ->execute([$empId, $type, $field, $old, $new, $effective, $note, $operator]);
     }
 
-    /** A pending todo, once per (type, employee, reference). */
+    /** A pending todo, once per (type, employee, reference). Types outside TODO_TYPES are not raised. */
     public static function add_todo(PDO $pdo, string $type, ?int $empId, string $due, string $ref = ''): void
     {
+        if (!in_array($type, self::TODO_TYPES, true)) {
+            return;
+        }
         $pdo->prepare('INSERT OR IGNORE INTO hr_todos (type, employee_id, ref, due_date) VALUES (?,?,?,?)')
             ->execute([$type, $empId, $ref, $due]);
     }
@@ -300,8 +309,9 @@ final class Hr
 
     /**
      * HR-01 resignation, also reached from HR-02 contract termination:
-     * status → resigned, three todos, linked CRM accounts deactivated (never
-     * deleted). Returns the todo reference of this resignation.
+     * status → resigned, linked CRM accounts deactivated (never deleted), both
+     * BPJS programs → 待停保 with a "BPJS 停保" todo (the only todo since 收尾).
+     * Returns the todo reference of this resignation.
      */
     public static function resign(PDO $pdo, array $e, string $date, string $reason, string $operator): string
     {
@@ -310,9 +320,7 @@ final class Hr
             ->execute([$date, $reason, $operator, date('Y-m-d H:i:s'), $e['id']]);
         self::record_change($pdo, (int) $e['id'], 'status', 'employment_status', (string) $e['employment_status'], 'resigned', $date, $reason, $operator);
         $ref = 'resign:' . $pdo->lastInsertId();   // one set of todos per resignation (it can be undone and redone)
-        foreach (['contract_end', 'bpjs_stop', 'account_off'] as $type) {
-            self::add_todo($pdo, $type, (int) $e['id'], $date, $ref);
-        }
+        self::add_todo($pdo, 'bpjs_stop', (int) $e['id'], $date, $ref);
         $accounts = $pdo->prepare('SELECT id, name, active FROM users WHERE employee_id = ?');
         $accounts->execute([$e['id']]);
         $accts = $accounts->fetchAll();

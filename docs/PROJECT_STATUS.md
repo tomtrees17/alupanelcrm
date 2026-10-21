@@ -254,6 +254,13 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 
 **测试**：`tests/pagination_test.php`；控制器渲染测试通过 `tests/support/run_controller.php` 子进程执行（控制器文件里声明了函数，同一进程不能 include 两次）。
 
+## 6zb. 人力一期收尾（2026-10-21，章程 v2.2「不给员工加负担」）
+
+- 列表页不做任何颜色提示：去掉完整度 < 80% 的黄标、员工列表 / 合同列表剩余天数不着色；新增/编辑表单不再显示完整度进度条（章程：不做进度条）。完整度数字只在详情页，纯文字。
+- 新增员工必填：姓名、NIK、入职日期；部门/职位/工作地/出生日期可后补（填了仍校验）。
+- 待办只生成四类：`Hr::TODO_TYPES` = contract_expiring / contract_expired / bpjs_overdue / bpjs_stop。`Hr::add_todo()` 对其他类型直接忽略，首页也只显示这四类。离职只生成「BPJS 停保」；试用期结束日只在合同详情上显示。
+- Excel 批量导入（员工 / 合同 / BPJS）：等 HR 提供现用 Excel 后按它定模板。
+
 ## 6za. 人力 / SDM：HR-03 BPJS（2026-10-21）
 
 代码：`app/HrBpjs.php`、`app/controllers/hr.php`（bpjs_* 动作）、`views/hr/bpjs*.php` 与员工详情 BPJS 页签，测试 `tests/hr_bpjs_test.php`。表 `bpjs_kesehatan`、`bpjs_kesehatan_dependents`、`bpjs_ketenagakerjaan`、`bpjs_rates`、`bpjs_monthly`。

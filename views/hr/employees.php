@@ -33,18 +33,16 @@ include __DIR__ . '/_bpjs_status.php'; ?>
     <tbody>
     <?php if (!$rows): ?><tr><td colspan="9" class="empty"><?= t('no_data') ?></td></tr><?php endif; ?>
     <?php foreach ($rows as $r): ?>
-        <?php $pct = Hr::completeness($r); ?>
         <tr class="clickable" onclick="location.href='<?= url('hr.show', ['id' => $r['id']]) ?>'">
             <td><code><?= e($r['employee_no']) ?></code></td>
-            <td><strong><?= e($r['full_name']) ?></strong>
-                <?php if ($pct < 80): ?><span class="tag tag-yellow" title="<?= t('hr_completeness') ?>"><?= $pct ?>%</span><?php endif; ?></td>
+            <td><strong><?= e($r['full_name']) ?></strong></td>
             <td><?= $r['department'] ? t('hrdept_' . $r['department']) : '—' ?></td>
             <td><?= e($r['position']) ?: '—' ?></td>
             <td><?= e($r['work_location']) ?: '—' ?></td>
             <td class="nowrap"><?= e(Hr::dmy($r['join_date'])) ?: '—' ?></td>
             <td><span class="tag <?= $r['employment_status'] === 'resigned' ? 'tag-gray' : ($r['employment_status'] === 'probation' ? 'tag-orange' : 'tag-green') ?>"><?= t('hrstatus_' . $r['employment_status']) ?></span></td>
             <?php $cc = $current[(int) $r['id']] ?? null; ?>
-            <td class="nowrap"><?php if (!$cc): ?><span class="muted">—</span><?php elseif ($cc['contract_type'] === 'PKWTT'): ?>PKWTT<?php else: ?><?php $left = HrContract::days($today, (string) $cc['end_date']); ?><?= e(Hr::dmy($cc['end_date'])) ?> <span class="small <?= $left <= 30 ? 'hr-low' : 'muted' ?>">(<?= $left ?>)</span><?php endif; ?></td>
+            <td class="nowrap"><?php if (!$cc): ?><span class="muted">—</span><?php elseif ($cc['contract_type'] === 'PKWTT'): ?>PKWTT<?php else: ?><?php $left = HrContract::days($today, (string) $cc['end_date']); ?><?= e(Hr::dmy($cc['end_date'])) ?> <span class="small muted">(<?= $left ?>)</span><?php endif; ?></td>
             <td class="nowrap"><?php if (HrBpjs::can_see($viewer, $r) && isset($bpjs[(int) $r['id']])): ?><span class="muted small">K</span> <?= $bpjsTag($bpjs[(int) $r['id']]['kesehatan'] ?? null) ?> <span class="muted small">TK</span> <?= $bpjsTag($bpjs[(int) $r['id']]['ketenagakerjaan'] ?? null) ?><?php else: ?><span class="muted">—</span><?php endif; ?></td>
         </tr>
     <?php endforeach; ?>

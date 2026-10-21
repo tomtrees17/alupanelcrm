@@ -424,9 +424,6 @@ tfoot td { padding: 8px 14px; }
 .hr-meta { margin: -6px 0 12px; }
 .hr-low { color: var(--warning); }
 .hr-overdue td { background: rgba(227, 73, 72, .06); }
-.hr-complete { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 13px; }
-.hr-complete .bar { flex: 0 0 200px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
-.hr-complete .bar-fill { height: 100%; background: var(--c-sales, #2a78d6); }
 .hr-kpi { display: flex; align-items: baseline; gap: 12px; }
 .hr-kpi strong { font-size: 24px; }
 .hr-kpi .hr-kpi-bad { color: var(--danger); }

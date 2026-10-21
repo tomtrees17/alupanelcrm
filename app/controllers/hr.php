@@ -114,8 +114,9 @@ switch ($action) {
             redirect('dashboard.index');
         }
         [$w, $a] = Hr::scope_sql($viewer);
+        $types = implode(',', array_map(fn($x) => "'{$x}'", Hr::TODO_TYPES));
         $st = $pdo->prepare("SELECT t.*, e.full_name, e.employee_no FROM hr_todos t LEFT JOIN employees e ON e.id = t.employee_id
-                              WHERE t.status = 'open' AND (t.employee_id IS NULL OR {$w}) ORDER BY t.due_date IS NULL, t.due_date, t.id");
+                              WHERE t.status = 'open' AND t.type IN ({$types}) AND (t.employee_id IS NULL OR {$w}) ORDER BY t.due_date IS NULL, t.due_date, t.id");
         $st->execute($a);
         view('hr.index', ['pageTitle' => t('nav_hr'), 'pageSub' => t('hr_sub_todos'), 'todos' => $st->fetchAll(), 'today' => $today, 'viewer' => $viewer]);
         break;
@@ -306,19 +307,15 @@ switch ($action) {
             $errors[] = t('hr_err_date');
         }
         if ($isNew) {
-            // Required on creation (HR-01): name, NIK, birth date, department, position, location, join date.
+            // Required on creation (收尾 2026-10-21, "不加负担"): name, NIK, join date. The rest may come later.
             $job = [
-                'department' => (string) input('department', ''), 'position' => trim((string) input('position', '')),
-                'work_location' => (string) input('work_location', ''), 'join_date' => trim((string) input('join_date', '')),
+                'department' => in_array(input('department'), Hr::DEPARTMENTS, true) ? (string) input('department') : null,
+                'position' => trim((string) input('position', '')) ?: null,
+                'work_location' => in_array(input('work_location'), Hr::LOCATIONS, true) ? (string) input('work_location') : null,
+                'join_date' => trim((string) input('join_date', '')),
                 'supervisor_id' => ((int) input('supervisor_id', 0)) ?: null,
                 'employment_status' => in_array(input('employment_status'), ['probation', 'active'], true) ? (string) input('employment_status') : 'active',
             ];
-            if ($data['birth_date'] === null) {
-                $errors[] = t('hr_err_birth_req');
-            }
-            if (!in_array($job['department'], Hr::DEPARTMENTS, true) || $job['position'] === '' || !in_array($job['work_location'], Hr::LOCATIONS, true)) {
-                $errors[] = t('hr_err_job_req');
-            }
             if (!Hr::valid_date($job['join_date'])) {
                 $errors[] = t('hr_err_join_req');
             } elseif ($job['join_date'] > $today) {
@@ -350,7 +347,7 @@ switch ($action) {
             $pdo->prepare('INSERT INTO employees (' . implode(',', $cols) . ') VALUES (' . implode(',', array_fill(0, count($cols), '?')) . ')')->execute($vals);
             $id = (int) $pdo->lastInsertId();
             audit($pdo, 'hr', 'create', 'employees', $id, $no . ' ' . $data['full_name'],
-                sprintf('employees: %s %s; %s; %s; %s', $no, $data['full_name'], $job['department'], $job['position'], $job['work_location']));
+                sprintf('employees: %s %s; %s; %s; %s', $no, $data['full_name'], $job['department'] ?? '—', $job['position'] ?? '—', $job['work_location'] ?? '—'));
             flash(sprintf(t('hr_msg_created'), $no));
             redirect('hr.show', ['id' => $id]);
         }
@@ -469,7 +466,7 @@ switch ($action) {
         Hr::send_file((int) $a['employee_id'], (string) $a['file_path'], $a['mime'], (string) $a['file_name']);
         break;
 
-    // Resignation: status → resigned, three todos, CRM account deactivated (never deleted).
+    // Resignation: status → resigned, CRM account deactivated (never deleted), BPJS → 待停保 + todo.
     case 'resign':
         Csrf::verify();
         $requireEdit();
@@ -809,14 +806,8 @@ switch ($action) {
         Hr::audit_fields($pdo, 'terminate', 'employment_contracts', (int) $c['id'], (string) $c['contract_no'],
             ['status' => $c['status'], 'termination_date' => $c['termination_date'], 'termination_reason' => $c['termination_reason']],
             ['status' => 'terminated', 'termination_date' => $date, 'termination_reason' => $reason]);
-        if ($c['status'] !== 'draft') {
-            if ($e['employment_status'] !== 'resigned') {
-                Hr::resign($pdo, $e, $date, $reason, $operator);
-            }
-            // The resignation's "terminate the contract" todo is now done.
-            $pdo->prepare("UPDATE hr_todos SET status = 'done', handled_by = ?, handled_at = datetime('now','localtime'), handled_note = ?
-                           WHERE employee_id = ? AND type = 'contract_end' AND status = 'open'")
-                ->execute([$operator, (string) $c['contract_no'], $e['id']]);
+        if ($c['status'] !== 'draft' && $e['employment_status'] !== 'resigned') {
+            Hr::resign($pdo, $e, $date, $reason, $operator);
         }
         flash(t($c['status'] === 'draft' ? 'hrc_msg_draft_closed' : 'hrc_msg_terminated'));
         redirect($back[0], $back[1]);

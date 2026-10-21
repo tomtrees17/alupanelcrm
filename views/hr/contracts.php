@@ -37,7 +37,7 @@ include __DIR__ . '/_contract_status.php';
             <td><?= e($r['contract_type']) ?><?= (int) $r['is_probation'] === 1 ? ' <span class="muted small">' . t('hrc_probation_short') . '</span>' : '' ?></td>
             <td class="nowrap"><?= e(Hr::dmy($r['start_date'])) ?> – <?= $r['end_date'] ? e(Hr::dmy($r['end_date'])) : '—' ?></td>
             <td><?= $contractTag((string) $r['status']) ?></td>
-            <td class="right nowrap"><?php if ($left === null): ?><span class="muted">—</span><?php else: ?><span class="<?= $left <= 30 ? 'hr-low' : '' ?>"><?= $left ?></span><?php endif; ?></td>
+            <td class="right nowrap"><?= $left === null ? '<span class="muted">—</span>' : $left ?></td>
         </tr>
     <?php endforeach; ?>
     </tbody>

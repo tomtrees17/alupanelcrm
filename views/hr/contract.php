@@ -34,7 +34,7 @@ $left = ($c['contract_type'] === 'PKWT' && $c['status'] === 'active' && $c['end_
             <div><dt><?= t('hrc_termination_date') ?></dt><dd><?= $dash(Hr::dmy($c['termination_date'])) ?></dd></div>
             <div><dt><?= t('hrc_termination_reason') ?></dt><dd><?= $dash($c['termination_reason']) ?></dd></div>
         <?php endif; ?>
-        <div><dt><?= t('hrc_scan') ?></dt><dd><?php if ($c['file_path']): ?><a href="<?= url('hr.contract_file', ['id' => $c['id']]) ?>" target="_blank" rel="noopener"><?= e($c['file_name']) ?></a><?php else: ?><span class="hr-low"><?= t('hrc_no_scan') ?></span><?php endif; ?></dd></div>
+        <div><dt><?= t('hrc_scan') ?></dt><dd><?php if ($c['file_path']): ?><a href="<?= url('hr.contract_file', ['id' => $c['id']]) ?>" target="_blank" rel="noopener"><?= e($c['file_name']) ?></a><?php else: ?><span class="muted"><?= t('hrc_no_scan') ?></span><?php endif; ?></dd></div>
     </dl>
 </div></div>
 
