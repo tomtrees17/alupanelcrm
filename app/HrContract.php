@@ -148,6 +148,25 @@ final class HrContract
     }
 
     /**
+     * Resignation (owner 2026-10-22, charter §七 "一键切换"): every active contract
+     * is terminated with the resignation's date and reason. Undoing the
+     * resignation does not bring it back — HR enters a new contract if needed.
+     */
+    public static function on_resign(PDO $pdo, int $empId, string $date, string $reason, string $operator): void
+    {
+        $st = $pdo->prepare("SELECT * FROM employment_contracts WHERE employee_id = ? AND status = 'active'");
+        $st->execute([$empId]);
+        foreach ($st->fetchAll() as $c) {
+            $pdo->prepare("UPDATE employment_contracts SET status = 'terminated', termination_date = ?, termination_reason = ?, updated_by = ?, updated_at = ? WHERE id = ?")
+                ->execute([$date, $reason, $operator, date('Y-m-d H:i:s'), $c['id']]);
+            self::close_todos($pdo, (int) $c['id'], $reason, $operator);
+            Hr::audit_fields($pdo, 'terminate', 'employment_contracts', (int) $c['id'], (string) $c['contract_no'],
+                ['status' => 'active', 'termination_date' => $c['termination_date'], 'termination_reason' => $c['termination_reason']],
+                ['status' => 'terminated', 'termination_date' => $date, 'termination_reason' => $reason]);
+        }
+    }
+
+    /**
      * Copy salary / position / work location of a contract that has taken
      * effect onto the employee record (owner decision), with history + audit.
      */

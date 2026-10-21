@@ -309,8 +309,9 @@ final class Hr
 
     /**
      * HR-01 resignation, also reached from HR-02 contract termination:
-     * status → resigned, linked CRM accounts deactivated (never deleted), both
-     * BPJS programs → 待停保 with a "BPJS 停保" todo (the only todo since 收尾).
+     * status → resigned, linked CRM accounts deactivated (never deleted), active
+     * contracts terminated (owner 2026-10-22), both BPJS programs → 待停保 with
+     * a "BPJS 停保" todo (the only todo since 收尾).
      * Returns the todo reference of this resignation.
      */
     public static function resign(PDO $pdo, array $e, string $date, string $reason, string $operator): string
@@ -335,6 +336,9 @@ final class Hr
         }
         if (class_exists('HrBpjs')) {
             HrBpjs::on_resign($pdo, (int) $e['id'], $label);   // HR-03: both programs → 待停保
+        }
+        if (class_exists('HrContract')) {
+            HrContract::on_resign($pdo, (int) $e['id'], $date, $reason, $operator);   // charter §七: one click switches the contract too
         }
         return $ref;
     }

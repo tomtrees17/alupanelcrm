@@ -241,8 +241,12 @@ if (function_exists('exec') && is_file($harness)) {
 
     // resigned via HR-01 first, then the contract is terminated: no second resignation
     $run('resign', $hr, [], ['id' => $lid, 'resign_date' => $T, 'resign_reason' => 'Pindah']);
+    $l1 = $q()->query("SELECT * FROM employment_contracts WHERE id = {$l1['id']}")->fetch();
+    ok('resignation (HR-01) terminates the active contract with its date and reason', $l1['status'] === 'terminated' && $l1['termination_date'] === $T && $l1['termination_reason'] === 'Pindah'
+        && $q()->query("SELECT status FROM employment_contracts WHERE id = {$l0['id']}")->fetchColumn() === 'expired');
+    ok('…audited as terminate', str_contains((string) $q()->query("SELECT GROUP_CONCAT(detail, ' | ') FROM audit_log WHERE action = 'terminate' AND entity_id = {$l1['id']}")->fetchColumn(), 'employment_contracts.status: active → terminated'));
     [, $fl] = $run('contract_terminate', $hr, [], ['id' => $l1['id'], 'termination_date' => $T, 'termination_reason' => 'Pindah']);
-    ok('already resigned: contract closed, still one resignation', $q()->query("SELECT status FROM employment_contracts WHERE id = {$l1['id']}")->fetchColumn() === 'terminated'
+    ok('already terminated: no second termination, still one resignation', $isErr($fl, t('hrc_err_locked'))
         && (int) $q()->query("SELECT COUNT(*) FROM employee_changes WHERE employee_id = {$lid} AND new_value = 'resigned'")->fetchColumn() === 1);
 
     foreach (glob("{$root}/*/*") ?: [] as $f) {
