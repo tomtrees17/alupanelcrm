@@ -111,6 +111,7 @@ CREATE TABLE orders (
     delivery_date    TEXT,
     note             TEXT,
     payment_term     TEXT    DEFAULT 'CBD',  -- CBD|COD|custom
+    price_basis      TEXT    NOT NULL DEFAULT 'incl', -- incl: prices typed tax-inclusive | excl: typed pre-tax (customer quoted before tax)
     custom_days      INTEGER DEFAULT 0,
     status           TEXT    NOT NULL DEFAULT 'draft',
                      -- draft|pending_sup|pending_mgr|pending_wh|approved|rejected
@@ -137,7 +138,8 @@ CREATE TABLE order_items (
     size       TEXT,
     qty        REAL    NOT NULL DEFAULT 0,
     unit       TEXT    DEFAULT 'Unit',
-    price      REAL    NOT NULL DEFAULT 0
+    price      REAL    NOT NULL DEFAULT 0,   -- tax-inclusive unit price (always set)
+    price_excl REAL                          -- pre-tax unit price as typed, on price_basis = 'excl' orders
 );
 
 -- ── Delivery orders (issued by warehouse) ──

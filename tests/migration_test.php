@@ -40,6 +40,8 @@ $pdo->exec("INSERT INTO invoices (invoice_no,customer,total,payment_status) VALU
 $pdo->exec('ALTER TABLE users DROP COLUMN phone');
 $pdo->exec('ALTER TABLE users DROP COLUMN lang');
 $pdo->exec('ALTER TABLE orders DROP COLUMN created_by');
+$pdo->exec('ALTER TABLE orders DROP COLUMN price_basis');
+$pdo->exec('ALTER TABLE order_items DROP COLUMN price_excl');
 $pdo->exec("INSERT INTO users (name,email,password_hash,role) VALUES ('Admin','admin@alupanel.local','x','admin')");
 // before the customer analysis: no industry/region columns, no geo columns, no geocode cache.
 $pdo->exec('DROP INDEX IF EXISTS idx_orders_customer');
@@ -100,6 +102,8 @@ ok('notifications table created', $has('notifications'));
 $ucols2 = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
 ok('users gains phone + lang', in_array('phone', $ucols2, true) && in_array('lang', $ucols2, true), implode(',', $ucols2));
 ok('orders gains created_by', in_array('created_by', array_column($pdo->query('PRAGMA table_info(orders)')->fetchAll(), 'name'), true));
+ok('orders gains price_basis, order_items gains price_excl', in_array('price_basis', array_column($pdo->query('PRAGMA table_info(orders)')->fetchAll(), 'name'), true)
+    && in_array('price_excl', array_column($pdo->query('PRAGMA table_info(order_items)')->fetchAll(), 'name'), true));
 $existing = $pdo->query("SELECT * FROM users WHERE email='admin@alupanel.local'")->fetch();
 ok('existing user survives with lang default', $existing && $existing['lang'] === 'id' && $existing['phone'] === null);
 ok('existing user has no phone yet (notifications skip, not crash)', Notify::normalise_phone((string) $existing['phone']) === '');

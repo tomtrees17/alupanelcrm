@@ -654,12 +654,15 @@ function invoice_amounts(array $items, float $shipping, float $ppnRate): array
  * company's observation) or 'round'. Everything is done in integer sen so
  * floating point never turns ,69 into ,6899….
  *
+ * $preTaxQuote (order price_basis = 'excl'): each line's price_excl is the
+ * Harga Satuan as typed, and the customer pays Subtotal + PPN — no gap.
+ *
  * total = what the customer was quoted (Σ qty × inclusive price + shipping);
  * invoice_total = Subtotal + PPN (= the tax invoice). The small gap between
  * them is `rounding`; it is shown as the difference between the invoice's
  * "Total Invoice" and "Total Amount" rows, never folded into PPN.
  */
-function invoice_amounts_coretax(array $items, float $shipping, string $mode = 'truncate'): array
+function invoice_amounts_coretax(array $items, float $shipping, string $mode = 'truncate', bool $preTaxQuote = false): array
 {
     // a / b on non-negative integer sen, to whole sen.
     $div = $mode === 'round'
@@ -672,7 +675,10 @@ function invoice_amounts_coretax(array $items, float $shipping, string $mode = '
     foreach ($items as $k => $it) {
         $priceSen = (int) round((float) $it['price'] * 100);
         $qty100 = (int) round((float) $it['qty'] * 100);       // quantities are whole sheets; ×100 keeps the maths exact anyway
-        $unitSen = $div($priceSen * 100, 111);
+        // A pre-tax quote is printed exactly as typed; otherwise back it out of the inclusive price.
+        $unitSen = ($preTaxQuote && isset($it['price_excl']) && $it['price_excl'] !== null && $it['price_excl'] !== '')
+            ? (int) round((float) $it['price_excl'] * 100)
+            : $div($priceSen * 100, 111);
         $units[$k] = $unitSen / 100.0;
         $subSen += $div($qty100 * $unitSen, 100);
         $inclusiveSen += $div($qty100 * $priceSen, 100);
@@ -681,6 +687,10 @@ function invoice_amounts_coretax(array $items, float $shipping, string $mode = '
     $subSen += $shipSen;
     $dppSen = $div($subSen * 11, 12);
     $ppnSen = $div($dppSen * 12, 100);
+    // A pre-tax quote means the customer pays exactly what the tax invoice says.
+    if ($preTaxQuote) {
+        $inclusiveSen = $subSen + $ppnSen;
+    }
     // (float) everywhere: PHP's "/" returns an int when the division is exact.
     $total = $inclusiveSen / 100.0;                            // the quoted amount, to the sen
     $invoiceTotal = ($subSen + $ppnSen) / 100.0;

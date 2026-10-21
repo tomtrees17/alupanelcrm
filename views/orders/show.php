@@ -81,19 +81,25 @@ $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['ro
     </div></div>
 
     <div class="card">
-        <div class="card-header"><span class="card-title"><?= t('product_items') ?></span></div>
+        <?php
+        $preTax = ($order['price_basis'] ?? 'incl') === 'excl';
+        $money = fn($v) => idr($v, abs((float) $v - round((float) $v)) >= 0.005 ? 2 : 0);   // sen only when there are any
+        ?>
+        <div class="card-header"><span class="card-title"><?= t('product_items') ?></span><?php if ($preTax): ?><span class="tag tag-blue"><?= t('order_quoted_excl') ?></span><?php endif; ?></div>
         <div class="table-wrap"><table>
-            <thead><tr><th><?= t('th_sku') ?></th><th><?= t('th_color_spec') ?></th><th class="right"><?= t('th_qty') ?></th><th class="right"><?= t('th_unit_price') ?></th><th class="right"><?= t('th_subtotal') ?></th></tr></thead>
+            <thead><tr><th><?= t('th_sku') ?></th><th><?= t('th_color_spec') ?></th><th class="right"><?= t('th_qty') ?></th><th class="right"><?= t('th_price_incl') ?></th><?php if ($preTax): ?><th class="right"><?= t('th_price_excl') ?></th><?php endif; ?><th class="right"><?= t('th_subtotal') ?></th></tr></thead>
             <tbody>
             <?php foreach ($items as $it): ?>
                 <tr><td><code><?= e($it['sku']) ?></code></td><td><?= e($it['color']) ?> · <?= e($it['spec']) ?></td>
-                    <td class="right"><?= (int) $it['qty'] ?></td><td class="right"><?= idr($it['price']) ?></td>
-                    <td class="right"><?= idr($it['qty'] * $it['price']) ?></td></tr>
+                    <td class="right"><?= (int) $it['qty'] ?></td><td class="right"><?= $money($it['price']) ?></td>
+                    <?php if ($preTax): ?><td class="right"><strong><?= idr((float) ($it['price_excl'] ?? 0), 2) ?></strong></td><?php endif; ?>
+                    <td class="right"><?= $money($it['qty'] * $it['price']) ?></td></tr>
             <?php endforeach; ?>
             </tbody>
             <tfoot>
-            <tr><td colspan="4" class="right"><?= t('shipping') ?></td><td class="right"><?= idr($totals['shipping']) ?></td></tr>
-            <tr class="total-row"><td colspan="4" class="right"><?= t('total') ?></td><td class="right"><?= idr($totals['total']) ?></td></tr>
+            <?php $span = $preTax ? 5 : 4; ?>
+            <tr><td colspan="<?= $span ?>" class="right"><?= t('shipping') ?></td><td class="right"><?= idr($totals['shipping']) ?></td></tr>
+            <tr class="total-row"><td colspan="<?= $span ?>" class="right"><?= t('total') ?></td><td class="right"><?= $money($totals['total']) ?></td></tr>
             </tfoot>
         </table></div>
     </div>

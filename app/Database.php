@@ -208,6 +208,13 @@ final class Database
         if (!in_array('rounding', $ivcols, true)) {
             $pdo->exec('ALTER TABLE invoices ADD COLUMN rounding REAL NOT NULL DEFAULT 0');
         }
+        // orders.price_basis + order_items.price_excl (含税/不含税单价, added 2026-10-22).
+        if (!in_array('price_basis', array_column($pdo->query('PRAGMA table_info(orders)')->fetchAll(), 'name'), true)) {
+            $pdo->exec("ALTER TABLE orders ADD COLUMN price_basis TEXT NOT NULL DEFAULT 'incl'");
+        }
+        if (!in_array('price_excl', array_column($pdo->query('PRAGMA table_info(order_items)')->fetchAll(), 'name'), true)) {
+            $pdo->exec('ALTER TABLE order_items ADD COLUMN price_excl REAL');
+        }
         // invoices.calc / dpp (Coretax-aligned invoices, added 2026-10-21).
         // Existing invoices stay 'legacy': already issued, never recomputed.
         if (!in_array('calc', $ivcols, true)) {

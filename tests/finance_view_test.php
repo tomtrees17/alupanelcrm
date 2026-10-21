@@ -147,5 +147,6 @@ ok('line total matches qty x unit price', str_contains($html, 'Rp 428.829'));
 $orderView = __DIR__ . '/../views/orders/show.php';
 if (is_file($orderView)) {
     $src = (string) file_get_contents($orderView);
-    ok('order screen keeps whole-rupiah unit prices', str_contains($src, "idr(\$it['price'])"));
+    // Since 含税/不含税 pricing, inclusive prices may carry sen; whole-rupiah ones still show without ",00".
+    ok('order screen shows sen only when a price has them', str_contains($src, "\$money(\$it['price'])") && str_contains($src, '>= 0.005 ? 2 : 0'));
 }

@@ -255,7 +255,13 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
     $sizes = (array) input('size', []);
     $qtys = (array) input('qty', []);
     $prices = (array) input('price', []);
+    $pricesExcl = (array) input('price_excl', []);
     $productIds = (array) input('product_id', []);
+    // 含税 / 不含税: which price the customer was quoted. On a pre-tax order the
+    // typed pre-tax price is authoritative (it is printed on the invoice as-is);
+    // the inclusive price is derived from it, never the other way round.
+    $basis = input('price_basis', 'incl') === 'excl' ? 'excl' : 'incl';
+    $rate = 1 + ((float) ($GLOBALS['config']['ppn_rate'] ?? 11)) / 100;
     $items = [];
     foreach ($skus as $i => $sku) {
         $sku = trim((string) $sku);
@@ -263,10 +269,17 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
         if ($sku === '' && $qty <= 0) {
             continue;
         }
+        if ($basis === 'excl') {
+            $excl = round((float) ($pricesExcl[$i] ?? 0), 2);
+            $incl = round($excl * $rate, 2);
+        } else {
+            $incl = (float) ($prices[$i] ?? 0);
+            $excl = null;
+        }
         $items[] = [
             $sku, trim((string) ($colors[$i] ?? '')), trim((string) ($specs[$i] ?? '')),
-            trim((string) ($sizes[$i] ?? '')), $qty, (float) ($prices[$i] ?? 0),
-            ((int) ($productIds[$i] ?? 0)) ?: null,
+            trim((string) ($sizes[$i] ?? '')), $qty, $incl,
+            ((int) ($productIds[$i] ?? 0)) ?: null, $excl,
         ];
     }
     if (!$items) {
@@ -292,13 +305,13 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
     try {
         if ($isEdit) {
             $oid = (int) $existing['id'];
-            $sql = 'UPDATE orders SET customer_id=?,customer_name=?,company=?,address=?,phone=?,client_type=?,delivery_service=?,delivery_address=?,shipping_cost=?,delivery_date=?,note=?,payment_term=?,custom_days=?,status=?';
+            $sql = 'UPDATE orders SET customer_id=?,customer_name=?,company=?,address=?,phone=?,client_type=?,delivery_service=?,delivery_address=?,shipping_cost=?,delivery_date=?,note=?,payment_term=?,custom_days=?,status=?,price_basis=?';
             $params = [
                 $customerId, $custName, trim((string) input('company', '')), trim((string) input('address', '')),
                 trim((string) input('phone', '')), (string) input('client_type', 'End User'),
                 (string) input('delivery_service', 'Self Pickup'), trim((string) input('delivery_address', '')),
                 (float) input('shipping_cost', 0), (string) input('delivery_date', ''), trim((string) input('note', '')),
-                (string) input('payment_term', 'CBD'), (int) input('custom_days', 0), $status,
+                (string) input('payment_term', 'CBD'), (int) input('custom_days', 0), $status, $basis,
             ];
             if (!sees_only_own()) {
                 $sql .= ', submitter=?';
@@ -314,8 +327,8 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
             $pdo->prepare('DELETE FROM order_items WHERE order_id = ?')->execute([$oid]);
         } else {
             $pdo->prepare(
-                'INSERT INTO orders (order_no,customer_id,customer_name,company,address,phone,client_type,delivery_service,delivery_address,submitter,shipping_cost,delivery_date,note,payment_term,custom_days,status,created_by)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+                'INSERT INTO orders (order_no,customer_id,customer_name,company,address,phone,client_type,delivery_service,delivery_address,submitter,shipping_cost,delivery_date,note,payment_term,custom_days,status,created_by,price_basis)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
             )->execute([
                 next_order_no($pdo), $customerId, $custName, trim((string) input('company', '')),
                 trim((string) input('address', '')), trim((string) input('phone', '')),
@@ -323,15 +336,15 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
                 trim((string) input('delivery_address', '')), $submitter,
                 (float) input('shipping_cost', 0), (string) input('delivery_date', ''),
                 trim((string) input('note', '')), (string) input('payment_term', 'CBD'),
-                (int) input('custom_days', 0), $status, own_name(),
+                (int) input('custom_days', 0), $status, own_name(), $basis,
             ]);
             $oid = (int) $pdo->lastInsertId();
         }
 
-        $ins = $pdo->prepare('INSERT INTO order_items (order_id,product_id,sku,color,spec,size,qty,unit,price) VALUES (?,?,?,?,?,?,?,?,?)');
+        $ins = $pdo->prepare('INSERT INTO order_items (order_id,product_id,sku,color,spec,size,qty,unit,price,price_excl) VALUES (?,?,?,?,?,?,?,?,?,?)');
         foreach ($items as $it) {
             $pid = $it[6] ?: match_product_id($pdo, $it[0], $it[2]);
-            $ins->execute([$oid, $pid, $it[0], $it[1], $it[2], $it[3], $it[4], 'Unit', $it[5]]);
+            $ins->execute([$oid, $pid, $it[0], $it[1], $it[2], $it[3], $it[4], 'Unit', $it[5], $it[7]]);
         }
         recompute_reservations($pdo);
         $pdo->commit();
@@ -519,7 +532,7 @@ function fulfill_order(PDO $pdo, array $order, string $name, string $note, strin
         $cfgAll = $GLOBALS['config'];
         $calc = ($cfgAll['invoice_calc'] ?? 'coretax') === 'legacy' ? 'legacy' : 'coretax';
         $amt = $calc === 'coretax'
-            ? invoice_amounts_coretax($rows, (float) $order['shipping_cost'], (string) ($cfgAll['coretax_decimals'] ?? 'truncate'))
+            ? invoice_amounts_coretax($rows, (float) $order['shipping_cost'], (string) ($cfgAll['coretax_decimals'] ?? 'truncate'), ($order['price_basis'] ?? 'incl') === 'excl')
             : invoice_amounts($rows, (float) $order['shipping_cost'], (float) ($cfgAll['ppn_rate'] ?? 11));
         $lines = [];
         foreach ($rows as $k => $it) {

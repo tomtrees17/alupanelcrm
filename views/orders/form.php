@@ -16,7 +16,9 @@ $custJson = json_encode(array_map(fn($c) => [
 $itemsJson = json_encode(array_map(fn($it) => [
     'product_id' => (int) ($it['product_id'] ?? 0), 'sku' => $it['sku'], 'color' => $it['color'],
     'spec' => $it['spec'], 'size' => $it['size'], 'qty' => (float) $it['qty'], 'price' => (float) $it['price'],
+    'price_excl' => isset($it['price_excl']) && $it['price_excl'] !== null ? (float) $it['price_excl'] : null,
 ], $items ?? []), JSON_UNESCAPED_UNICODE);
+$basis = ($order['price_basis'] ?? 'incl') === 'excl' ? 'excl' : 'incl';
 ?>
 <div class="page-head">
     <h1><?= $isEdit ? t('btn_edit') . ' ' . e($order['order_no']) : t('btn_add_order') ?></h1>
@@ -74,14 +76,20 @@ $itemsJson = json_encode(array_map(fn($it) => [
     </div></div>
 
     <div class="card">
-        <div class="card-header"><span class="card-title"><?= t('product_items') ?> <span class="muted" style="font-weight:400;font-size:11px">· <?= t('tax_inclusive_hint') ?></span></span><button type="button" class="btn btn-sm btn-ghost" id="add-row"><?= t('btn_add_row') ?></button></div>
+        <div class="card-header"><span class="card-title"><?= t('product_items') ?></span><button type="button" class="btn btn-sm btn-ghost" id="add-row"><?= t('btn_add_row') ?></button></div>
+        <div class="price-basis">
+            <span class="form-label"><?= t('price_basis') ?></span>
+            <label><input type="radio" name="price_basis" value="incl" <?= $basis === 'incl' ? 'checked' : '' ?>> <?= t('price_basis_incl') ?></label>
+            <label><input type="radio" name="price_basis" value="excl" <?= $basis === 'excl' ? 'checked' : '' ?>> <?= t('price_basis_excl') ?></label>
+            <span class="muted small" id="basis-hint"><?= t($basis === 'excl' ? 'price_basis_excl_hint' : 'price_basis_incl_hint') ?></span>
+        </div>
         <div class="table-wrap"><table id="items-table">
-            <thead><tr><th style="width:30%"><?= t('th_product') ?></th><th class="right"><?= t('th_qty') ?></th><th class="right"><?= t('th_unit_price') ?></th><th class="right"><?= t('th_subtotal') ?></th><th></th></tr></thead>
+            <thead><tr><th style="width:30%"><?= t('th_product') ?></th><th class="right"><?= t('th_qty') ?></th><th class="right"><?= t('th_price_incl') ?></th><th class="right"><?= t('th_price_excl') ?></th><th class="right"><?= t('th_subtotal') ?></th><th></th></tr></thead>
             <tbody></tbody>
             <tfoot>
-                <tr class="total-row"><td colspan="3" class="right"><?= t('total') ?>（<?= t('incl_tax') ?>）</td><td class="right" id="t-total">Rp 0</td><td></td></tr>
-                <tr><td colspan="3" class="right" style="color:var(--text3)"><?= t('incl_ppn') ?></td><td class="right" id="t-ppn" style="color:var(--text3)">Rp 0</td><td></td></tr>
-                <tr><td colspan="3" class="right" style="color:var(--text3)"><?= t('pretax_subtotal') ?></td><td class="right" id="t-subtotal" style="color:var(--text3)">Rp 0</td><td></td></tr>
+                <tr class="total-row"><td colspan="4" class="right"><?= t('total') ?>（<?= t('incl_tax') ?>）</td><td class="right" id="t-total">Rp 0</td><td></td></tr>
+                <tr><td colspan="4" class="right" style="color:var(--text3)"><?= t('incl_ppn') ?></td><td class="right" id="t-ppn" style="color:var(--text3)">Rp 0</td><td></td></tr>
+                <tr><td colspan="4" class="right" style="color:var(--text3)"><?= t('pretax_subtotal') ?></td><td class="right" id="t-subtotal" style="color:var(--text3)">Rp 0</td><td></td></tr>
             </tfoot>
         </table></div>
     </div>
@@ -103,6 +111,7 @@ $itemsJson = json_encode(array_map(fn($it) => [
         </td>
         <td><input class="form-input qty right" type="number" step="1" min="0" inputmode="numeric" name="qty[]" value="1" style="width:90px"><div class="stock-warn"></div></td>
         <td><input class="form-input price right" type="number" step="any" min="0" inputmode="decimal" name="price[]" value="0" style="width:120px"></td>
+        <td><input class="form-input price-excl right" type="number" step="0.01" min="0" inputmode="decimal" name="price_excl[]" value="0" style="width:120px"></td>
         <td class="right line-total">Rp 0</td>
         <td class="right"><button type="button" class="btn btn-ghost btn-sm remove-row" style="color:var(--danger)">×</button></td>
     </tr>
@@ -116,6 +125,28 @@ const STOCK_LBL = <?= json_encode(t('available'), JSON_UNESCAPED_UNICODE) ?>;
 const AVAIL_LBL = <?= json_encode(t('available'), JSON_UNESCAPED_UNICODE) ?>;
 const BLOCK_MSG = <?= json_encode(t('stock_block_submit'), JSON_UNESCAPED_UNICODE) ?>;
 const fmt = n => 'Rp ' + Number(n||0).toLocaleString('id-ID', {maximumFractionDigits: 2});
+const BASIS_HINT = <?= json_encode(['incl' => t('price_basis_incl_hint'), 'excl' => t('price_basis_excl_hint')], JSON_UNESCAPED_UNICODE) ?>;
+// Same rules as the invoice (invoice_amounts_coretax): pre-tax = inclusive ÷ 1,11
+// cut to 2 decimals; inclusive = pre-tax × 1,11 rounded to the sen. Work in sen.
+const toSen = v => Math.round((parseFloat(v) || 0) * 100);
+const exclFromIncl = incl => Math.floor(toSen(incl) * 100 / 111) / 100;
+const inclFromExcl = excl => Math.round(toSen(excl) * 111 / 100) / 100;
+const basis = () => (document.querySelector('input[name="price_basis"]:checked') || {}).value === 'excl' ? 'excl' : 'incl';
+function syncRow(row, from) {
+    const incl = row.querySelector('.price'), excl = row.querySelector('.price-excl');
+    if (from === 'excl') { incl.value = inclFromExcl(excl.value); } else { excl.value = exclFromIncl(incl.value); }
+}
+function applyBasis() {
+    const b = basis();
+    document.querySelectorAll('.item-row').forEach(r => {
+        // The quoted price is typed; the other is derived and read-only.
+        r.querySelector('.price').readOnly = b === 'excl';
+        r.querySelector('.price-excl').readOnly = b === 'incl';
+        r.querySelector('.price').classList.toggle('derived', b === 'excl');
+        r.querySelector('.price-excl').classList.toggle('derived', b === 'incl');
+    });
+    document.getElementById('basis-hint').textContent = BASIS_HINT[b];
+}
 
 function validateRow(row) {
     const stock = row.dataset.stock;
@@ -144,6 +175,23 @@ custInput.addEventListener('input', () => {
 });
 
 function recalc() {
+    const ship = parseFloat(document.getElementById('ship').value) || 0;
+    if (basis() === 'excl') {
+        // Pre-tax quote: totals exactly as the invoice / Coretax will compute them.
+        let subSen = Math.floor(toSen(ship) * 100 / 111);
+        document.querySelectorAll('.item-row').forEach(r => {
+            const qty = Math.round(parseFloat(r.querySelector('.qty').value) || 0);
+            const lineSen = qty * toSen(r.querySelector('.price-excl').value);
+            subSen += lineSen;
+            r.querySelector('.line-total').textContent = fmt(qty * inclFromExcl(r.querySelector('.price-excl').value));
+        });
+        const dppSen = Math.floor(subSen * 11 / 12);
+        const ppnSen = Math.floor(dppSen * 12 / 100);
+        document.getElementById('t-total').textContent = fmt((subSen + ppnSen) / 100);
+        document.getElementById('t-ppn').textContent = fmt(ppnSen / 100);
+        document.getElementById('t-subtotal').textContent = fmt(subSen / 100);
+        return;
+    }
     let subtotal = 0;
     document.querySelectorAll('.item-row').forEach(r => {
         const qty = parseFloat(r.querySelector('.qty').value) || 0;
@@ -152,7 +200,7 @@ function recalc() {
         subtotal += line;
         r.querySelector('.line-total').textContent = fmt(line);
     });
-    const gross = subtotal + (parseFloat(document.getElementById('ship').value) || 0);
+    const gross = subtotal + ship;
     const ppn = Math.round(gross * 11 / 111);
     document.getElementById('t-total').textContent = fmt(gross);
     document.getElementById('t-ppn').textContent = fmt(ppn);
@@ -174,7 +222,8 @@ function bindRow(row) {
         row.querySelector('.f-color').value = p.color;
         row.querySelector('.f-spec').value = p.spec;
         row.querySelector('.f-size').value = p.size;
-        row.querySelector('.price').value = p.price;
+        row.querySelector('.price').value = p.price;    // price list is tax-inclusive
+        syncRow(row, 'incl');
         row.dataset.stock = p.stock;
         input.value = pLabel(p);
         list.style.display = 'none';
@@ -218,7 +267,8 @@ function bindRow(row) {
         if (document.querySelectorAll('.item-row').length > 1) row.remove();
         recalc();
     });
-    row.querySelector('.price').addEventListener('input', recalc);
+    row.querySelector('.price').addEventListener('input', () => { syncRow(row, 'incl'); recalc(); });
+    row.querySelector('.price-excl').addEventListener('input', () => { syncRow(row, 'excl'); recalc(); });
     row.querySelector('.qty').addEventListener('input', () => { validateRow(row); recalc(); });
 }
 
@@ -236,14 +286,21 @@ function addRow(item) {
         row.querySelector('.f-size').value = item.size;
         row.querySelector('.qty').value = item.qty;
         row.querySelector('.price').value = item.price;
+        if (item.price_excl !== null && item.price_excl !== undefined) {
+            row.querySelector('.price-excl').value = item.price_excl;
+        } else {
+            syncRow(row, 'incl');
+        }
         row.querySelector('.product-search').value = `${item.sku} · ${item.color} · ${item.spec}`;
         const p = PRODUCTS.find(x => x.id == item.product_id);
         if (p) row.dataset.stock = p.stock;
         validateRow(row);
     }
+    applyBasis();
     recalc();
 }
 document.getElementById('add-row').addEventListener('click', () => addRow());
+document.querySelectorAll('input[name="price_basis"]').forEach(el => el.addEventListener('change', () => { applyBasis(); recalc(); }));
 document.getElementById('ship').addEventListener('input', recalc);
 document.getElementById('order-form').addEventListener('submit', e => {
     if (e.submitter && e.submitter.value === 'draft') return; // drafts skip the stock check

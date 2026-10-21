@@ -413,6 +413,11 @@ tfoot td { padding: 8px 14px; }
 .ins-detail dd { margin: 0; font-size: 14px; }
 .q-gap { color: var(--accent3, #d96c25); font-weight: 600; }
 
+.price-basis { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.price-basis label { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; cursor: pointer; }
+.price-basis .form-label { margin: 0; }
+.form-input.derived { background: var(--bg, #f8fafc); color: var(--text2); }
+
 /* ─ RESPONSIVE (mobile) ─ */
 .nav-toggle { display: none; background: none; border: none; font-size: 22px; line-height: 1; color: var(--text); cursor: pointer; padding: 0 2px; }
 .sidebar-backdrop { display: none; }
