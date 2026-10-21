@@ -75,11 +75,11 @@ foreach (['Invoice', '11752 - AMI - INV - 10 - 26', '0468/AMI-CO/10/26', 'Subtot
     }
 }
 ok('all invoice fields are present (numbers, totals, bank, signature)', true);
-ok('no Pembulatan line on the exported invoice (company request)', !str_contains($text, 'Pembulatan'));
-$GLOBALS['config']['invoice_show_rounding'] = true;
+ok('no Pembulatan line; the gap is inside VAT (148.649 − 1)', !str_contains($text, 'Pembulatan') && str_contains($text, 'Rp148.648'));
+$GLOBALS['config']['invoice_rounding'] = 'line';
 [, $onBody] = $render($invoice, $items);
-$GLOBALS['config']['invoice_show_rounding'] = false;
-ok('…shown again when switched on in config', str_contains($onBody, 'Pembulatan') && str_contains($onBody, '-Rp1'));
+$GLOBALS['config']['invoice_rounding'] = 'vat';
+ok("…its own row again in 'line' mode", str_contains($onBody, 'Pembulatan') && str_contains($onBody, '-Rp1'));
 ok('special characters are escaped, not breaking the XML', str_contains($body, 'Ibu Dwi &amp; Co &lt;Toko&gt;'));
 ok('no Chinese in the exported document (no_cjk rule)', preg_match('/[\x{4e00}-\x{9fff}]/u', $text) === 0, $text);
 ok('Arial set on every text run (some viewers ignore defaults)', substr_count($body, '<w:r>') - substr_count($body, '<w:r><w:drawing>') === substr_count($body, 'w:ascii='));

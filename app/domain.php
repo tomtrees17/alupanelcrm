@@ -550,6 +550,36 @@ function payment_reversal_block(PDO $pdo, array $payment): ?string
 }
 
 /**
+ * How an invoice's totals are presented (print, Word, invoice screen).
+ * Stored values never change: ppn stays Subtotal × 11% (= DPP × 12%) and the
+ * Pembulatan gap stays in `rounding`, so the exact tax figure is still there.
+ *
+ * config invoice_rounding:
+ *   'vat'  — gap folded into the VAT line (default; finance's own spreadsheet
+ *            does it this way, decided 2026-10-21). VAT may then differ from
+ *            DPP × 12% by Rp1–3.
+ *   'line' — separate "Pembulatan" row.
+ *   'hide' — not shown (Subtotal + VAT then misses Total by the gap).
+ *
+ * @return array{subtotal:float,dpp:float,vat:float,rounding:float,rounding_line:?float,total:float}
+ */
+function invoice_display(array $invoice, array $cfg): array
+{
+    $subtotal = (float) $invoice['subtotal'];
+    $rounding = (float) ($invoice['rounding'] ?? 0);
+    $hasGap = abs($rounding) >= 0.005;
+    $mode = (string) ($cfg['invoice_rounding'] ?? 'vat');
+    return [
+        'subtotal'      => $subtotal,
+        'dpp'           => round($subtotal * 11 / 12),
+        'vat'           => (float) $invoice['ppn'] + ($mode === 'vat' ? $rounding : 0.0),
+        'rounding'      => $rounding,
+        'rounding_line' => ($mode === 'line' && $hasGap) ? $rounding : null,
+        'total'         => (float) $invoice['total'],
+    ];
+}
+
+/**
  * Invoice figures from tax-inclusive order lines.
  *
  * Order prices include 11% PPN. Each line's pre-tax unit price is backed out

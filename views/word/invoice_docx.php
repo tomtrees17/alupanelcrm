@@ -12,11 +12,11 @@
  * @var Docx   $doc
  * Sets $body (WordprocessingML for <w:body>).
  */
-$subtotal = (float) $invoice['subtotal'];
-$dpp = round($subtotal * 11 / 12);
-$vat = (float) $invoice['ppn'];
-$rounding = (float) ($invoice['rounding'] ?? 0);
-$total = (float) $invoice['total'];
+$disp = invoice_display($invoice, $cfg);    // Pembulatan folded into VAT by default
+$subtotal = $disp['subtotal'];
+$dpp = $disp['dpp'];
+$vat = $disp['vat'];
+$total = $disp['total'];
 $fdate = fn($d) => $d ? date('j/M/y', strtotime((string) $d)) : '';
 $fdate2 = fn($d) => $d ? date('j-M-y', strtotime((string) $d)) : '';
 $rp = fn($n) => 'Rp' . num($n);
@@ -99,8 +99,8 @@ $totW = 4600;
 $k = fn(string $t, bool $b = false, bool $rule = false) => ['text' => $t, 'size' => 9.5, 'b' => $b, 'top_rule' => $rule];
 $v = fn(string $t, bool $b = false, bool $rule = false) => ['text' => $t, 'size' => 9.5, 'align' => 'right', 'b' => $b, 'top_rule' => $rule];
 $tot = [[$k('Subtotal'), $v($rp($subtotal))], [$k('DPP'), $v($rp($dpp))], [$k('VAT 12%'), $v($rp($vat))]];
-if (!empty($cfg['invoice_show_rounding']) && abs($rounding) >= 0.005) {   // off by default, see config.php
-    $tot[] = [$k('Pembulatan'), $v(rp_signed($rounding))];
+if ($disp['rounding_line'] !== null) {
+    $tot[] = [$k('Pembulatan'), $v(rp_signed($disp['rounding_line']))];
 }
 $tot[] = [$k('Total Invoice'), $v($rp($total))];
 $tot[] = [$k('Total Amount', true, true), $v($rp($total), true, true)];

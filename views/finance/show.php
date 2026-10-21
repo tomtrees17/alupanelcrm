@@ -65,9 +65,10 @@ $voidBlock = $voidBlock ?? null;
             <tfoot>
                 <tr><td colspan="4" class="right"><?= t('shipping') ?></td><td class="right"><?= idr($invoice['shipping_cost']) ?></td></tr>
                 <tr><td colspan="4" class="right"><?= t('th_subtotal') ?></td><td class="right"><?= idr($invoice['subtotal']) ?></td></tr>
-                <tr><td colspan="4" class="right">DPP</td><td class="right"><?= idr(round($invoice['subtotal'] * 11 / 12)) ?></td></tr>
-                <tr><td colspan="4" class="right">VAT 12%</td><td class="right"><?= idr($invoice['ppn']) ?></td></tr>
-                <?php if (abs((float) ($invoice['rounding'] ?? 0)) >= 0.005): ?>
+                <?php $disp = invoice_display($invoice, $GLOBALS['config'] ?? []); ?>
+                <tr><td colspan="4" class="right">DPP</td><td class="right"><?= idr($disp['dpp']) ?></td></tr>
+                <tr><td colspan="4" class="right">VAT 12%<?php if ($disp['vat'] !== (float) $invoice['ppn']): ?> <span class="muted small">(<?= sprintf(t('inv_vat_incl_rounding'), ((float) $invoice['rounding'] < 0 ? '-' : '') . idr(abs((float) $invoice['rounding']))) ?>)</span><?php endif; ?></td><td class="right"><?= idr($disp['vat']) ?></td></tr>
+                <?php if ($disp['rounding_line'] !== null): ?>
                     <tr><td colspan="4" class="right"><?= t('inv_rounding') ?></td><td class="right"><?= ((float) $invoice['rounding'] < 0 ? '-' : '') . idr(abs((float) $invoice['rounding'])) ?></td></tr>
                 <?php endif; ?>
                 <tr class="total-row"><td colspan="4" class="right"><?= t('total') ?></td><td class="right"><?= idr($invoice['total']) ?></td></tr>

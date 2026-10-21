@@ -152,15 +152,28 @@ $base = array_merge($cols, ['id' => 5, 'invoice_no' => 'INV-5', 'order_id' => 1,
 $zero = array_merge($base, ['rounding' => 0, 'total' => 8935001]);
 $items = [['sku' => 'SJ', 'color' => 'W', 'spec' => '3.0', 'size' => '1.22', 'qty' => 1, 'unit' => 'Unit', 'price' => 8049550]];
 
+// Presentation rule (finance, 2026-10-21): the gap is folded into VAT, so the
+// printed Subtotal + VAT adds up to Total; stored ppn stays DPP × 12%.
+$d = invoice_display($base, $GLOBALS['config']);
+ok('display: VAT absorbs the gap (885.451 − 1)', $d['vat'] === 885450.0 && $d['rounding_line'] === null);
+ok('display: Subtotal + VAT = Total on paper', $d['subtotal'] + $d['vat'] === $d['total']);
+ok('display: stored ppn is untouched (still DPP × 12%)', (float) $base['ppn'] === 885451.0 && $d['dpp'] === round(8049550 * 11 / 12));
+ok("display: default mode is 'vat'", ($GLOBALS['config']['invoice_rounding'] ?? 'vat') === 'vat');
+$dl = invoice_display($base, ['invoice_rounding' => 'line']);
+ok("'line' mode: VAT is the pure 12%, gap on its own row", $dl['vat'] === 885451.0 && $dl['rounding_line'] === -1.0);
+$dh = invoice_display($base, ['invoice_rounding' => 'hide']);
+ok("'hide' mode: no row, VAT pure", $dh['vat'] === 885451.0 && $dh['rounding_line'] === null);
+ok('no gap → VAT unchanged in every mode', invoice_display($zero, [])['vat'] === 885451.0);
+
 $printFile = __DIR__ . '/../views/print/invoice.php';
 $p1 = $render($printFile, ['invoice' => $base, 'items' => $items, 'orderNo' => 'SO-1']);
-ok('print hides Pembulatan by default (company request)', !str_contains($p1, 'Pembulatan') && empty($GLOBALS['config']['invoice_show_rounding']));
-$GLOBALS['config']['invoice_show_rounding'] = true;
-$pOn = $render($printFile, ['invoice' => $base, 'items' => $items, 'orderNo' => 'SO-1']);
-ok('print shows Pembulatan when switched on', str_contains($pOn, 'Pembulatan') && str_contains($pOn, '-Rp1'));
-$GLOBALS['config']['invoice_show_rounding'] = false;
+ok('print: no Pembulatan row', !str_contains($p1, 'Pembulatan'));
+ok('print: VAT shows the folded amount', str_contains($p1, 'Rp885.450') && !str_contains($p1, 'Rp885.451'));
 ok('print total is the quoted amount', str_contains($p1, 'Rp8.935.000'));
-ok('print has no Pembulatan when zero', !str_contains($render($printFile, ['invoice' => $zero, 'items' => $items, 'orderNo' => 'SO-1']), 'Pembulatan'));
+$GLOBALS['config']['invoice_rounding'] = 'line';
+$pOn = $render($printFile, ['invoice' => $base, 'items' => $items, 'orderNo' => 'SO-1']);
+$GLOBALS['config']['invoice_rounding'] = 'vat';
+ok("print: 'line' mode restores the Pembulatan row", str_contains($pOn, 'Pembulatan') && str_contains($pOn, '-Rp1') && str_contains($pOn, 'Rp885.451'));
 ok('print stays free of Chinese', preg_match('/[\x{4e00}-\x{9fff}]/u', strip_tags(preg_replace('/<(script|style|div class="toolbar").*?<\/(script|style|div)>/su', '', $p1))) === 0);
 
 $doc = new Docx();
@@ -171,11 +184,13 @@ $body = '';
     $cfg = $GLOBALS['config'];
     include __DIR__ . '/../views/word/invoice_docx.php';
 })();
-ok('Word export hides Pembulatan by default', !str_contains($body, 'Pembulatan'));
-ok('Word export still totals the quoted amount', str_contains($body, 'Rp8.935.000'));
+ok('Word: no Pembulatan row, VAT folded', !str_contains($body, 'Pembulatan') && str_contains($body, 'Rp885.450'));
+ok('Word: total is the quoted amount', str_contains($body, 'Rp8.935.000'));
 
 $showFile = __DIR__ . '/../views/finance/show.php';
 $s1 = $render($showFile, ['invoice' => $base, 'items' => $items, 'payments' => [], 'voidBlock' => null]);
-ok('invoice screen shows the rounding row', str_contains($s1, t('inv_rounding')) && str_contains($s1, '-Rp 1'));
-ok('invoice screen hides it when zero', !str_contains($render($showFile, ['invoice' => $zero, 'items' => $items, 'payments' => [], 'voidBlock' => null]), t('inv_rounding')));
+ok('invoice screen: VAT folded, with a note of the gap for finance', str_contains($s1, 'Rp 885.450') && str_contains($s1, sprintf(t('inv_vat_incl_rounding'), '-Rp 1')));
+ok('invoice screen: no separate rounding row in vat mode', !str_contains($s1, t('inv_rounding')));
+ok('invoice screen: no note when there is no gap', !str_contains($render($showFile, ['invoice' => $zero, 'items' => $items, 'payments' => [], 'voidBlock' => null]), sprintf(t('inv_vat_incl_rounding'), '')));
+ok('note translated', isset(I18N['zh']['inv_vat_incl_rounding'], I18N['id']['inv_vat_incl_rounding']));
 ok('rounding label translated', I18N['id']['inv_rounding'] === 'Pembulatan' && isset(I18N['zh']['inv_rounding']));

@@ -13,10 +13,11 @@ $config = [
     'currency' => 'Rp',
     'ppn_rate' => 11,           // effective PPN % of subtotal (12% VAT on DPP = subtotal×11/12)
 
-    // Show the Pembulatan (rounding) line on printed / Word invoices. Off at the
-    // company's request (2026-10-21): customers found the ±Rp1 line confusing.
-    // The invoice screen in the system always shows it.
-    'invoice_show_rounding' => false,
+    // Where the Pembulatan (rounding, ±Rp1–3) appears on invoices — print, Word
+    // and the invoice screen alike (see invoice_display() in app/domain.php):
+    // 'vat' = folded into the VAT line (finance's spreadsheet does this; chosen
+    // 2026-10-21), 'line' = its own row, 'hide' = not shown.
+    'invoice_rounding' => 'vat',
 
     // ── Company letterhead (printed invoices / delivery orders) ──
     'company_full'  => 'PT ALUPANEL MULIA INDONESIA',
