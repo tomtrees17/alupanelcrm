@@ -9,7 +9,15 @@ switch ($action) {
         if ($auth->check()) {
             redirect('dashboard.index');
         }
-        view('auth.login', ['error' => null], false);
+        // This page has no layout, so show any pending error flash here
+        // (e.g. "page expired" after a login form sat open too long).
+        $error = null;
+        foreach (flash() as $m) {
+            if (($m['type'] ?? '') === 'error') {
+                $error = (string) $m['message'];
+            }
+        }
+        view('auth.login', ['error' => $error], false);
         break;
 
     case 'authenticate':

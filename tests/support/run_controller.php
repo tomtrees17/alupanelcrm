@@ -7,7 +7,7 @@ declare(strict_types=1);
  * HTML. Controllers declare functions, so a second include in the same
  * process would fatal; tests call this once per render via a subprocess.
  *
- *   php run_controller.php <db-file> <controller> <action> <json-get> <json-user> [<json-post>]
+ *   php run_controller.php <db-file> <controller> <action> <json-get> <json-user> [<json-post> [<json-session>]]
  *
  * With <json-post> the request is a POST carrying a valid CSRF token. Flash
  * messages are appended to the output as <!--FLASH:[...]--> so tests can see
@@ -44,9 +44,17 @@ if (!preg_match('/^[a-z]+$/', $controller)) {
 $_SESSION = [];
 $_GET = (array) json_decode($getJson, true);
 $_SERVER['REQUEST_METHOD'] = 'GET';
-if (isset($argv[6])) {
+if (isset($argv[7])) {
+    $_SESSION = (array) json_decode($argv[7], true) + $_SESSION;
+}
+if (isset($argv[6]) && $argv[6] !== '') {
     $_SERVER['REQUEST_METHOD'] = 'POST';
     $_POST = (array) json_decode($argv[6], true) + ['_csrf' => Csrf::token()];
+}
+foreach (['HTTP_REFERER', 'HTTP_HOST'] as $k) {
+    if (getenv('TEST_' . $k) !== false) {
+        $_SERVER[$k] = (string) getenv('TEST_' . $k);
+    }
 }
 register_shutdown_function(function (): void {
     echo "\n<!--FLASH:" . json_encode($_SESSION['flash'] ?? [], JSON_UNESCAPED_UNICODE) . "-->";

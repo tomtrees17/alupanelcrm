@@ -254,6 +254,12 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 
 **测试**：`tests/pagination_test.php`；控制器渲染测试通过 `tests/support/run_controller.php` 子进程执行（控制器文件里声明了函数，同一进程不能 include 两次）。
 
+## 6v. 表单过期不再停在 "CSRF token mismatch"（2026-10-21）
+
+**现象**：登录时出现白页 "CSRF token mismatch. 请刷新页面重试。"。**原因**：登录页（或任何表单）打开后停留超过会话寿命（PHP-FPM `session.gc_maxlifetime = 1440` 秒 = 24 分钟空闲），会话被回收，表单里的令牌对不上；在别的标签页登录/退出过也会这样。正常流程经外部实测无问题（地址栏显示 `alupanel.cc` 只是 Chrome 隐藏了 www，裸域名本身没有 DNS 解析）。
+**改动**：`Csrf::verify()` 仍然拒绝这次提交（防护不变），但不再输出死页，而是带一条「页面已过期…请重新提交」提示 303 跳回来源页（只接受同站 Referer 的路径部分；登录提交端点不回跳，改回首页→登录页）。登录页本身不套 layout，所以 `auth.login` 会把待显示的错误 flash 放进页面的 `$error`。
+**测试**：`tests/csrf_test.php`；测试夹具 `tests/support/run_controller.php` 新增可选的会话 JSON 参数与 `TEST_HTTP_REFERER/TEST_HTTP_HOST` 环境变量。
+
 ## 6u. 财务反馈修复：订单小数 + 发票 Word（2026-10-21）
 
 **1. 订单输入小数点**：订单表单的单价、运费是 `type="number"` 却没写 `step`，浏览器默认步长 1，输入 12.5 / 12,5 提交时被拦下（服务端本来就按小数解析）。改为单价、运费、收款金额、客户/商机金额 `step="any"` + `inputmode="decimal"`（手机弹数字小数键盘）；**数量仍只能整数**——库存按整张记账（`adjust_stock()` 收整数），小数张数会被截断。收款表单的默认金额不再 `(int)` 截断。
@@ -580,7 +586,7 @@ c6d14db Add append-only audit log across every write operation
 
 发票明细规格显示格式微调、库存"有预留"筛选、订单占用库存视图、预留超时自动释放、双语未覆盖的零散文案补全。（~~真实 logo.png 上传~~ 已完成，见 6 打印一节）
 
-**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **备份异地同步到 OSS**(见 6e) / **列表分页 + 搜索**(见 6o) / **客户分析·数据准备**(见 6p) / **AI 花费护栏**(见 6p) / **回访清单计算 + 跟进记录**(见 6q) / **回访清单页 + 客户分析看板 + 送货地图**(见 6r) / **客户分析权限**(见 6s) / **看板张数列 + 张数卡片**(见 6t) / **订单小数 + 发票 .docx + 尾差并入 VAT**(见 6u) / **自动化测试**(`tools/run_tests.php`，809 项)。
+**安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **备份异地同步到 OSS**(见 6e) / **列表分页 + 搜索**(见 6o) / **客户分析·数据准备**(见 6p) / **AI 花费护栏**(见 6p) / **回访清单计算 + 跟进记录**(见 6q) / **回访清单页 + 客户分析看板 + 送货地图**(见 6r) / **客户分析权限**(见 6s) / **看板张数列 + 张数卡片**(见 6t) / **订单小数 + 发票 .docx + 尾差并入 VAT**(见 6u) / **表单过期友好提示**(见 6v) / **自动化测试**(`tools/run_tests.php`，820 项)。
 
 **待办（按优先级）**：
 0. **客户分析板块**（任务书四部分，见 6p）：一、数据准备 ✅（6p）；二、三个清单 ✅（6q）；三、页面 ✅（6r）；四、权限 ✅ 待验收（6s）。宝塔计划任务 `tools/nightly.php` 每天 02:30 已加，`.env` 已配。四部分均已上线（2026-10-16）。**智能查库存已启用 Claude（2026-10-16；服务器 `config.local.php` 加了 `'ai' => ['driver' => 'claude']`），模型 `claude-opus-5-5`**——曾短暂用 `claude-opus-5`，比较后改回 5.5（更便宜且更新；用户不需要 Sonnet/Haiku 对比测试）。请求带 `fallbacks: "default"`；行业判断同为 `claude-opus-5-5`。剩余：70 个无负责人客户待在「数据整理」分配。**`.env` 里的 Anthropic 密钥曾在聊天中明文出现，用户决定继续使用——建议择机在 console.anthropic.com 轮换。** erpandi 已于 2026-10-16 合并到 erfandi（21 客户 / 31 订单，快照 `backups/pre_merge_erpandi_*`）。晨间 WhatsApp 提醒待 WhatsApp 启用后再做（6r）。
