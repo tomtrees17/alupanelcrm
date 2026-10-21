@@ -71,6 +71,7 @@ app/
   Insights.php              回访清单 A/B/C 计算 + 跟进记录与屏蔽
   Hr.php                    人力：谁看什么（viewer/scope）、薪资加密、NIK/日期校验、字段级审计、用户→员工迁移
   HrContract.php            人力合同（HR-02）：编号、续签链/法定上限提醒、到期扫描与待办、生效同步档案
+  HrBpjs.php                人力 BPJS（HR-03）：两套记录、费率按月、金额计算（上限/JP/超额家属）、月度快照、离职联动
   Auth.php                  会话鉴权     Csrf.php  CSRF 令牌
   controllers/              dashboard customers insights pipeline tasks finance orders inventory
                             approvals audit delivery users roles account auth lang hr

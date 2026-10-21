@@ -427,6 +427,14 @@ tfoot td { padding: 8px 14px; }
 .hr-complete { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 13px; }
 .hr-complete .bar { flex: 0 0 200px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
 .hr-complete .bar-fill { height: 100%; background: var(--c-sales, #2a78d6); }
+.hr-kpi { display: flex; align-items: baseline; gap: 12px; }
+.hr-kpi strong { font-size: 24px; }
+.hr-kpi .hr-kpi-bad { color: var(--danger); }
+.hr-total td { border-top: 2px solid var(--border); }
+th.center, td.center { text-align: center; }
+.hr-edit { margin-top: 12px; }
+.hr-edit summary { cursor: pointer; color: var(--accent2); font-size: 13px; margin-bottom: 10px; }
+.hr-subhead { margin: 18px 0 8px; font-size: 14px; }
 .inline-form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
 
 /* ─ RESPONSIVE (mobile) ─ */

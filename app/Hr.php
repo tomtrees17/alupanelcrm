@@ -22,7 +22,7 @@ final class Hr
     public const RELIGIONS = ['Islam', 'Kristen Protestan', 'Katolik', 'Hindu', 'Buddha', 'Konghucu'];
     public const MARITAL = ['belum_kawin', 'kawin', 'cerai_hidup', 'cerai_mati'];
     public const PTKP = ['TK/0', 'TK/1', 'TK/2', 'TK/3', 'K/0', 'K/1', 'K/2', 'K/3'];
-    public const DOC_TYPES = ['ktp', 'npwp', 'kk', 'ijazah', 'foto', 'lainnya'];
+    public const DOC_TYPES = ['ktp', 'npwp', 'kk', 'ijazah', 'foto', 'lainnya', 'bpjs_kes', 'bpjs_tk'];
     public const CHANGE_TYPES = ['position', 'salary', 'location', 'supervisor', 'status'];
 
     /** Fields HR fills on the basic-info form (no effective date needed). */
@@ -324,6 +324,9 @@ final class Hr
             ['employment_status' => 'resigned', 'resign_date' => $date, 'resign_reason' => $reason]);
         foreach ($accts as $u) {
             audit($pdo, 'hr', 'resign', 'users', (int) $u['id'], (string) $u['name'], 'users.active: ' . (int) $u['active'] . ' → 0 (离职停用)');
+        }
+        if (class_exists('HrBpjs')) {
+            HrBpjs::on_resign($pdo, (int) $e['id'], $label);   // HR-03: both programs → 待停保
         }
         return $ref;
     }

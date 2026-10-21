@@ -463,7 +463,69 @@ CREATE TABLE employment_contracts (
     created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     updated_by TEXT, updated_at TEXT
 );
+-- HR-03 BPJS (rates only at company level, by effective month; money columns encrypted)
+CREATE TABLE bpjs_kesehatan (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id      INTEGER NOT NULL UNIQUE REFERENCES employees(id),
+    bpjs_no          TEXT,
+    registered_date  TEXT,
+    status           TEXT NOT NULL DEFAULT 'pending',  -- pending|active|pending_stop|stopped
+    class            TEXT,                             -- I|II|III
+    salary_base_enc  TEXT,                             -- HR override of the base (encrypted); NULL = employees.base_salary
+    base_note        TEXT,                             -- why overridden (e.g. legal cap)
+    deactivated_date TEXT,
+    created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_by TEXT, updated_at TEXT
+);
+CREATE TABLE bpjs_kesehatan_dependents (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL REFERENCES employees(id),
+    name        TEXT NOT NULL,
+    relation    TEXT NOT NULL,                         -- spouse|child
+    nik TEXT, birth_date TEXT, bpjs_no TEXT,
+    active      INTEGER NOT NULL DEFAULT 1,            -- removed = 0 (never deleted)
+    created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    removed_by TEXT, removed_at TEXT, removed_note TEXT
+);
+CREATE TABLE bpjs_ketenagakerjaan (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id      INTEGER NOT NULL UNIQUE REFERENCES employees(id),
+    bpjs_no          TEXT,
+    registered_date  TEXT,
+    status           TEXT NOT NULL DEFAULT 'pending',
+    jp_enrolled      INTEGER NOT NULL DEFAULT 1,
+    salary_base_enc  TEXT,
+    base_note        TEXT,
+    deactivated_date TEXT,
+    created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_by TEXT, updated_at TEXT
+);
+CREATE TABLE bpjs_rates (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    effective_from TEXT NOT NULL UNIQUE,               -- YYYY-MM; in force until the next row
+    kes_company REAL NOT NULL, kes_employee REAL NOT NULL,
+    jht_company REAL NOT NULL, jht_employee REAL NOT NULL,
+    jkk REAL NOT NULL, jkm REAL NOT NULL,
+    jp_company REAL NOT NULL, jp_employee REAL NOT NULL,
+    kes_cap REAL, jp_cap REAL,                         -- wage caps HR fills in (no built-in figures)
+    note TEXT,
+    created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_by TEXT, updated_at TEXT
+);
+CREATE TABLE bpjs_monthly (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    period              TEXT NOT NULL,                 -- YYYY-MM
+    run                 INTEGER NOT NULL DEFAULT 1,    -- locked once generated; recalculating = a new run
+    employee_id         INTEGER NOT NULL REFERENCES employees(id),
+    program             TEXT NOT NULL,                 -- kesehatan|ketenagakerjaan
+    salary_base_enc TEXT, company_amount_enc TEXT, employee_amount_enc TEXT, total_enc TEXT,
+    breakdown_enc       TEXT,                          -- JSON per component
+    rates_id            INTEGER REFERENCES bpjs_rates(id),
+    generated_by TEXT, generated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    UNIQUE (period, run, employee_id, program)
+);
 CREATE INDEX idx_emp_attach ON employee_attachments(employee_id);
+CREATE INDEX idx_bpjs_deps ON bpjs_kesehatan_dependents(employee_id);
 CREATE INDEX idx_contracts_emp ON employment_contracts(employee_id, status);
 CREATE INDEX idx_contracts_end ON employment_contracts(status, end_date);
 CREATE INDEX idx_emp_changes ON employee_changes(employee_id, id);

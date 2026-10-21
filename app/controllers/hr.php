@@ -42,6 +42,7 @@ $dateOrNull = fn(string $k): ?string => ($v = trim((string) input($k, ''))) === 
 
 // HR-02: expiry, sync and reminders are brought up to date on every 人力 page (no cron, owner 2026-10-21).
 HrContract::scan($pdo, $today);
+HrBpjs::scan($pdo, $today);
 
 /** A contract the viewer may read, with its employee. @return array{0:array,1:array} */
 $findContract = function (int $id) use ($pdo, $findEmployee): array {
@@ -169,7 +170,13 @@ switch ($action) {
         foreach ($rows as $r) {
             $current[(int) $r['id']] = HrContract::current($pdo, (int) $r['id'], $today);
         }
-        view('hr.employees', ['pageTitle' => t('hr_employees'), 'pageSub' => '', 'rows' => $rows, 'f' => $f, 'viewer' => $viewer, 'current' => $current, 'today' => $today]);
+        $bpjs = [];
+        foreach (HrBpjs::PROGRAMS as $prog) {
+            foreach ($pdo->query('SELECT employee_id, status FROM ' . HrBpjs::table($prog)) as $b) {
+                $bpjs[(int) $b['employee_id']][$prog] = $b['status'];
+            }
+        }
+        view('hr.employees', ['pageTitle' => t('hr_employees'), 'pageSub' => '', 'rows' => $rows, 'f' => $f, 'viewer' => $viewer, 'current' => $current, 'today' => $today, 'bpjs' => $bpjs]);
         break;
 
     case 'show':
@@ -200,6 +207,16 @@ switch ($action) {
                 return $st->fetchAll();
             })(),
             'currentContract' => HrContract::current($pdo, (int) $e['id'], $today),
+            'bpjsVisible' => HrBpjs::can_see($viewer, $e),
+            'bpjs' => HrBpjs::can_see($viewer, $e) ? ['kesehatan' => HrBpjs::record($pdo, 'kesehatan', (int) $e['id']), 'ketenagakerjaan' => HrBpjs::record($pdo, 'ketenagakerjaan', (int) $e['id'])] : [],
+            'dependents' => (function () use ($pdo, $e, $viewer): array {
+                if (!HrBpjs::can_see($viewer, $e)) {
+                    return [];
+                }
+                $st = $pdo->prepare('SELECT * FROM bpjs_kesehatan_dependents WHERE employee_id = ? ORDER BY active DESC, id');
+                $st->execute([$e['id']]);
+                return $st->fetchAll();
+            })(),
             // CRM accounts HR may link: not the administrator, not linked to someone else.
             'linkable' => $viewer['edit'] ? (function () use ($pdo, $e): array {
                 $st = $pdo->prepare("SELECT id, name, email, role, active FROM users WHERE role <> 'admin' AND (employee_id IS NULL OR employee_id = ?) ORDER BY name");
@@ -424,7 +441,7 @@ switch ($action) {
         Csrf::verify();
         $requireEdit();
         $e = $findEmployee((int) input('id', 0));
-        $back = ['hr.show', ['id' => $e['id'], 'tab' => 'files']];
+        $back = ['hr.show', ['id' => $e['id'], 'tab' => input('back_tab') === 'bpjs' ? 'bpjs' : 'files']];
         $type = in_array(input('doc_type'), Hr::DOC_TYPES, true) ? (string) input('doc_type') : '';
         $up = $type === '' ? ['error' => 'hr_err_upload'] : Hr::accept_upload($_FILES['file'] ?? null, (int) $e['id']);
         if (isset($up['error'])) {
@@ -805,6 +822,306 @@ switch ($action) {
         redirect($back[0], $back[1]);
         break;
 
+    // ── HR-03: BPJS ──
+    case 'bpjs':
+        $scope = HrBpjs::scope($viewer);
+        if ($scope === 'none') {
+            http_response_code(403);
+            flash(t('hr_msg_no_record'), 'error');
+            redirect('dashboard.index');
+        }
+        if ($scope === 'self') {
+            redirect('hr.show', ['id' => $viewer['employee_id'], 'tab' => 'bpjs']);
+        }
+        $status = in_array(input('status'), HrBpjs::STATUSES, true) ? (string) input('status') : '';
+        $sql = "SELECT e.id, e.employee_no, e.full_name, e.department, e.employment_status, e.join_date,
+                       k.status kes_status, k.bpjs_no kes_no, t.status tk_status, t.bpjs_no tk_no
+                FROM employees e LEFT JOIN bpjs_kesehatan k ON k.employee_id = e.id LEFT JOIN bpjs_ketenagakerjaan t ON t.employee_id = e.id
+                WHERE (k.id IS NOT NULL OR t.id IS NOT NULL)";
+        $args = [];
+        if ($status !== '') {
+            $sql .= ' AND (k.status = ? OR t.status = ?)';
+            $args = [$status, $status];
+        }
+        $st = $pdo->prepare($sql . ' ORDER BY e.employee_no');
+        $st->execute($args);
+        $unregistered = (int) $pdo->query("SELECT COUNT(*) FROM employees e LEFT JOIN bpjs_kesehatan k ON k.employee_id = e.id LEFT JOIN bpjs_ketenagakerjaan t ON t.employee_id = e.id
+                                           WHERE e.employment_status <> 'resigned' AND (k.status = 'pending' OR t.status = 'pending')")->fetchColumn();
+        view('hr.bpjs', ['pageTitle' => 'BPJS', 'pageSub' => '', 'rows' => $st->fetchAll(), 'status' => $status, 'unregistered' => $unregistered, 'viewer' => $viewer]);
+        break;
+
+    // Membership number, registration date, class / JP, base override (with reason).
+    case 'bpjs_save':
+        Csrf::verify();
+        $requireEdit();
+        $e = $findEmployee((int) input('id', 0));
+        $prog = in_array(input('program'), HrBpjs::PROGRAMS, true) ? (string) input('program') : 'kesehatan';
+        $back = ['hr.show', ['id' => $e['id'], 'tab' => 'bpjs']];
+        $r = HrBpjs::record($pdo, $prog, (int) $e['id']);
+        if (!$r) {
+            HrBpjs::ensure_records($pdo);
+            $r = HrBpjs::record($pdo, $prog, (int) $e['id']);
+        }
+        if (!$r) {
+            flash(t('hr_err_already_resigned'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        $d = ['bpjs_no' => trim((string) input('bpjs_no', '')) ?: null, 'registered_date' => trim((string) input('registered_date', '')) ?: null];
+        if ($prog === 'kesehatan') {
+            $d['class'] = in_array(input('class'), HrBpjs::CLASSES, true) ? (string) input('class') : null;
+        } else {
+            $d['jp_enrolled'] = input('jp_enrolled') ? 1 : 0;
+        }
+        $baseIn = trim((string) input('salary_base', ''));
+        $note = trim((string) input('base_note', ''));
+        $err = [];
+        if ($d['registered_date'] !== null && !Hr::valid_date($d['registered_date'])) {
+            $err[] = t('hr_err_date');
+        }
+        if ($baseIn !== '' && $note === '') {
+            $err[] = t('hrb_err_base_note');
+        }
+        if ($baseIn !== '' && !Hr::crypto_ready()) {
+            $err[] = t('hr_err_no_key');
+        }
+        if ($err) {
+            flash(implode(' ', $err), 'error');
+            redirect($back[0], $back[1]);
+        }
+        $oldBase = Hr::decrypt($r['salary_base_enc']);
+        $newBase = $baseIn === '' ? null : (string) (float) $baseIn;
+        if ($newBase !== $oldBase) {
+            $d['salary_base_enc'] = $newBase === null ? null : Hr::encrypt($newBase);
+        }
+        $d['base_note'] = $newBase === null ? null : $note;
+        if (in_array($r['status'], ['pending', 'active'], true)) {
+            $d['status'] = ($d['bpjs_no'] !== null && $d['registered_date'] !== null) ? 'active' : 'pending';
+        }
+        $d['updated_by'] = $operator;
+        $d['updated_at'] = date('Y-m-d H:i:s');
+        $pdo->prepare('UPDATE ' . HrBpjs::table($prog) . ' SET ' . implode(',', array_map(fn($k) => "{$k} = ?", array_keys($d))) . ' WHERE id = ?')
+            ->execute([...array_values($d), $r['id']]);
+        $audited = array_diff_key($d, array_flip(['updated_by', 'updated_at']));
+        Hr::audit_fields($pdo, 'update', HrBpjs::table($prog), (int) $r['id'], $e['employee_no'] . ' ' . $e['full_name'], array_intersect_key($r, $audited), $audited);
+        HrBpjs::scan($pdo, $today);
+        flash(t('hr_msg_saved'));
+        redirect($back[0], $back[1]);
+        break;
+
+    // Deactivation date → 已停保.
+    case 'bpjs_stop':
+        Csrf::verify();
+        $requireEdit();
+        $e = $findEmployee((int) input('id', 0));
+        $prog = in_array(input('program'), HrBpjs::PROGRAMS, true) ? (string) input('program') : 'kesehatan';
+        $back = ['hr.show', ['id' => $e['id'], 'tab' => 'bpjs']];
+        $r = HrBpjs::record($pdo, $prog, (int) $e['id']);
+        $date = trim((string) input('deactivated_date', ''));
+        if (!$r || $r['status'] === 'stopped') {
+            flash(t('hrb_err_not_stoppable'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        if (!Hr::valid_date($date) || ($r['registered_date'] && $date < $r['registered_date'])) {
+            flash(t('hrb_err_stop_date'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        $pdo->prepare('UPDATE ' . HrBpjs::table($prog) . " SET status = 'stopped', deactivated_date = ?, updated_by = ?, updated_at = ? WHERE id = ?")
+            ->execute([$date, $operator, date('Y-m-d H:i:s'), $r['id']]);
+        Hr::audit_fields($pdo, 'update', HrBpjs::table($prog), (int) $r['id'], $e['employee_no'] . ' ' . $e['full_name'],
+            ['status' => $r['status'], 'deactivated_date' => $r['deactivated_date']], ['status' => 'stopped', 'deactivated_date' => $date]);
+        HrBpjs::scan($pdo, $today);   // closes the resignation's BPJS todo once both are stopped
+        flash(t('hrb_msg_stopped'));
+        redirect($back[0], $back[1]);
+        break;
+
+    case 'bpjs_dep_add':
+        Csrf::verify();
+        $requireEdit();
+        $e = $findEmployee((int) input('id', 0));
+        $back = ['hr.show', ['id' => $e['id'], 'tab' => 'bpjs']];
+        $dep = [
+            'name' => trim((string) input('name', '')), 'relation' => (string) input('relation', ''),
+            'nik' => trim((string) input('nik', '')) ?: null, 'birth_date' => trim((string) input('birth_date', '')) ?: null, 'bpjs_no' => trim((string) input('bpjs_no', '')) ?: null,
+        ];
+        if ($dep['name'] === '' || !in_array($dep['relation'], HrBpjs::RELATIONS, true)) {
+            flash(t('hrb_err_dep'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        if (($dep['nik'] !== null && !Hr::valid_nik($dep['nik'])) || ($dep['birth_date'] !== null && !Hr::valid_date($dep['birth_date']))) {
+            flash(t('hr_err_nik_format') . ' / ' . t('hr_err_date'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        $pdo->prepare('INSERT INTO bpjs_kesehatan_dependents (employee_id, name, relation, nik, birth_date, bpjs_no, created_by) VALUES (?,?,?,?,?,?,?)')
+            ->execute([$e['id'], $dep['name'], $dep['relation'], $dep['nik'], $dep['birth_date'], $dep['bpjs_no'], $operator]);
+        audit($pdo, 'hr', 'create', 'bpjs_kesehatan_dependents', (int) $pdo->lastInsertId(), $e['employee_no'] . ' ' . $e['full_name'],
+            sprintf('bpjs_kesehatan_dependents: %s (%s)', $dep['name'], $dep['relation']));
+        flash(t('hr_msg_saved'));
+        redirect($back[0], $back[1]);
+        break;
+
+    case 'bpjs_dep_remove':
+        Csrf::verify();
+        $requireEdit();
+        $st = $pdo->prepare('SELECT * FROM bpjs_kesehatan_dependents WHERE id = ? AND active = 1');
+        $st->execute([(int) input('dep_id', 0)]);
+        $dep = $st->fetch();
+        if (!$dep) {
+            http_response_code(404);
+            exit('Not found');
+        }
+        $e = $findEmployee((int) $dep['employee_id']);
+        $note = trim((string) input('note', ''));
+        $pdo->prepare("UPDATE bpjs_kesehatan_dependents SET active = 0, removed_by = ?, removed_at = datetime('now','localtime'), removed_note = ? WHERE id = ?")
+            ->execute([$operator, $note, $dep['id']]);
+        audit($pdo, 'hr', 'update', 'bpjs_kesehatan_dependents', (int) $dep['id'], $e['employee_no'] . ' ' . $e['full_name'],
+            sprintf('bpjs_kesehatan_dependents.active: 1 → 0; %s (%s)%s', $dep['name'], $dep['relation'], $note !== '' ? '; ' . $note : ''));
+        flash(t('hr_msg_saved'));
+        redirect('hr.show', ['id' => $e['id'], 'tab' => 'bpjs']);
+        break;
+
+    // Monthly list: HR and the boss (amounts reveal salaries).
+    case 'bpjs_monthly':
+    case 'bpjs_export':
+        if (!HrBpjs::can_see_money($viewer)) {
+            http_response_code(403);
+            flash(t('hrb_msg_money_only'), 'error');
+            redirect('hr.bpjs');
+        }
+        $period = HrBpjs::valid_period((string) input('period', '')) ? (string) input('period') : date('Y-m');
+        $runs = $pdo->prepare('SELECT run, MIN(generated_at) at, MIN(generated_by) by_, COUNT(*) n FROM bpjs_monthly WHERE period = ? GROUP BY run ORDER BY run DESC');
+        $runs->execute([$period]);
+        $runs = $runs->fetchAll();
+        $run = (int) input('run', 0) ?: (int) ($runs[0]['run'] ?? 0);
+        $data = $run ? HrBpjs::load_run($pdo, $period, $run) : [];
+        if ($action === 'bpjs_export') {
+            if (!$data) {
+                flash(t('no_data'), 'error');
+                redirect('hr.bpjs_monthly', ['period' => $period]);
+            }
+            $headers = [t('hr_no'), t('hr_full_name'),
+                'Kesehatan ' . t('hrb_base'), 'Kesehatan ' . t('hrb_company'), 'Kesehatan ' . t('hrb_employee_share'), t('hrb_extra_deps'), 'Kesehatan ' . t('hrb_total'),
+                'Ketenagakerjaan ' . t('hrb_base'), 'JHT ' . t('hrb_company'), 'JHT ' . t('hrb_employee_share'), 'JKK', 'JKM', 'JP ' . t('hrb_company'), 'JP ' . t('hrb_employee_share'),
+                'Ketenagakerjaan ' . t('hrb_company'), 'Ketenagakerjaan ' . t('hrb_employee_share'), 'Ketenagakerjaan ' . t('hrb_total'), t('hrb_grand_total')];
+            $out = [];
+            $sum = array_fill(2, 16, 0);
+            foreach ($data as $r) {
+                $k = $r['kesehatan'];
+                $j = $r['ketenagakerjaan'];
+                $row = [(string) $r['no'], (string) $r['name'],
+                    $k ? $k['base'] : '', $k ? $k['company'] : '', $k ? $k['employee'] : '', $k ? (int) ($k['parts']['extra_dependents'] ?? 0) : '', $k ? $k['total'] : '',
+                    $j ? $j['base'] : '', $j ? (int) $j['parts']['jht_company'] : '', $j ? (int) $j['parts']['jht_employee'] : '', $j ? (int) $j['parts']['jkk'] : '', $j ? (int) $j['parts']['jkm'] : '',
+                    $j ? (int) $j['parts']['jp_company'] : '', $j ? (int) $j['parts']['jp_employee'] : '', $j ? $j['company'] : '', $j ? $j['employee'] : '', $j ? $j['total'] : '',
+                    ($k['total'] ?? 0) + ($j['total'] ?? 0)];
+                foreach ($row as $i => $v) {
+                    if ($i >= 2 && is_numeric($v) && !in_array($i, [2, 5, 7], true)) {
+                        $sum[$i] += $v;
+                    }
+                }
+                $out[] = $row;
+            }
+            $total = [t('hrb_total'), ''];
+            for ($i = 2; $i <= 17; $i++) {
+                $total[] = in_array($i, [2, 5, 7], true) ? '' : $sum[$i];
+            }
+            $out[] = $total;
+            audit($pdo, 'hr', 'export', 'bpjs_monthly', null, "BPJS {$period} #{$run}", count($data) . ' rows');
+            send_spreadsheet("BPJS_{$period}_run{$run}", "BPJS {$period}", $headers, $out);
+        }
+        view('hr.bpjs_monthly', ['pageTitle' => t('hrb_monthly'), 'pageSub' => $period, 'period' => $period, 'run' => $run, 'runs' => $runs, 'monthly' => $data,
+            'rates' => HrBpjs::rates_for($pdo, $period), 'viewer' => $viewer]);
+        break;
+
+    case 'bpjs_generate':
+        Csrf::verify();
+        $requireEdit();
+        $period = (string) input('period', '');
+        if (!HrBpjs::valid_period($period)) {
+            flash(t('hrb_err_period'), 'error');
+            redirect('hr.bpjs_monthly');
+        }
+        $rates = HrBpjs::rates_for($pdo, $period);
+        if (!$rates || $rates['kes_cap'] === null || $rates['jp_cap'] === null) {
+            flash(t('hrb_err_no_rates'), 'error');
+            redirect('hr.bpjs_rates');
+        }
+        if (!Hr::crypto_ready()) {
+            flash(t('hr_err_no_key'), 'error');
+            redirect('hr.bpjs_monthly', ['period' => $period]);
+        }
+        $res = HrBpjs::generate($pdo, $period, $rates, $operator);
+        audit($pdo, 'hr', 'create', 'bpjs_monthly', null, "BPJS {$period} #{$res['run']}", sprintf('bpjs_monthly: %s run %d, %d rows, rates from %s', $period, $res['run'], $res['rows'], $rates['effective_from']));
+        flash(sprintf(t('hrb_msg_generated'), $period, $res['run'], $res['rows']));
+        if ($res['missing']) {
+            flash(t('hrb_msg_missing_base') . ' ' . implode(', ', $res['missing']), 'error');
+        }
+        redirect('hr.bpjs_monthly', ['period' => $period, 'run' => $res['run']]);
+        break;
+
+    // Rates: HR edits, the boss reads. One row per effective month.
+    case 'bpjs_rates':
+        if (!HrBpjs::can_see_money($viewer)) {
+            http_response_code(403);
+            flash(t('hrb_msg_money_only'), 'error');
+            redirect('hr.bpjs');
+        }
+        $rows = $pdo->query('SELECT r.*, (SELECT COUNT(*) FROM bpjs_monthly m WHERE m.rates_id = r.id) used FROM bpjs_rates r ORDER BY effective_from DESC')->fetchAll();
+        view('hr.bpjs_rates', ['pageTitle' => t('hrb_rates'), 'pageSub' => '', 'rows' => $rows, 'viewer' => $viewer]);
+        break;
+
+    case 'bpjs_rate_save':
+        Csrf::verify();
+        $requireEdit();
+        $from = (string) input('effective_from', '');
+        $d = [];
+        $err = [];
+        foreach (HrBpjs::RATE_FIELDS as $k) {
+            $v = str_replace(',', '.', trim((string) input($k, '')));
+            if ($v === '' || !is_numeric($v) || (float) $v < 0 || (float) $v > 100) {
+                $err[] = $k;
+            }
+            $d[$k] = (float) $v;
+        }
+        if (!array_key_exists(number_format($d['jkk'], 2, '.', ''), HrBpjs::JKK_LEVELS)) {
+            $err[] = 'jkk';
+        }
+        foreach (['kes_cap', 'jp_cap'] as $k) {
+            $v = trim((string) input($k, ''));
+            if ($v === '' || !is_numeric($v) || (float) $v <= 0) {
+                $err[] = $k;
+            }
+            $d[$k] = (float) $v;
+        }
+        $d['note'] = trim((string) input('note', ''));
+        if (!HrBpjs::valid_period($from) || $err) {
+            flash(t('hrb_err_rates') . ($err ? ' (' . implode(', ', array_unique($err)) . ')' : ''), 'error');
+            redirect('hr.bpjs_rates');
+        }
+        $ex = $pdo->prepare('SELECT r.*, (SELECT COUNT(*) FROM bpjs_monthly m WHERE m.rates_id = r.id) used FROM bpjs_rates r WHERE effective_from = ?');
+        $ex->execute([$from]);
+        $existing = $ex->fetch() ?: null;
+        if ($existing && (int) $existing['used'] > 0) {
+            flash(t('hrb_err_rate_used'), 'error');
+            redirect('hr.bpjs_rates');
+        }
+        $d['updated_by'] = $operator;
+        $d['updated_at'] = date('Y-m-d H:i:s');
+        if ($existing) {
+            $pdo->prepare('UPDATE bpjs_rates SET ' . implode(',', array_map(fn($k) => "{$k} = ?", array_keys($d))) . ' WHERE id = ?')->execute([...array_values($d), $existing['id']]);
+            $audited = array_diff_key($d, array_flip(['updated_by', 'updated_at']));
+            Hr::audit_fields($pdo, 'update', 'bpjs_rates', (int) $existing['id'], "BPJS {$from}", array_intersect_key($existing, $audited), $audited);
+        } else {
+            $d = ['effective_from' => $from, 'created_by' => $operator] + $d;
+            $pdo->prepare('INSERT INTO bpjs_rates (' . implode(',', array_keys($d)) . ') VALUES (' . implode(',', array_fill(0, count($d), '?')) . ')')->execute(array_values($d));
+            $parts = [];
+            foreach (array_merge(HrBpjs::RATE_FIELDS, ['kes_cap', 'jp_cap']) as $k) {
+                $parts[] = "{$k}={$d[$k]}";
+            }
+            audit($pdo, 'hr', 'create', 'bpjs_rates', (int) $pdo->lastInsertId(), "BPJS {$from}", 'bpjs_rates: effective_from ' . $from . '; ' . implode(', ', $parts));
+        }
+        flash(t('hr_msg_saved'));
+        redirect('hr.bpjs_rates');
+        break;
+
     // Undo a resignation (owner decision 2026-10-21): status back to what it was,
     // open resignation todos cancelled, CRM account re-enabled. Todos already
     // handled (e.g. BPJS stopped) are not rolled back — HR follows up by hand.
@@ -854,6 +1171,7 @@ switch ($action) {
         foreach ($accts as $u) {
             audit($pdo, 'hr', 'unresign', 'users', (int) $u['id'], (string) $u['name'], 'users.active: 0 → 1 (撤销离职)');
         }
+        HrBpjs::on_unresign($pdo, (int) $e['id'], $label);
         flash(t('hr_msg_unresigned'));
         redirect($back[0], $back[1]);
         break;

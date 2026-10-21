@@ -1,4 +1,5 @@
-<?php /** @var array $rows */ /** @var array $f */ /** @var array $viewer */ /** @var array $current */ /** @var string $today */ ?>
+<?php /** @var array $rows */ /** @var array $f */ /** @var array $viewer */ /** @var array $current */ /** @var string $today */ /** @var array $bpjs */
+include __DIR__ . '/_bpjs_status.php'; ?>
 <div class="page-head">
     <h1><?= t('hr_employees') ?></h1>
     <?php if ($viewer['edit']): ?><a class="btn btn-primary" href="<?= url('hr.create') ?>"><?= t('hr_new_employee') ?></a><?php endif; ?>
@@ -44,7 +45,7 @@
             <td><span class="tag <?= $r['employment_status'] === 'resigned' ? 'tag-gray' : ($r['employment_status'] === 'probation' ? 'tag-orange' : 'tag-green') ?>"><?= t('hrstatus_' . $r['employment_status']) ?></span></td>
             <?php $cc = $current[(int) $r['id']] ?? null; ?>
             <td class="nowrap"><?php if (!$cc): ?><span class="muted">—</span><?php elseif ($cc['contract_type'] === 'PKWTT'): ?>PKWTT<?php else: ?><?php $left = HrContract::days($today, (string) $cc['end_date']); ?><?= e(Hr::dmy($cc['end_date'])) ?> <span class="small <?= $left <= 30 ? 'hr-low' : 'muted' ?>">(<?= $left ?>)</span><?php endif; ?></td>
-            <td class="muted">—</td>
+            <td class="nowrap"><?php if (HrBpjs::can_see($viewer, $r) && isset($bpjs[(int) $r['id']])): ?><span class="muted small">K</span> <?= $bpjsTag($bpjs[(int) $r['id']]['kesehatan'] ?? null) ?> <span class="muted small">TK</span> <?= $bpjsTag($bpjs[(int) $r['id']]['ketenagakerjaan'] ?? null) ?><?php else: ?><span class="muted">—</span><?php endif; ?></td>
         </tr>
     <?php endforeach; ?>
     </tbody>

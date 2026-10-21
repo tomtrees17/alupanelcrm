@@ -254,6 +254,17 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 
 **测试**：`tests/pagination_test.php`；控制器渲染测试通过 `tests/support/run_controller.php` 子进程执行（控制器文件里声明了函数，同一进程不能 include 两次）。
 
+## 6za. 人力 / SDM：HR-03 BPJS（2026-10-21）
+
+代码：`app/HrBpjs.php`、`app/controllers/hr.php`（bpjs_* 动作）、`views/hr/bpjs*.php` 与员工详情 BPJS 页签，测试 `tests/hr_bpjs_test.php`。表 `bpjs_kesehatan`、`bpjs_kesehatan_dependents`、`bpjs_ketenagakerjaan`、`bpjs_rates`、`bpjs_monthly`。
+
+- **用户决定（2026-10-21）**：费率**只在公司级** `bpjs_rates`，每行一个生效月份，月度清单取当月有效的那行并记 `rates_id`（员工记录不存费率，只存 JP 是否参保、Kesehatan 等级）；**基数上限两个**：Kesehatan 和 JP，都由 HR 填（不内置数字）；**家属超额自动算**：覆盖本人 + 1 配偶 + 3 子女，超出每人员工多缴基数 1%；**总经理只看参保状态**，基数和金额只有 HR、老板、员工本人可见，月度清单和费率页只有 HR（改）和老板（看）。部门主管看不到别人的 BPJS（HR-00 矩阵）。
+- **任务卡默认值更正**：卡上写 JHT 员工 1%，法定是 2%（PP 46/2015：3.7% + 2%）；配置页预填 2%，由 HR 首次填写时核对。
+- **记录**：`HrBpjs::scan()`（每次打开人力页面运行）给每个未离职员工补齐两条「待登记」记录；入职满 30 天仍待登记 → 待办「BPJS 逾期未登记」（每套一条，登记后自动关闭）。填了号码和登记日期自动「已参保」。基数默认取员工基本工资，可手工覆盖（必填原因，加密，审计只记"已修改"）。
+- **离职**：`Hr::resign()` 调 `HrBpjs::on_resign()` → 两套「待停保」；离职的「BPJS 停保」待办在两套都填了停保日期（→ 已停保）后自动关闭。撤销离职：待停保恢复为已参保（有登记日期）或待登记。
+- **月度清单**：当月参保 = 登记日期 ≤ 月底且（无停保日期或停保日期 ≥ 月初，停保当月仍计）。每项四舍五入到整数卢比。生成即锁定；重新计算生成新的一次（run），旧的保留。基数、金额、明细全部加密。没有基数的人不计入并在生成时列出。导出 .xlsx（`send_spreadsheet`），导出记审计（action export）。
+- **费率**：同一生效月份可修改，但已被清单用过的不能改（需新建下个月起生效的）；改动审计。JKK 按风险等级五档（0.24/0.54/0.89/1.27/1.74%）。
+
 ## 6z. 人力 / SDM：HR-02 合同管理（2026-10-21）
 
 代码：`app/HrContract.php`、`app/controllers/hr.php`（contract_* 动作）、`views/hr/contract*.php`，测试 `tests/hr_contract_test.php`。表 `employment_contracts`。

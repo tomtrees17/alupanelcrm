@@ -378,6 +378,29 @@ final class Database
             created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), updated_by TEXT, updated_at TEXT)");
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_contracts_emp ON employment_contracts(employee_id, status)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_contracts_end ON employment_contracts(status, end_date)');
+        // HR-03 BPJS (added 2026-10-21).
+        $pdo->exec("CREATE TABLE IF NOT EXISTS bpjs_kesehatan (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL UNIQUE, bpjs_no TEXT, registered_date TEXT,
+            status TEXT NOT NULL DEFAULT 'pending', class TEXT, salary_base_enc TEXT, base_note TEXT, deactivated_date TEXT,
+            created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), updated_by TEXT, updated_at TEXT)");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS bpjs_kesehatan_dependents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL, name TEXT NOT NULL, relation TEXT NOT NULL,
+            nik TEXT, birth_date TEXT, bpjs_no TEXT, active INTEGER NOT NULL DEFAULT 1,
+            created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), removed_by TEXT, removed_at TEXT, removed_note TEXT)");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS bpjs_ketenagakerjaan (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL UNIQUE, bpjs_no TEXT, registered_date TEXT,
+            status TEXT NOT NULL DEFAULT 'pending', jp_enrolled INTEGER NOT NULL DEFAULT 1, salary_base_enc TEXT, base_note TEXT, deactivated_date TEXT,
+            created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), updated_by TEXT, updated_at TEXT)");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS bpjs_rates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, effective_from TEXT NOT NULL UNIQUE,
+            kes_company REAL NOT NULL, kes_employee REAL NOT NULL, jht_company REAL NOT NULL, jht_employee REAL NOT NULL,
+            jkk REAL NOT NULL, jkm REAL NOT NULL, jp_company REAL NOT NULL, jp_employee REAL NOT NULL, kes_cap REAL, jp_cap REAL, note TEXT,
+            created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), updated_by TEXT, updated_at TEXT)");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS bpjs_monthly (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, period TEXT NOT NULL, run INTEGER NOT NULL DEFAULT 1, employee_id INTEGER NOT NULL, program TEXT NOT NULL,
+            salary_base_enc TEXT, company_amount_enc TEXT, employee_amount_enc TEXT, total_enc TEXT, breakdown_enc TEXT, rates_id INTEGER,
+            generated_by TEXT, generated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), UNIQUE (period, run, employee_id, program))");
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_bpjs_deps ON bpjs_kesehatan_dependents(employee_id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_emp_attach ON employee_attachments(employee_id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_emp_changes ON employee_changes(employee_id, id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_hr_todos_open ON hr_todos(status, due_date)');

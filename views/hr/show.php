@@ -1,12 +1,12 @@
 <?php
-/** @var array $e */ /** @var string $tab */ /** @var array $viewer */ /** @var bool $salaryVisible */ /** @var ?string $salary */ /** @var array $contracts */ /** @var ?array $currentContract */
+/** @var array $e */ /** @var string $tab */ /** @var array $viewer */ /** @var bool $salaryVisible */ /** @var ?string $salary */ /** @var array $contracts */ /** @var ?array $currentContract */ /** @var bool $bpjsVisible */ /** @var array $bpjs */ /** @var array $dependents */
 /** @var array $attachments */ /** @var array $changes */ /** @var ?array $account */ /** @var ?array $supervisor */ /** @var array $staff */ /** @var string $today */
 $pct = Hr::completeness($e);
 $dash = fn($v) => ($v === null || $v === '') ? '<span class="muted">—</span>' : e((string) $v);
 $tabUrl = fn(string $t) => url('hr.show', ['id' => $e['id'], 'tab' => $t]);
 $resigned = $e['employment_status'] === 'resigned';
 // KTP / NPWP / KK are legal names (never translated); the rest have labels.
-$docLabel = fn(string $d): string => in_array($d, ['ijazah', 'foto', 'lainnya'], true) ? t('hrdoc_' . $d) : strtoupper($d);
+$docLabel = fn(string $d): string => in_array($d, ['ijazah', 'foto', 'lainnya', 'bpjs_kes', 'bpjs_tk'], true) ? t('hrdoc_' . $d) : strtoupper($d);
 $valueOf = function (?string $field, ?string $v) use ($salaryVisible): string {
     if ($v === null || $v === '') {
         return '—';
@@ -221,7 +221,113 @@ $valueOf = function (?string $field, ?string $v) use ($salaryVisible): string {
 </div>
 
 <?php elseif ($tab === 'bpjs'): ?>
-<div class="card"><div class="empty"><?= t('hr_bpjs_soon') ?></div></div>
+<?php if (!$bpjsVisible): ?>
+<div class="card"><div class="empty"><?= t('hrb_not_visible') ?></div></div>
+<?php else: ?>
+<?php include __DIR__ . '/_bpjs_status.php'; ?>
+<?php foreach (HrBpjs::PROGRAMS as $prog): ?>
+    <?php $b = $bpjs[$prog] ?? null; $docType = $prog === 'kesehatan' ? 'bpjs_kes' : 'bpjs_tk';
+    $override = $b ? Hr::decrypt($b['salary_base_enc']) : null; $effBase = $b ? HrBpjs::base($b, $e) : null; ?>
+<div class="card">
+    <div class="card-header"><span class="card-title">BPJS <?= $prog === 'kesehatan' ? 'Kesehatan' : 'Ketenagakerjaan' ?></span><?= $bpjsTag($b['status'] ?? null) ?></div>
+    <div class="card-body">
+    <?php if (!$b): ?>
+        <p class="muted"><?= t('hrb_no_record') ?></p>
+    <?php else: ?>
+        <dl class="detail">
+            <div><dt><?= t('hrb_no') ?></dt><dd><?= $dash($b['bpjs_no']) ?></dd></div>
+            <div><dt><?= t('hrb_registered') ?></dt><dd><?= $dash(Hr::dmy($b['registered_date'])) ?></dd></div>
+            <?php if ($prog === 'kesehatan'): ?><div><dt><?= t('hrb_class') ?></dt><dd><?= $dash($b['class']) ?></dd></div>
+            <?php else: ?><div><dt>JP</dt><dd><?= (int) $b['jp_enrolled'] === 1 ? t('hr_yes') : t('hr_no_word') ?></dd></div><?php endif; ?>
+            <?php if ($salaryVisible): ?>
+                <div><dt><?= t('hrb_base') ?></dt><dd><?= $effBase === null ? $dash(null) : idr((float) $effBase) ?>
+                    <span class="muted small"> · <?= $override !== null ? t('hrb_base_override') . ': ' . e((string) $b['base_note']) : t('hrb_base_from_salary') ?></span></dd></div>
+            <?php endif; ?>
+            <?php if ($b['deactivated_date']): ?><div><dt><?= t('hrb_deactivated') ?></dt><dd><?= e(Hr::dmy($b['deactivated_date'])) ?></dd></div><?php endif; ?>
+            <div><dt><?= t('hrb_card') ?></dt><dd><?php $cards = array_filter($attachments, fn($a) => $a['doc_type'] === $docType); ?>
+                <?php if (!$cards): ?><?= $dash(null) ?><?php endif; ?>
+                <?php foreach ($cards as $a): ?><a href="<?= url('hr.file', ['fid' => $a['id']]) ?>" target="_blank" rel="noopener"><?= e($a['file_name']) ?></a> <span class="muted small"><?= e(Hr::dmy($a['uploaded_at'])) ?></span><br><?php endforeach; ?></dd></div>
+        </dl>
+
+        <?php if ($viewer['edit']): ?>
+        <details class="hr-edit"><summary><?= t('btn_edit') ?></summary>
+            <form method="post" action="<?= url('hr.bpjs_save') ?>">
+                <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $e['id'] ?>"><input type="hidden" name="program" value="<?= $prog ?>">
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label"><?= t('hrb_no') ?></label><input class="form-input" name="bpjs_no" value="<?= e((string) $b['bpjs_no']) ?>"></div>
+                    <div class="form-group"><label class="form-label"><?= t('hrb_registered') ?></label><input class="form-input" type="date" name="registered_date" value="<?= e((string) $b['registered_date']) ?>"></div>
+                </div>
+                <div class="form-row">
+                    <?php if ($prog === 'kesehatan'): ?>
+                        <div class="form-group"><label class="form-label"><?= t('hrb_class') ?></label>
+                            <select class="form-select" name="class"><option value=""></option><?php foreach (HrBpjs::CLASSES as $cl): ?><option value="<?= $cl ?>" <?= $b['class'] === $cl ? 'selected' : '' ?>><?= $cl ?></option><?php endforeach; ?></select></div>
+                    <?php else: ?>
+                        <div class="form-group"><label class="check-all"><input type="checkbox" name="jp_enrolled" value="1" <?= (int) $b['jp_enrolled'] === 1 ? 'checked' : '' ?>> <?= t('hrb_jp_enrolled') ?></label></div>
+                    <?php endif; ?>
+                    <div class="form-group"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label"><?= t('hrb_base_override') ?> (Rp)</label><input class="form-input" type="number" min="0" step="any" name="salary_base" value="<?= e((string) ($override ?? '')) ?>" placeholder="<?= t('hrb_base_ph') ?>"></div>
+                    <div class="form-group"><label class="form-label"><?= t('hrb_base_note') ?></label><input class="form-input" name="base_note" value="<?= e((string) $b['base_note']) ?>"></div>
+                </div>
+                <button class="btn btn-primary" type="submit"><?= t('btn_save') ?></button>
+                <p class="muted small"><?= t('hrb_save_hint') ?></p>
+            </form>
+            <?php if ($b['status'] !== 'stopped'): ?>
+            <form method="post" action="<?= url('hr.bpjs_stop') ?>" class="inline-form" style="justify-content:flex-start;margin-top:10px">
+                <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $e['id'] ?>"><input type="hidden" name="program" value="<?= $prog ?>">
+                <label class="muted small"><?= t('hrb_deactivated') ?></label>
+                <input class="form-input" type="date" name="deactivated_date" required style="max-width:180px">
+                <button class="btn <?= $b['status'] === 'pending_stop' ? 'btn-danger' : 'btn-ghost' ?>" type="submit"><?= t('hrb_stop') ?></button>
+            </form>
+            <?php endif; ?>
+            <form method="post" action="<?= url('hr.upload') ?>" enctype="multipart/form-data" class="inline-form" style="justify-content:flex-start;margin-top:10px">
+                <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $e['id'] ?>"><input type="hidden" name="doc_type" value="<?= $docType ?>"><input type="hidden" name="back_tab" value="bpjs">
+                <label class="muted small"><?= t('hrb_card') ?></label>
+                <input class="form-input" type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required>
+                <button class="btn btn-ghost" type="submit"><?= t('hr_upload') ?></button>
+            </form>
+        </details>
+        <?php endif; ?>
+
+        <?php if ($prog === 'kesehatan'): ?>
+        <h4 class="hr-subhead"><?= t('hrb_dependents') ?></h4>
+        <div class="table-wrap"><table>
+            <thead><tr><th><?= t('hr_full_name') ?></th><th><?= t('hrb_relation') ?></th><th>NIK</th><th><?= t('hr_birth_date') ?></th><th><?= t('hrb_no') ?></th><?php if ($viewer['edit']): ?><th></th><?php endif; ?></tr></thead>
+            <tbody>
+            <?php if (!$dependents): ?><tr><td colspan="6" class="empty"><?= t('no_data') ?></td></tr><?php endif; ?>
+            <?php foreach ($dependents as $dp): ?>
+                <tr class="<?= (int) $dp['active'] === 1 ? '' : 'muted' ?>">
+                    <td><?= (int) $dp['active'] === 1 ? e($dp['name']) : '<s>' . e($dp['name']) . '</s>' ?></td>
+                    <td><?= t('hrbrel_' . $dp['relation']) ?></td><td><?= $dash($dp['nik']) ?></td><td><?= $dash(Hr::dmy($dp['birth_date'])) ?></td><td><?= $dash($dp['bpjs_no']) ?></td>
+                    <?php if ($viewer['edit']): ?><td class="right"><?php if ((int) $dp['active'] === 1): ?>
+                        <form method="post" action="<?= url('hr.bpjs_dep_remove') ?>" class="inline-form" onsubmit="return confirm(<?= e(json_encode(t('hrb_dep_remove_confirm'), JSON_UNESCAPED_UNICODE)) ?>)">
+                            <?= Csrf::field() ?><input type="hidden" name="dep_id" value="<?= (int) $dp['id'] ?>">
+                            <input class="form-input" name="note" placeholder="<?= t('hr_change_note') ?>" style="max-width:140px">
+                            <button class="btn btn-ghost btn-sm" type="submit"><?= t('hrb_dep_remove') ?></button>
+                        </form><?php else: ?><span class="small"><?= t('hrb_dep_removed') ?> <?= e(Hr::dmy($dp['removed_at'])) ?></span><?php endif; ?></td><?php endif; ?>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table></div>
+        <p class="muted small"><?= t('hrb_dependents_hint') ?></p>
+        <?php if ($viewer['edit']): ?>
+        <form method="post" action="<?= url('hr.bpjs_dep_add') ?>" class="inline-form" style="justify-content:flex-start">
+            <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $e['id'] ?>">
+            <input class="form-input" name="name" placeholder="<?= t('hr_full_name') ?>" required style="max-width:180px">
+            <select class="form-select" name="relation" style="max-width:120px"><?php foreach (HrBpjs::RELATIONS as $rel): ?><option value="<?= $rel ?>"><?= t('hrbrel_' . $rel) ?></option><?php endforeach; ?></select>
+            <input class="form-input" name="nik" placeholder="NIK" inputmode="numeric" pattern="\d{16}" maxlength="16" style="max-width:170px">
+            <input class="form-input" type="date" name="birth_date" style="max-width:160px">
+            <input class="form-input" name="bpjs_no" placeholder="<?= t('hrb_no') ?>" style="max-width:150px">
+            <button class="btn btn-ghost" type="submit"><?= t('hrb_dep_add') ?></button>
+        </form>
+        <?php endif; ?>
+        <?php endif; ?>
+    <?php endif; ?>
+    </div>
+</div>
+<?php endforeach; ?>
+<?php endif; ?>
 
 <?php else: ?>
 <div class="card"><div class="table-wrap"><table>
