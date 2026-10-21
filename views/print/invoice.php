@@ -103,7 +103,7 @@ foreach (['logo-print.png', 'logo-print.svg', 'logo-print.jpg'] as $cand) {
                 <tr><td class="k">Subtotal</td><td class="v"><?= $rp($subtotal) ?></td></tr>
                 <tr><td class="k">DPP</td><td class="v"><?= $rp($dpp) ?></td></tr>
                 <tr><td class="k">VAT 12%</td><td class="v"><?= $rp($vat) ?></td></tr>
-                <?php if (abs($rounding) >= 0.005): ?>
+                <?php if (!empty($cfg['invoice_show_rounding']) && abs($rounding) >= 0.005): ?>
                     <tr><td class="k">Pembulatan</td><td class="v"><?= rp_signed($rounding) ?></td></tr>
                 <?php endif; ?>
                 <tr><td class="k">Total Invoice</td><td class="v"><?= $rp($total) ?></td></tr>

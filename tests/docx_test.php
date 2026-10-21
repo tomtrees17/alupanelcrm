@@ -69,12 +69,17 @@ $zip->close();
 
 // 3) Content.
 $text = html_entity_decode(strip_tags(str_replace(['</w:t>', '<w:br/>'], [' ', ' '], $body)), ENT_QUOTES | ENT_XML1);
-foreach (['Invoice', '11752 - AMI - INV - 10 - 26', '0468/AMI-CO/10/26', 'Subtotal', 'DPP', 'VAT 12%', 'Pembulatan', '-Rp1', 'Total Amount', 'Rp1.500.000', 'Satu Juta Lima Ratus', 'Bank Name', 'On Your Behalf', 'Ibu Dwi & Co <Toko>', 'NPWP : 01.234.567.8-901.000', '135.135,14'] as $needle) {
+foreach (['Invoice', '11752 - AMI - INV - 10 - 26', '0468/AMI-CO/10/26', 'Subtotal', 'DPP', 'VAT 12%', 'Total Amount', 'Rp1.500.000', 'Satu Juta Lima Ratus', 'Bank Name', 'On Your Behalf', 'Ibu Dwi & Co <Toko>', 'NPWP : 01.234.567.8-901.000', '135.135,14'] as $needle) {
     if (!str_contains($text, $needle)) {
         ok("document contains {$needle}", false, $needle);
     }
 }
 ok('all invoice fields are present (numbers, totals, bank, signature)', true);
+ok('no Pembulatan line on the exported invoice (company request)', !str_contains($text, 'Pembulatan'));
+$GLOBALS['config']['invoice_show_rounding'] = true;
+[, $onBody] = $render($invoice, $items);
+$GLOBALS['config']['invoice_show_rounding'] = false;
+ok('…shown again when switched on in config', str_contains($onBody, 'Pembulatan') && str_contains($onBody, '-Rp1'));
 ok('special characters are escaped, not breaking the XML', str_contains($body, 'Ibu Dwi &amp; Co &lt;Toko&gt;'));
 ok('no Chinese in the exported document (no_cjk rule)', preg_match('/[\x{4e00}-\x{9fff}]/u', $text) === 0, $text);
 ok('Arial set on every text run (some viewers ignore defaults)', substr_count($body, '<w:r>') - substr_count($body, '<w:r><w:drawing>') === substr_count($body, 'w:ascii='));

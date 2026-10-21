@@ -154,7 +154,11 @@ $items = [['sku' => 'SJ', 'color' => 'W', 'spec' => '3.0', 'size' => '1.22', 'qt
 
 $printFile = __DIR__ . '/../views/print/invoice.php';
 $p1 = $render($printFile, ['invoice' => $base, 'items' => $items, 'orderNo' => 'SO-1']);
-ok('print shows Pembulatan when non-zero', str_contains($p1, 'Pembulatan') && str_contains($p1, '-Rp1'));
+ok('print hides Pembulatan by default (company request)', !str_contains($p1, 'Pembulatan') && empty($GLOBALS['config']['invoice_show_rounding']));
+$GLOBALS['config']['invoice_show_rounding'] = true;
+$pOn = $render($printFile, ['invoice' => $base, 'items' => $items, 'orderNo' => 'SO-1']);
+ok('print shows Pembulatan when switched on', str_contains($pOn, 'Pembulatan') && str_contains($pOn, '-Rp1'));
+$GLOBALS['config']['invoice_show_rounding'] = false;
 ok('print total is the quoted amount', str_contains($p1, 'Rp8.935.000'));
 ok('print has no Pembulatan when zero', !str_contains($render($printFile, ['invoice' => $zero, 'items' => $items, 'orderNo' => 'SO-1']), 'Pembulatan'));
 ok('print stays free of Chinese', preg_match('/[\x{4e00}-\x{9fff}]/u', strip_tags(preg_replace('/<(script|style|div class="toolbar").*?<\/(script|style|div)>/su', '', $p1))) === 0);
@@ -167,7 +171,8 @@ $body = '';
     $cfg = $GLOBALS['config'];
     include __DIR__ . '/../views/word/invoice_docx.php';
 })();
-ok('Word export shows Pembulatan', str_contains($body, 'Pembulatan') && str_contains($body, '-Rp1'));
+ok('Word export hides Pembulatan by default', !str_contains($body, 'Pembulatan'));
+ok('Word export still totals the quoted amount', str_contains($body, 'Rp8.935.000'));
 
 $showFile = __DIR__ . '/../views/finance/show.php';
 $s1 = $render($showFile, ['invoice' => $base, 'items' => $items, 'payments' => [], 'voidBlock' => null]);

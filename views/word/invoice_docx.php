@@ -99,7 +99,7 @@ $totW = 4600;
 $k = fn(string $t, bool $b = false, bool $rule = false) => ['text' => $t, 'size' => 9.5, 'b' => $b, 'top_rule' => $rule];
 $v = fn(string $t, bool $b = false, bool $rule = false) => ['text' => $t, 'size' => 9.5, 'align' => 'right', 'b' => $b, 'top_rule' => $rule];
 $tot = [[$k('Subtotal'), $v($rp($subtotal))], [$k('DPP'), $v($rp($dpp))], [$k('VAT 12%'), $v($rp($vat))]];
-if (abs($rounding) >= 0.005) {
+if (!empty($cfg['invoice_show_rounding']) && abs($rounding) >= 0.005) {   // off by default, see config.php
     $tot[] = [$k('Pembulatan'), $v(rp_signed($rounding))];
 }
 $tot[] = [$k('Total Invoice'), $v($rp($total))];

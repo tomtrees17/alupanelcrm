@@ -13,6 +13,11 @@ $config = [
     'currency' => 'Rp',
     'ppn_rate' => 11,           // effective PPN % of subtotal (12% VAT on DPP = subtotal×11/12)
 
+    // Show the Pembulatan (rounding) line on printed / Word invoices. Off at the
+    // company's request (2026-10-21): customers found the ±Rp1 line confusing.
+    // The invoice screen in the system always shows it.
+    'invoice_show_rounding' => false,
+
     // ── Company letterhead (printed invoices / delivery orders) ──
     'company_full'  => 'PT ALUPANEL MULIA INDONESIA',
     'company_addr'  => 'JL Pinangsia Raya no 83, kecamatan taman sari, kelurahan pinangsia, kode pos 11110',
