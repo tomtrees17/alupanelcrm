@@ -545,7 +545,7 @@ function audit_actions(): array
     return [
         'create', 'update', 'delete', 'submit', 'approve', 'reject', 'fulfill',
         'pay', 'reverse', 'void', 'unvoid', 'adjust', 'move', 'permission', 'password', 'login', 'logout', 'login_failed',
-        'merge', 'assign', 'enrich', 'cleanup', 'resign', 'upload', 'handle',
+        'merge', 'assign', 'enrich', 'cleanup', 'resign', 'unresign', 'upload', 'handle',
     ];
 }
 
@@ -570,6 +570,6 @@ function audit_action_class(string $a): string
         'login'   => 'tag-gray',   'logout'      => 'tag-gray',  'login_failed' => 'tag-red',
         'permission' => 'tag-orange', 'password' => 'tag-orange', 'move' => 'tag-blue',
         'merge' => 'tag-orange', 'assign' => 'tag-blue', 'enrich' => 'tag-blue', 'cleanup' => 'tag-orange',
-        'resign' => 'tag-red', 'upload' => 'tag-blue', 'handle' => 'tag-green',
+        'resign' => 'tag-red', 'unresign' => 'tag-orange', 'upload' => 'tag-blue', 'handle' => 'tag-green',
     ][$a] ?? 'tag-gray';
 }

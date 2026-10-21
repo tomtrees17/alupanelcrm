@@ -84,6 +84,7 @@ ok('migration: Jakarta, active, numbered AMI-xxxx', array_unique(array_column($d
     && $p->query('SELECT employee_no FROM employees ORDER BY id LIMIT 1')->fetchColumn() === 'AMI-0001');
 require_once __DIR__ . '/../app/Auth.php';
 ok('migration: CRM login unaffected', @(new Auth($p))->attempt('budi@t', 'Rahasia#2026'));
+$p->prepare('INSERT INTO users (id, name, email, password_hash, role) VALUES (?,?,?,?,?)')->execute([8, 'Siti A', 'siti@t', $pw, 'sales']);   // a new hire's account, not yet linked
 
 $emp = fn(string $userName) => (int) $p->query('SELECT employee_id FROM users WHERE name = ' . $p->quote($userName))->fetchColumn();
 $p->prepare('UPDATE employees SET is_dept_head = 1 WHERE id = ?')->execute([$emp('Budi Santoso')]);
@@ -163,6 +164,25 @@ if (function_exists('exec') && is_file($harness)) {
     [, $fl] = $run('store', $hr, [], ['full_name' => 'Orang Lain'] + $new);
     ok('create: duplicate NIK names the existing record', $isErr($fl, 'AMI-0007'));
     $sid = (int) ($siti['id'] ?? 0);
+
+    // 1b. link the new hire to her CRM account (dropdown on the detail page)
+    [$h] = $run('show', $hr, ['id' => $sid, 'tab' => 'job']);
+    ok('link: dropdown offers unlinked accounts only, never admin', str_contains($h, 'siti@t') && !str_contains($h, 'rina@t') && !str_contains($h, 'admin@t'));
+    [, $fl] = $run('link', $tania, [], ['id' => $sid, 'user_id' => 8]);
+    ok('link: only HR', $isErr($fl, t('hr_msg_read_only')));
+    [, $fl] = $run('link', $hr, [], ['id' => $sid, 'user_id' => 4]);
+    ok('link: an account already linked to someone else is refused', $isErr($fl, t('hr_err_link_taken')) && (int) $q()->query('SELECT employee_id FROM users WHERE id = 4')->fetchColumn() === $rina['employee_id']);
+    [, $fl] = $run('link', $hr, [], ['id' => $sid, 'user_id' => 1]);
+    ok('link: the administrator account is refused', $isErr($fl, t('hr_err_link_taken')));
+    [, $fl] = $run('link', $hr, [], ['id' => $sid, 'user_id' => 8]);
+    ok('link: linked', (int) $q()->query('SELECT employee_id FROM users WHERE id = 8')->fetchColumn() === $sid && ($fl[0]['type'] ?? '') === 'success');
+    ok('link: audited', str_contains(implode("\n", $q()->query("SELECT detail FROM audit_log WHERE entity = 'users' AND entity_id = 8")->fetchAll(PDO::FETCH_COLUMN)), "users.employee_id: (空) → {$sid}"));
+    $sitiUser = $u(8, 'Siti A', 'sales', $sid);
+    [$h, $fl] = $run('show', $sitiUser, ['id' => $sid]);
+    ok('link: she now sees her own record', $fl === [] && str_contains($h, 'Siti Aminah'));
+    $run('link', $hr, [], ['id' => $sid, 'user_id' => 0]);
+    ok('link: unlink', $q()->query('SELECT employee_id FROM users WHERE id = 8')->fetchColumn() === null);
+    $run('link', $hr, [], ['id' => $sid, 'user_id' => 8]);
 
     // 2. upload KTP (content must match the extension)
     $tmp = tempnam(sys_get_temp_dir(), 'ktp');
@@ -257,6 +277,29 @@ if (function_exists('exec') && is_file($harness)) {
     ok('todo: only HR handles it', $isErr($fl, t('hr_msg_read_only')));
     $run('todo_done', $hr, [], ['id' => $tid, 'note' => 'done in CRM']);
     ok('todo: done and audited', $q()->query("SELECT status FROM hr_todos WHERE id = {$tid}")->fetchColumn() === 'done' && $auditCount('handle') === 1);
+
+    // 7. undo the resignation
+    [, $fl] = $run('unresign', $hr, [], ['id' => $rid]);
+    ok('unresign: reason required', $isErr($fl, t('hr_err_unresign_note')));
+    [, $fl] = $run('unresign', $tania, [], ['id' => $rid, 'note' => 'x']);
+    ok('unresign: only HR', $isErr($fl, t('hr_msg_read_only')));
+    [, $fl] = $run('unresign', $hr, [], ['id' => $sid, 'note' => 'x']);
+    ok('unresign: only a resigned employee', $isErr($fl, t('hr_err_not_resigned')));
+    [, $fl] = $run('unresign', $hr, [], ['id' => $rid, 'note' => 'Salah input']);
+    $r = $q()->query("SELECT * FROM employees WHERE id = {$rid}")->fetch();
+    ok('unresign: status back, resign fields cleared', $r['employment_status'] === 'active' && $r['resign_date'] === null && $r['resign_reason'] === null, json_encode($fl));
+    $st = $q()->query("SELECT type, status FROM hr_todos WHERE employee_id = {$rid} ORDER BY type")->fetchAll(PDO::FETCH_KEY_PAIR);
+    ok('unresign: open todos cancelled, handled ones kept', $st === ['account_off' => 'done', 'bpjs_stop' => 'cancelled', 'contract_end' => 'cancelled'], json_encode($st));
+    ok('unresign: CRM account re-enabled', (int) $q()->query('SELECT active FROM users WHERE id = 4')->fetchColumn() === 1);
+    ok('unresign: login works again', @(new Auth($q()))->attempt('rina@t', 'Rahasia#2026'));
+    ok('unresign: history row', (int) $q()->query("SELECT COUNT(*) FROM employee_changes WHERE employee_id = {$rid} AND old_value = 'resigned' AND new_value = 'active' AND note = 'Salah input'")->fetchColumn() === 1);
+    $ud = implode("\n", $q()->query("SELECT detail FROM audit_log WHERE action = 'unresign'")->fetchAll(PDO::FETCH_COLUMN));
+    ok('unresign: audited (record, todos, account)', str_contains($ud, 'employees.employment_status: resigned → active') && str_contains($ud, 'open → cancelled') && str_contains($ud, 'users.active: 0 → 1'));
+    [$h] = $run('index', $hr);
+    ok('unresign: cancelled todos leave the home list', !str_contains($h, t('hrtodo_bpjs_stop')));
+    $run('resign', $hr, [], ['id' => $rid, 'resign_date' => '2026-10-21', 'resign_reason' => 'Pindah kerja']);
+    ok('resign again: a fresh set of three todos', (int) $q()->query("SELECT COUNT(*) FROM hr_todos WHERE employee_id = {$rid} AND status = 'open'")->fetchColumn() === 3
+        && (int) $q()->query('SELECT active FROM users WHERE id = 4')->fetchColumn() === 0);
     ok('nothing in employees was deleted', (int) $q()->query('SELECT COUNT(*) FROM employees')->fetchColumn() === 7);
 
     @unlink($tmp);

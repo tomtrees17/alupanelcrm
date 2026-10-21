@@ -87,6 +87,21 @@ $valueOf = function (?string $field, ?string $v) use ($salaryVisible): string {
 
 <?php if ($viewer['edit'] && !$resigned): ?>
 <div class="card">
+    <div class="card-header"><span class="card-title"><?= t('hr_crm_account') ?></span></div>
+    <div class="card-body">
+        <form method="post" action="<?= url('hr.link') ?>" class="inline-form" style="justify-content:flex-start">
+            <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $e['id'] ?>">
+            <select class="form-select" name="user_id" style="max-width:360px">
+                <option value="0"><?= t('hr_link_none') ?></option>
+                <?php foreach ($linkable as $lu): ?><option value="<?= (int) $lu['id'] ?>" <?= $account && (int) $account['id'] === (int) $lu['id'] ? 'selected' : '' ?>><?= e($lu['name'] . ' · ' . $lu['email'] . ' · ' . t('role_' . $lu['role'])) ?></option><?php endforeach; ?>
+            </select>
+            <button class="btn btn-ghost" type="submit"><?= t('btn_save') ?></button>
+        </form>
+        <p class="muted small"><?= t('hr_link_hint') ?></p>
+    </div>
+</div>
+
+<div class="card">
     <div class="card-header"><span class="card-title"><?= t('hr_change_job') ?></span></div>
     <div class="card-body">
         <form method="post" action="<?= url('hr.job') ?>" class="hr-form">
@@ -131,6 +146,18 @@ $valueOf = function (?string $field, ?string $v) use ($salaryVisible): string {
             </div>
             <button class="btn btn-danger" type="submit"><?= t('hr_resign') ?></button>
             <p class="muted small"><?= t('hr_resign_hint') ?></p>
+        </form>
+    </div>
+</div>
+<?php elseif ($viewer['edit'] && $resigned): ?>
+<div class="card">
+    <div class="card-header"><span class="card-title"><?= t('hr_unresign') ?></span></div>
+    <div class="card-body">
+        <form method="post" action="<?= url('hr.unresign') ?>" onsubmit="return confirm(<?= e(json_encode(t('hr_unresign_confirm'), JSON_UNESCAPED_UNICODE)) ?>)">
+            <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $e['id'] ?>">
+            <div class="form-group"><label class="form-label"><?= t('hr_unresign_note') ?> *</label><input class="form-input" name="note" required></div>
+            <button class="btn btn-warning" type="submit"><?= t('hr_unresign') ?></button>
+            <p class="muted small"><?= t('hr_unresign_hint') ?></p>
         </form>
     </div>
 </div>

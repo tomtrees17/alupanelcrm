@@ -128,7 +128,58 @@ switch ($action) {
             'attachments' => $att->fetchAll(), 'changes' => $ch->fetchAll(), 'account' => $acct->fetch() ?: null, 'supervisor' => $sup,
             'staff' => $pdo->query("SELECT id, full_name, employee_no FROM employees WHERE employment_status <> 'resigned' ORDER BY full_name")->fetchAll(),
             'today' => $today,
+            // CRM accounts HR may link: not the administrator, not linked to someone else.
+            'linkable' => $viewer['edit'] ? (function () use ($pdo, $e): array {
+                $st = $pdo->prepare("SELECT id, name, email, role, active FROM users WHERE role <> 'admin' AND (employee_id IS NULL OR employee_id = ?) ORDER BY name");
+                $st->execute([$e['id']]);
+                return $st->fetchAll();
+            })() : [],
         ]);
+        break;
+
+    // Link / unlink the employee's CRM account (one account per employee).
+    case 'link':
+        Csrf::verify();
+        $requireEdit();
+        $e = $findEmployee((int) input('id', 0));
+        $back = ['hr.show', ['id' => $e['id'], 'tab' => 'job']];
+        $uid = (int) input('user_id', 0);
+        if ($e['employment_status'] === 'resigned') {
+            flash(t('hr_err_already_resigned'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        $cur = $pdo->prepare('SELECT id, name, employee_id FROM users WHERE employee_id = ?');
+        $cur->execute([$e['id']]);
+        $current = $cur->fetch() ?: null;
+        if ($current && (int) $current['id'] === $uid) {
+            flash(t('hr_msg_nothing_changed'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        $target = null;
+        if ($uid > 0) {
+            $st = $pdo->prepare('SELECT id, name, role, employee_id FROM users WHERE id = ?');
+            $st->execute([$uid]);
+            $target = $st->fetch() ?: null;
+            if (!$target || $target['role'] === 'admin' || ($target['employee_id'] !== null && (int) $target['employee_id'] !== (int) $e['id'])) {
+                flash(t('hr_err_link_taken'), 'error');
+                redirect($back[0], $back[1]);
+            }
+        }
+        $pdo->beginTransaction();
+        $pdo->prepare('UPDATE users SET employee_id = NULL WHERE employee_id = ?')->execute([$e['id']]);
+        if ($target) {
+            $pdo->prepare('UPDATE users SET employee_id = ? WHERE id = ?')->execute([$e['id'], $target['id']]);
+        }
+        $pdo->commit();
+        $label = $e['employee_no'] . ' ' . $e['full_name'];
+        if ($current) {
+            audit($pdo, 'hr', 'update', 'users', (int) $current['id'], (string) $current['name'], "users.employee_id: {$e['id']} → (空); {$label}");
+        }
+        if ($target) {
+            audit($pdo, 'hr', 'update', 'users', (int) $target['id'], (string) $target['name'], "users.employee_id: (空) → {$e['id']}; {$label}");
+        }
+        flash(t('hr_msg_linked'));
+        redirect($back[0], $back[1]);
         break;
 
     case 'create':
@@ -386,8 +437,9 @@ switch ($action) {
         $pdo->prepare("UPDATE employees SET employment_status = 'resigned', resign_date = ?, resign_reason = ?, updated_by = ?, updated_at = ? WHERE id = ?")
             ->execute([$date, $reason, $operator, date('Y-m-d H:i:s'), $e['id']]);
         Hr::record_change($pdo, (int) $e['id'], 'status', 'employment_status', (string) $e['employment_status'], 'resigned', $date, $reason, $operator);
+        $ref = 'resign:' . $pdo->lastInsertId();   // one set of todos per resignation (it can be undone and redone)
         foreach (['contract_end', 'bpjs_stop', 'account_off'] as $type) {
-            Hr::add_todo($pdo, $type, (int) $e['id'], $date, 'resign');
+            Hr::add_todo($pdo, $type, (int) $e['id'], $date, $ref);
         }
         $accounts = $pdo->prepare('SELECT id, name, active FROM users WHERE employee_id = ?');
         $accounts->execute([$e['id']]);
@@ -402,6 +454,59 @@ switch ($action) {
             audit($pdo, 'hr', 'resign', 'users', (int) $u['id'], (string) $u['name'], 'users.active: ' . (int) $u['active'] . ' → 0 (离职停用)');
         }
         flash(t('hr_msg_resigned'));
+        redirect($back[0], $back[1]);
+        break;
+
+    // Undo a resignation (owner decision 2026-10-21): status back to what it was,
+    // open resignation todos cancelled, CRM account re-enabled. Todos already
+    // handled (e.g. BPJS stopped) are not rolled back — HR follows up by hand.
+    case 'unresign':
+        Csrf::verify();
+        $requireEdit();
+        $e = $findEmployee((int) input('id', 0));
+        $back = ['hr.show', ['id' => $e['id'], 'tab' => 'job']];
+        $note = trim((string) input('note', ''));
+        if ($e['employment_status'] !== 'resigned') {
+            flash(t('hr_err_not_resigned'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        if ($note === '') {
+            flash(t('hr_err_unresign_note'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        $last = $pdo->prepare("SELECT old_value FROM employee_changes WHERE employee_id = ? AND field = 'employment_status' AND new_value = 'resigned' ORDER BY id DESC LIMIT 1");
+        $last->execute([$e['id']]);
+        $prev = (string) ($last->fetchColumn() ?: 'active');
+        if (!in_array($prev, ['probation', 'active'], true)) {
+            $prev = 'active';
+        }
+        $todos = $pdo->prepare("SELECT id, type FROM hr_todos WHERE employee_id = ? AND status = 'open' AND (ref = 'resign' OR ref LIKE 'resign:%')");
+        $todos->execute([$e['id']]);
+        $open = $todos->fetchAll();
+        $accounts = $pdo->prepare('SELECT id, name FROM users WHERE employee_id = ? AND active = 0');
+        $accounts->execute([$e['id']]);
+        $accts = $accounts->fetchAll();
+        $pdo->beginTransaction();
+        $pdo->prepare('UPDATE employees SET employment_status = ?, resign_date = NULL, resign_reason = NULL, updated_by = ?, updated_at = ? WHERE id = ?')
+            ->execute([$prev, $operator, date('Y-m-d H:i:s'), $e['id']]);
+        Hr::record_change($pdo, (int) $e['id'], 'status', 'employment_status', 'resigned', $prev, $today, $note, $operator);
+        foreach ($open as $td) {
+            $pdo->prepare("UPDATE hr_todos SET status = 'cancelled', handled_by = ?, handled_at = datetime('now','localtime'), handled_note = ? WHERE id = ?")
+                ->execute([$operator, $note, $td['id']]);
+        }
+        $pdo->prepare('UPDATE users SET active = 1 WHERE employee_id = ? AND active = 0')->execute([$e['id']]);
+        $pdo->commit();
+        $label = $e['employee_no'] . ' ' . $e['full_name'];
+        Hr::audit_fields($pdo, 'unresign', 'employees', (int) $e['id'], $label,
+            ['employment_status' => $e['employment_status'], 'resign_date' => $e['resign_date'], 'resign_reason' => $e['resign_reason']],
+            ['employment_status' => $prev, 'resign_date' => null, 'resign_reason' => null]);
+        foreach ($open as $td) {
+            audit($pdo, 'hr', 'unresign', 'hr_todos', (int) $td['id'], t('hrtodo_' . $td['type']), 'hr_todos.status: open → cancelled; ' . $note);
+        }
+        foreach ($accts as $u) {
+            audit($pdo, 'hr', 'unresign', 'users', (int) $u['id'], (string) $u['name'], 'users.active: 0 → 1 (撤销离职)');
+        }
+        flash(t('hr_msg_unresigned'));
         redirect($back[0], $back[1]);
         break;
 

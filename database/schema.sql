@@ -436,7 +436,7 @@ CREATE TABLE hr_todos (
     employee_id INTEGER REFERENCES employees(id),
     ref         TEXT NOT NULL DEFAULT '',            -- e.g. contract id, so one todo per thing
     due_date    TEXT,
-    status      TEXT NOT NULL DEFAULT 'open',        -- open|done
+    status      TEXT NOT NULL DEFAULT 'open',        -- open|done|cancelled (resignation undone)
     handled_by TEXT, handled_at TEXT, handled_note TEXT,
     created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     UNIQUE (type, employee_id, ref)

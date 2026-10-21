@@ -266,7 +266,10 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 - **附件**：`data/hr/{employee_id}/` 随机文件名，目录 0750；只经 `hr.file` 鉴权下载；≤10MB，扩展名与文件头都须是 pdf/jpg/png。
 - **离职**：状态改离职 → 三条待办（合同终止 / BPJS 停保 / CRM 账号停用）→ 对应 `users.active = 0`（不删）。`Auth` 拒绝停用账号登录，已登录的下次请求即退出。
 - **迁移**（一次性，app_meta `hr_employees_v1`）：除 admin 外每个 CRM 账号建档，部门按角色：sales→销售、supervisor→财务（antonni）、finance_manager→财务、warehouse→仓库、clerk→行政（Fera）、manager→管理（tania），工作地 Jakarta、状态在职，其余待 HR 补。`perm_hr_v1`：hr 模块给所有非 admin 角色，hr_all 给 manager。
-- **未定 / 待后续**：新员工与 CRM 账号的关联目前只有迁移时自动关联，没有界面；每日 07:00 WIB 待办扫描在 HR-01 没有规则，随 HR-02/03 上线（注意服务器时区是 UTC+8，cron 要写 08:00）。
+- **关联 CRM 账号**（任务卡外，用户 2026-10-21 要求）：详情页「岗位与薪资」下拉框，只列未关联的非 admin 账号，一账号一员工，可取消关联；`hr.link`，审计 users.employee_id。离职员工不可改关联。
+- **撤销离职**（任务卡外，用户 2026-10-21 要求）：`hr.unresign`，必填原因；状态恢复为离职前（取最近一条离职变更的旧值）、清空离职日期/原因、未处理的离职待办改 `cancelled`、CRM 账号 active 恢复 1；已处理的待办不回滚（页面提示人工处理）。每次离职的待办 ref = `resign:{变更记录 id}`，撤销后再离职会重新生成三条。审计动作 `unresign`。
+- **待后续**：每日 07:00 WIB 待办扫描随 HR-02 上线（用户同意；服务器时区 UTC+8，cron 写 08:00）。
+- **薪资密钥**：已配置在服务器 .env（2026-10-21 换过一次，旧的在聊天中出现过已作废）；备份在站长 Mac 钥匙串「AluPanel HR_SALARY_KEY」。
 
 ## 6x. 订单录入：含税 / 不含税单价（2026-10-21）
 
