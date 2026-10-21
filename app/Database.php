@@ -368,6 +368,16 @@ final class Database
             id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, employee_id INTEGER, ref TEXT NOT NULL DEFAULT '',
             due_date TEXT, status TEXT NOT NULL DEFAULT 'open', handled_by TEXT, handled_at TEXT, handled_note TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), UNIQUE (type, employee_id, ref))");
+        // HR-02 contracts (added 2026-10-21).
+        $pdo->exec("CREATE TABLE IF NOT EXISTS employment_contracts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, contract_no TEXT UNIQUE, employee_id INTEGER NOT NULL, contract_type TEXT NOT NULL,
+            is_probation INTEGER NOT NULL DEFAULT 0, probation_months INTEGER, start_date TEXT NOT NULL, end_date TEXT,
+            position TEXT, work_location TEXT, salary_enc TEXT, signed_date TEXT, status TEXT NOT NULL DEFAULT 'draft',
+            previous_contract_id INTEGER, renewal_count INTEGER NOT NULL DEFAULT 0,
+            file_path TEXT, file_name TEXT, file_mime TEXT, file_size INTEGER, termination_date TEXT, termination_reason TEXT, synced_at TEXT,
+            created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), updated_by TEXT, updated_at TEXT)");
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_contracts_emp ON employment_contracts(employee_id, status)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_contracts_end ON employment_contracts(status, end_date)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_emp_attach ON employee_attachments(employee_id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_emp_changes ON employee_changes(employee_id, id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_hr_todos_open ON hr_todos(status, due_date)');

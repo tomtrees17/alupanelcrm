@@ -1,4 +1,4 @@
-<?php /** @var array $rows */ /** @var array $f */ /** @var array $viewer */ ?>
+<?php /** @var array $rows */ /** @var array $f */ /** @var array $viewer */ /** @var array $current */ /** @var string $today */ ?>
 <div class="page-head">
     <h1><?= t('hr_employees') ?></h1>
     <?php if ($viewer['edit']): ?><a class="btn btn-primary" href="<?= url('hr.create') ?>"><?= t('hr_new_employee') ?></a><?php endif; ?>
@@ -42,7 +42,8 @@
             <td><?= e($r['work_location']) ?: '—' ?></td>
             <td class="nowrap"><?= e(Hr::dmy($r['join_date'])) ?: '—' ?></td>
             <td><span class="tag <?= $r['employment_status'] === 'resigned' ? 'tag-gray' : ($r['employment_status'] === 'probation' ? 'tag-orange' : 'tag-green') ?>"><?= t('hrstatus_' . $r['employment_status']) ?></span></td>
-            <td class="muted">—</td>
+            <?php $cc = $current[(int) $r['id']] ?? null; ?>
+            <td class="nowrap"><?php if (!$cc): ?><span class="muted">—</span><?php elseif ($cc['contract_type'] === 'PKWTT'): ?>PKWTT<?php else: ?><?php $left = HrContract::days($today, (string) $cc['end_date']); ?><?= e(Hr::dmy($cc['end_date'])) ?> <span class="small <?= $left <= 30 ? 'hr-low' : 'muted' ?>">(<?= $left ?>)</span><?php endif; ?></td>
             <td class="muted">—</td>
         </tr>
     <?php endforeach; ?>

@@ -15,10 +15,11 @@
         <tbody>
         <?php if (!$todos): ?><tr><td colspan="4" class="empty"><?= t('hr_no_todos') ?></td></tr><?php endif; ?>
         <?php foreach ($todos as $td): ?>
-            <?php $late = $td['due_date'] !== null && $td['due_date'] < $today; ?>
+            <?php $late = ($td['due_date'] !== null && $td['due_date'] < $today) || $td['type'] === 'contract_expired'; ?>
+            <?php $cid = str_starts_with((string) $td['ref'], 'contract:') ? (int) substr((string) $td['ref'], 9) : 0; ?>
             <tr class="<?= $late ? 'hr-overdue' : '' ?>">
                 <td class="nowrap"><?= e(Hr::dmy($td['due_date'])) ?: '—' ?><?php if ($late): ?> <span class="tag tag-red"><?= t('hr_overdue') ?></span><?php endif; ?></td>
-                <td><?= e(t('hrtodo_' . $td['type'])) ?></td>
+                <td><?= e(t('hrtodo_' . $td['type'])) ?><?php if ($cid): ?> · <a href="<?= url(in_array($td['type'], ['contract_expiring', 'contract_expired'], true) && $viewer['edit'] ? 'hr.contract_decide' : 'hr.contract', ['id' => $cid]) ?>"><?= t('hrc_open') ?></a><?php endif; ?></td>
                 <td><?php if ($td['employee_id']): ?><a href="<?= url('hr.show', ['id' => $td['employee_id']]) ?>"><?= e($td['employee_no'] . ' ' . $td['full_name']) ?></a><?php else: ?>—<?php endif; ?></td>
                 <?php if ($viewer['edit']): ?>
                     <td class="right">

@@ -40,6 +40,67 @@ $findEmployee = function (int $id) use ($pdo, $viewer): array {
 };
 $dateOrNull = fn(string $k): ?string => ($v = trim((string) input($k, ''))) === '' ? null : $v;
 
+// HR-02: expiry, sync and reminders are brought up to date on every 人力 page (no cron, owner 2026-10-21).
+HrContract::scan($pdo, $today);
+
+/** A contract the viewer may read, with its employee. @return array{0:array,1:array} */
+$findContract = function (int $id) use ($pdo, $findEmployee): array {
+    $c = HrContract::find($pdo, $id);
+    if (!$c) {
+        http_response_code(404);
+        exit('Not found');
+    }
+    return [$c, $findEmployee((int) $c['employee_id'])];
+};
+/**
+ * Contract fields from the form. Errors are i18n keys.
+ * @return array{0:array,1:list<string>}
+ */
+$contractInput = function (array $e, ?array $existing) use ($pdo): array {
+    $d = [
+        'contract_type'        => in_array(input('contract_type'), HrContract::TYPES, true) ? (string) input('contract_type') : '',
+        'start_date'           => trim((string) input('start_date', '')),
+        'end_date'             => trim((string) input('end_date', '')) ?: null,
+        'is_probation'         => input('is_probation') ? 1 : 0,
+        'probation_months'     => ((int) input('probation_months', 0)) ?: null,
+        'position'             => trim((string) input('position', '')),
+        'work_location'        => (string) input('work_location', ''),
+        'signed_date'          => trim((string) input('signed_date', '')) ?: null,
+        'previous_contract_id' => ((int) input('previous_contract_id', 0)) ?: null,
+    ];
+    $err = [];
+    if ($d['contract_type'] === '' || !Hr::valid_date($d['start_date'])) {
+        $err[] = 'hrc_err_type_start';
+    }
+    if ($d['contract_type'] === 'PKWT') {
+        $d['is_probation'] = 0;
+        $d['probation_months'] = null;
+        if ($d['end_date'] === null || !Hr::valid_date($d['end_date']) || $d['end_date'] < $d['start_date']) {
+            $err[] = 'hrc_err_end';
+        }
+    } else {
+        $d['end_date'] = null;
+        if (!$d['is_probation']) {
+            $d['probation_months'] = null;
+        } elseif ($d['probation_months'] === null || $d['probation_months'] < 1 || $d['probation_months'] > 3) {
+            $err[] = 'hrc_err_probation';
+        }
+    }
+    if ($d['position'] === '' || !in_array($d['work_location'], Hr::LOCATIONS, true)) {
+        $err[] = 'hrc_err_job';
+    }
+    if ($d['signed_date'] !== null && !Hr::valid_date($d['signed_date'])) {
+        $err[] = 'hr_err_date';
+    }
+    if ($d['previous_contract_id'] !== null) {
+        $prev = HrContract::find($pdo, $d['previous_contract_id']);
+        if (!$prev || (int) $prev['employee_id'] !== (int) $e['id'] || ($existing && (int) $prev['id'] === (int) $existing['id'])) {
+            $d['previous_contract_id'] = null;
+        }
+    }
+    return [$d, $err];
+};
+
 switch ($action) {
     // ── HR-00: the 人力 home is the todo list ──
     case 'index':
@@ -103,7 +164,12 @@ switch ($action) {
         }
         $st = $pdo->prepare('SELECT e.* FROM employees e WHERE ' . implode(' AND ', $cond) . ' ORDER BY e.employee_no');
         $st->execute($args);
-        view('hr.employees', ['pageTitle' => t('hr_employees'), 'pageSub' => '', 'rows' => $st->fetchAll(), 'f' => $f, 'viewer' => $viewer]);
+        $rows = $st->fetchAll();
+        $current = [];
+        foreach ($rows as $r) {
+            $current[(int) $r['id']] = HrContract::current($pdo, (int) $r['id'], $today);
+        }
+        view('hr.employees', ['pageTitle' => t('hr_employees'), 'pageSub' => '', 'rows' => $rows, 'f' => $f, 'viewer' => $viewer, 'current' => $current, 'today' => $today]);
         break;
 
     case 'show':
@@ -128,6 +194,12 @@ switch ($action) {
             'attachments' => $att->fetchAll(), 'changes' => $ch->fetchAll(), 'account' => $acct->fetch() ?: null, 'supervisor' => $sup,
             'staff' => $pdo->query("SELECT id, full_name, employee_no FROM employees WHERE employment_status <> 'resigned' ORDER BY full_name")->fetchAll(),
             'today' => $today,
+            'contracts' => (function () use ($pdo, $e): array {
+                $st = $pdo->prepare('SELECT * FROM employment_contracts WHERE employee_id = ? ORDER BY start_date DESC, id DESC');
+                $st->execute([$e['id']]);
+                return $st->fetchAll();
+            })(),
+            'currentContract' => HrContract::current($pdo, (int) $e['id'], $today),
             // CRM accounts HR may link: not the administrator, not linked to someone else.
             'linkable' => $viewer['edit'] ? (function () use ($pdo, $e): array {
                 $st = $pdo->prepare("SELECT id, name, email, role, active FROM users WHERE role <> 'admin' AND (employee_id IS NULL OR employee_id = ?) ORDER BY name");
@@ -354,38 +426,15 @@ switch ($action) {
         $e = $findEmployee((int) input('id', 0));
         $back = ['hr.show', ['id' => $e['id'], 'tab' => 'files']];
         $type = in_array(input('doc_type'), Hr::DOC_TYPES, true) ? (string) input('doc_type') : '';
-        $file = $_FILES['file'] ?? null;
-        if ($type === '' || !$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-            flash(t('hr_err_upload'), 'error');
-            redirect($back[0], $back[1]);
-        }
-        $allowed = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png'];
-        $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
-        if ((int) $file['size'] <= 0 || (int) $file['size'] > 10 * 1024 * 1024) {
-            flash(t('hr_err_too_big'), 'error');
-            redirect($back[0], $back[1]);
-        }
-        // Extension AND content must both be pdf / jpg / png.
-        if (!isset($allowed[$ext]) || Hr::sniff((string) $file['tmp_name']) !== $allowed[$ext]) {
-            flash(t('hr_err_type'), 'error');
-            redirect($back[0], $back[1]);
-        }
-        $dir = Hr::upload_dir((int) $e['id']);
-        if (!is_dir($dir)) {
-            mkdir($dir, 0750, true);
-        }
-        $stored = bin2hex(random_bytes(12)) . '.' . ($ext === 'jpeg' ? 'jpg' : $ext);
-        $moved = is_uploaded_file((string) $file['tmp_name'])
-            ? move_uploaded_file((string) $file['tmp_name'], $dir . '/' . $stored)
-            : (PHP_SAPI === 'cli' && rename((string) $file['tmp_name'], $dir . '/' . $stored));   // test harness only
-        if (!$moved) {
-            flash(t('hr_err_upload'), 'error');
+        $up = $type === '' ? ['error' => 'hr_err_upload'] : Hr::accept_upload($_FILES['file'] ?? null, (int) $e['id']);
+        if (isset($up['error'])) {
+            flash(t($up['error']), 'error');
             redirect($back[0], $back[1]);
         }
         $pdo->prepare('INSERT INTO employee_attachments (employee_id, doc_type, file_path, file_name, mime, size, uploaded_by) VALUES (?,?,?,?,?,?,?)')
-            ->execute([$e['id'], $type, $stored, (string) $file['name'], $allowed[$ext], (int) $file['size'], $operator]);
+            ->execute([$e['id'], $type, $up['stored'], $up['name'], $up['mime'], $up['size'], $operator]);
         audit($pdo, 'hr', 'upload', 'employee_attachments', (int) $pdo->lastInsertId(), $e['employee_no'] . ' ' . $e['full_name'],
-            sprintf('employee_attachments: %s %s', strtoupper($type), (string) $file['name']));
+            sprintf('employee_attachments: %s %s', strtoupper($type), $up['name']));
         flash(t('hr_msg_uploaded'));
         redirect($back[0], $back[1]);
         break;
@@ -400,18 +449,8 @@ switch ($action) {
             exit('Not found');
         }
         $findEmployee((int) $a['employee_id']);
-        $path = Hr::upload_dir((int) $a['employee_id']) . '/' . basename((string) $a['file_path']);
-        if (!is_file($path)) {
-            http_response_code(404);
-            exit('Not found');
-        }
-        header('Content-Type: ' . ($a['mime'] ?: 'application/octet-stream'));
-        header("Content-Disposition: inline; filename*=UTF-8''" . rawurlencode((string) $a['file_name']));
-        header('Content-Length: ' . (string) filesize($path));
-        header('X-Content-Type-Options: nosniff');
-        header('Cache-Control: private, no-store');
-        readfile($path);
-        exit;
+        Hr::send_file((int) $a['employee_id'], (string) $a['file_path'], $a['mime'], (string) $a['file_name']);
+        break;
 
     // Resignation: status → resigned, three todos, CRM account deactivated (never deleted).
     case 'resign':
@@ -433,27 +472,336 @@ switch ($action) {
             flash(t('hr_err_resign_before_join'), 'error');
             redirect($back[0], $back[1]);
         }
-        $pdo->beginTransaction();
-        $pdo->prepare("UPDATE employees SET employment_status = 'resigned', resign_date = ?, resign_reason = ?, updated_by = ?, updated_at = ? WHERE id = ?")
-            ->execute([$date, $reason, $operator, date('Y-m-d H:i:s'), $e['id']]);
-        Hr::record_change($pdo, (int) $e['id'], 'status', 'employment_status', (string) $e['employment_status'], 'resigned', $date, $reason, $operator);
-        $ref = 'resign:' . $pdo->lastInsertId();   // one set of todos per resignation (it can be undone and redone)
-        foreach (['contract_end', 'bpjs_stop', 'account_off'] as $type) {
-            Hr::add_todo($pdo, $type, (int) $e['id'], $date, $ref);
-        }
-        $accounts = $pdo->prepare('SELECT id, name, active FROM users WHERE employee_id = ?');
-        $accounts->execute([$e['id']]);
-        $accts = $accounts->fetchAll();
-        $pdo->prepare('UPDATE users SET active = 0 WHERE employee_id = ?')->execute([$e['id']]);
-        $pdo->commit();
-        $label = $e['employee_no'] . ' ' . $e['full_name'];
-        Hr::audit_fields($pdo, 'resign', 'employees', (int) $e['id'], $label,
-            ['employment_status' => $e['employment_status'], 'resign_date' => $e['resign_date'], 'resign_reason' => $e['resign_reason']],
-            ['employment_status' => 'resigned', 'resign_date' => $date, 'resign_reason' => $reason]);
-        foreach ($accts as $u) {
-            audit($pdo, 'hr', 'resign', 'users', (int) $u['id'], (string) $u['name'], 'users.active: ' . (int) $u['active'] . ' → 0 (离职停用)');
-        }
+        Hr::resign($pdo, $e, $date, $reason, $operator);
         flash(t('hr_msg_resigned'));
+        redirect($back[0], $back[1]);
+        break;
+
+    // ── HR-02: contracts ──
+    case 'contracts':
+        $f = [
+            'type'   => in_array(input('type'), HrContract::TYPES, true) ? (string) input('type') : '',
+            'status' => in_array(input('status'), HrContract::STATUSES, true) ? (string) input('status') : '',
+            'within' => in_array((int) input('within', 0), [30, 60], true) ? (int) input('within') : 0,
+        ];
+        [$w, $args] = Hr::scope_sql($viewer);
+        $cond = [$w];
+        if ($f['type'] !== '') {
+            $cond[] = 'c.contract_type = ?';
+            $args[] = $f['type'];
+        }
+        if ($f['status'] !== '') {
+            $cond[] = 'c.status = ?';
+            $args[] = $f['status'];
+        }
+        if ($f['within'] > 0) {
+            $cond[] = "c.status = 'active' AND c.contract_type = 'PKWT' AND c.end_date BETWEEN ? AND ?";
+            array_push($args, $today, HrContract::add_days($today, $f['within']));
+        }
+        $st = $pdo->prepare('SELECT c.*, e.full_name, e.employee_no FROM employment_contracts c JOIN employees e ON e.id = c.employee_id
+                              WHERE ' . implode(' AND ', $cond) . ' ORDER BY c.status = \'active\' DESC, c.end_date IS NULL, c.end_date, c.id DESC');
+        $st->execute($args);
+        view('hr.contracts', ['pageTitle' => t('hr_contracts'), 'pageSub' => '', 'rows' => $st->fetchAll(), 'f' => $f, 'viewer' => $viewer, 'today' => $today]);
+        break;
+
+    case 'contract':
+        [$c, $e] = $findContract((int) input('id', 0));
+        $prev = $c['previous_contract_id'] ? HrContract::find($pdo, (int) $c['previous_contract_id']) : null;
+        $next = $pdo->prepare('SELECT id, contract_no, contract_type, status FROM employment_contracts WHERE previous_contract_id = ? ORDER BY id');
+        $next->execute([$c['id']]);
+        view('hr.contract', [
+            'pageTitle' => (string) $c['contract_no'], 'pageSub' => $e['employee_no'] . ' ' . $e['full_name'],
+            'c' => $c, 'e' => $e, 'viewer' => $viewer, 'today' => $today, 'prev' => $prev, 'next' => $next->fetchAll(),
+            'salaryVisible' => Hr::can_see_salary($viewer, $e),
+            'salary' => Hr::can_see_salary($viewer, $e) ? Hr::decrypt($c['salary_enc']) : null,
+            'decidable' => $c['contract_type'] === 'PKWT' && in_array($c['status'], ['active', 'expired'], true) && !HrContract::has_successor($pdo, (int) $c['id']),
+        ]);
+        break;
+
+    // New contract: from the employee page, employee locked.
+    case 'contract_new':
+    case 'contract_edit':
+        $requireEdit();
+        if ($action === 'contract_new') {
+            $c = null;
+            $e = $findEmployee((int) input('employee_id', 0));
+        } else {
+            [$c, $e] = $findContract((int) input('id', 0));
+            if (!in_array($c['status'], ['draft', 'active'], true)) {
+                flash(t('hrc_err_locked'), 'error');
+                redirect('hr.contract', ['id' => $c['id']]);
+            }
+        }
+        $others = $pdo->prepare('SELECT id, contract_no, contract_type, start_date, end_date, status FROM employment_contracts WHERE employee_id = ? AND id <> ? ORDER BY start_date DESC');
+        $others->execute([$e['id'], $c['id'] ?? 0]);
+        view('hr.contract_form', [
+            'pageTitle' => $c ? t('btn_edit') . ' · ' . $c['contract_no'] : t('hrc_new'), 'pageSub' => $e['employee_no'] . ' ' . $e['full_name'],
+            'c' => $c, 'e' => $e, 'viewer' => $viewer, 'others' => $others->fetchAll(),
+            'salary' => $c ? Hr::decrypt($c['salary_enc']) : Hr::decrypt($e['base_salary_enc']),
+        ]);
+        break;
+
+    case 'contract_store':
+        Csrf::verify();
+        $requireEdit();
+        $e = $findEmployee((int) input('employee_id', 0));
+        [$d, $err] = $contractInput($e, null);
+        $salary = trim((string) input('salary', ''));
+        if ($salary !== '' && !Hr::crypto_ready()) {
+            $err[] = 'hr_err_no_key';
+        }
+        if ($err) {
+            flash(implode(' ', array_map('t', array_unique($err))), 'error');
+            $_SESSION['hr_form_old'] = $_POST;
+            redirect('hr.contract_new', ['employee_id' => $e['id']]);
+        }
+        $d['contract_no'] = HrContract::next_no($pdo, $d['start_date']);
+        $d['employee_id'] = $e['id'];
+        $d['renewal_count'] = HrContract::renewal_count($pdo, $d['contract_type'], $d['previous_contract_id']);
+        $d['salary_enc'] = $salary === '' ? null : Hr::encrypt((string) (float) $salary);
+        $d['status'] = 'draft';
+        $d['created_by'] = $d['updated_by'] = $operator;
+        $d['updated_at'] = date('Y-m-d H:i:s');
+        $pdo->prepare('INSERT INTO employment_contracts (' . implode(',', array_keys($d)) . ') VALUES (' . implode(',', array_fill(0, count($d), '?')) . ')')
+            ->execute(array_values($d));
+        $cid = (int) $pdo->lastInsertId();
+        audit($pdo, 'hr', 'create', 'employment_contracts', $cid, $d['contract_no'],
+            sprintf('employment_contracts: %s %s %s %s~%s; %s', $d['contract_no'], $e['employee_no'], $d['contract_type'], Hr::dmy($d['start_date']), Hr::dmy($d['end_date']) ?: '—', 'draft'));
+        flash(sprintf(t('hrc_msg_created'), $d['contract_no']));
+        redirect('hr.contract', ['id' => $cid]);
+        break;
+
+    // Drafts: every field. Active contracts: only corrections of end date and signing date.
+    case 'contract_update':
+        Csrf::verify();
+        $requireEdit();
+        [$c, $e] = $findContract((int) input('id', 0));
+        $back = ['hr.contract_edit', ['id' => $c['id']]];
+        if ($c['status'] === 'active') {
+            $d = ['end_date' => trim((string) input('end_date', '')) ?: null, 'signed_date' => trim((string) input('signed_date', '')) ?: null];
+            $err = [];
+            if ($c['contract_type'] === 'PKWT' && ($d['end_date'] === null || !Hr::valid_date($d['end_date']) || $d['end_date'] < $c['start_date'])) {
+                $err[] = 'hrc_err_end';
+            }
+            if ($c['contract_type'] === 'PKWTT') {
+                $d['end_date'] = null;
+            }
+            if ($d['signed_date'] !== null && !Hr::valid_date($d['signed_date'])) {
+                $err[] = 'hr_err_date';
+            }
+            if (!$err && ($o = HrContract::overlapping($pdo, (int) $e['id'], (string) $c['start_date'], $d['end_date'], (int) $c['id']))) {
+                $err[] = 'hrc_err_overlap';
+            }
+        } elseif ($c['status'] === 'draft') {
+            [$d, $err] = $contractInput($e, $c);
+            $salary = trim((string) input('salary', ''));
+            if ($salary !== '' && !Hr::crypto_ready()) {
+                $err[] = 'hr_err_no_key';
+            }
+            if (!$err) {
+                if (substr((string) $d['start_date'], 0, 4) !== substr((string) $c['start_date'], 0, 4) || substr((string) $d['start_date'], 5, 2) !== substr((string) $c['start_date'], 5, 2)) {
+                    $d['contract_no'] = HrContract::next_no($pdo, $d['start_date'], (int) $c['id']);   // still a draft: number follows the start date
+                }
+                $d['renewal_count'] = HrContract::renewal_count($pdo, $d['contract_type'], $d['previous_contract_id']);
+                $old = Hr::decrypt($c['salary_enc']);
+                if ($salary !== '' && (string) (float) $salary !== (string) ($old === null ? '' : (float) $old)) {
+                    $d['salary_enc'] = Hr::encrypt((string) (float) $salary);
+                }
+            }
+        } else {
+            $err = ['hrc_err_locked'];
+            $d = [];
+        }
+        if ($err) {
+            flash(implode(' ', array_map('t', array_unique($err))), 'error');
+            redirect($back[0], $back[1]);
+        }
+        $d['updated_by'] = $operator;
+        $d['updated_at'] = date('Y-m-d H:i:s');
+        $pdo->prepare('UPDATE employment_contracts SET ' . implode(',', array_map(fn($k) => "{$k} = ?", array_keys($d))) . ' WHERE id = ?')
+            ->execute([...array_values($d), $c['id']]);
+        $audited = array_diff_key($d, array_flip(['updated_by', 'updated_at']));
+        Hr::audit_fields($pdo, 'update', 'employment_contracts', (int) $c['id'], (string) ($d['contract_no'] ?? $c['contract_no']),
+            array_intersect_key($c, $audited), $audited);
+        if ($c['status'] === 'active') {
+            HrContract::scan($pdo, $today);   // a shortened end date may raise a reminder right away
+        }
+        flash(t('hr_msg_saved'));
+        redirect('hr.contract', ['id' => $c['id']]);
+        break;
+
+    case 'contract_upload':
+        Csrf::verify();
+        $requireEdit();
+        [$c, $e] = $findContract((int) input('id', 0));
+        $back = ['hr.contract', ['id' => $c['id']]];
+        if ($c['status'] !== 'draft') {
+            flash(t('hrc_err_locked'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        $up = Hr::accept_upload($_FILES['file'] ?? null, (int) $e['id']);
+        if (isset($up['error'])) {
+            flash(t($up['error']), 'error');
+            redirect($back[0], $back[1]);
+        }
+        $pdo->prepare('UPDATE employment_contracts SET file_path = ?, file_name = ?, file_mime = ?, file_size = ?, updated_by = ?, updated_at = ? WHERE id = ?')
+            ->execute([$up['stored'], $up['name'], $up['mime'], $up['size'], $operator, date('Y-m-d H:i:s'), $c['id']]);
+        audit($pdo, 'hr', 'upload', 'employment_contracts', (int) $c['id'], (string) $c['contract_no'],
+            'employment_contracts.file: ' . ($c['file_name'] ? $c['file_name'] . ' → ' : '') . $up['name']);
+        flash(t('hr_msg_uploaded'));
+        redirect($back[0], $back[1]);
+        break;
+
+    case 'contract_file':
+        [$c] = $findContract((int) input('id', 0));
+        if (!$c['file_path']) {
+            http_response_code(404);
+            exit('Not found');
+        }
+        Hr::send_file((int) $c['employee_id'], (string) $c['file_path'], $c['file_mime'], (string) $c['file_name']);
+        break;
+
+    // Draft → active (or straight to expired for a past, historical contract). Needs the scan.
+    case 'contract_activate':
+        Csrf::verify();
+        $requireEdit();
+        [$c, $e] = $findContract((int) input('id', 0));
+        $back = ['hr.contract', ['id' => $c['id']]];
+        if ($c['status'] !== 'draft') {
+            flash(t('hrc_err_locked'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        if (!$c['file_path']) {
+            flash(t('hrc_err_need_scan'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        $historical = $c['end_date'] !== null && $c['end_date'] < $today;
+        if (!$historical && ($o = HrContract::overlapping($pdo, (int) $e['id'], (string) $c['start_date'], $c['end_date'], (int) $c['id']))) {
+            flash(sprintf(t('hrc_err_overlap_with'), $o['contract_no']), 'error');
+            redirect($back[0], $back[1]);
+        }
+        $to = $historical ? 'expired' : 'active';
+        $pdo->prepare('UPDATE employment_contracts SET status = ?, updated_by = ?, updated_at = ? WHERE id = ?')->execute([$to, $operator, date('Y-m-d H:i:s'), $c['id']]);
+        audit($pdo, 'hr', 'activate', 'employment_contracts', (int) $c['id'], (string) $c['contract_no'], "employment_contracts.status: draft → {$to}");
+        HrContract::scan($pdo, $today);   // syncs the employee record if it has started; raises reminders
+        flash(t($historical ? 'hrc_msg_historical' : 'hrc_msg_activated'));
+        redirect($back[0], $back[1]);
+        break;
+
+    // Expiry page: renew PKWT / convert to PKWTT / terminate.
+    case 'contract_decide':
+        $requireEdit();
+        [$c, $e] = $findContract((int) input('id', 0));
+        if (!($c['contract_type'] === 'PKWT' && in_array($c['status'], ['active', 'expired'], true) && !HrContract::has_successor($pdo, (int) $c['id']))) {
+            flash(t('hrc_err_not_decidable'), 'error');
+            redirect('hr.contract', ['id' => $c['id']]);
+        }
+        view('hr.contract_decide', [
+            'pageTitle' => t('hrc_decide') . ' · ' . $c['contract_no'], 'pageSub' => $e['employee_no'] . ' ' . $e['full_name'],
+            'c' => $c, 'e' => $e, 'viewer' => $viewer, 'today' => $today,
+            'salary' => Hr::decrypt($c['salary_enc']),
+            'overLimit' => HrContract::over_limit($pdo, $c),
+            'pkwtDays' => HrContract::pkwt_days($pdo, $c),
+        ]);
+        break;
+
+    case 'contract_renew':
+    case 'contract_convert':
+        Csrf::verify();
+        $requireEdit();
+        [$c, $e] = $findContract((int) input('id', 0));
+        $back = ['hr.contract_decide', ['id' => $c['id']]];
+        if (!($c['contract_type'] === 'PKWT' && in_array($c['status'], ['active', 'expired'], true) && !HrContract::has_successor($pdo, (int) $c['id']))) {
+            flash(t('hrc_err_not_decidable'), 'error');
+            redirect('hr.contract', ['id' => $c['id']]);
+        }
+        $renew = $action === 'contract_renew';
+        $start = $renew ? HrContract::add_days((string) $c['end_date'], 1) : trim((string) input('start_date', ''));
+        $end = $renew ? trim((string) input('end_date', '')) : null;
+        $err = [];
+        if (!$renew && (!Hr::valid_date($start) || $start <= $c['start_date'])) {
+            $err[] = 'hrc_err_type_start';
+        }
+        if ($renew && (!Hr::valid_date((string) $end) || $end < $start)) {
+            $err[] = 'hrc_err_end';
+        }
+        $position = trim((string) input('position', (string) $c['position']));
+        $location = in_array(input('work_location'), Hr::LOCATIONS, true) ? (string) input('work_location') : (string) $c['work_location'];
+        $salary = trim((string) input('salary', ''));
+        if ($salary !== '' && !Hr::crypto_ready()) {
+            $err[] = 'hr_err_no_key';
+        }
+        if ($err) {
+            flash(implode(' ', array_map('t', $err)), 'error');
+            redirect($back[0], $back[1]);
+        }
+        $warn = $renew && HrContract::over_limit($pdo, $c, $end);
+        $d = [
+            'contract_no' => HrContract::next_no($pdo, $start), 'employee_id' => $e['id'], 'contract_type' => $renew ? 'PKWT' : 'PKWTT',
+            'is_probation' => 0, 'probation_months' => null, 'start_date' => $start, 'end_date' => $end,
+            'position' => $position, 'work_location' => $location,
+            'salary_enc' => $salary === '' ? $c['salary_enc'] : Hr::encrypt((string) (float) $salary),
+            'status' => 'draft', 'previous_contract_id' => $c['id'], 'renewal_count' => $renew ? (int) $c['renewal_count'] + 1 : 0,
+            'created_by' => $operator, 'updated_by' => $operator, 'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        $pdo->beginTransaction();
+        $pdo->prepare('INSERT INTO employment_contracts (' . implode(',', array_keys($d)) . ') VALUES (' . implode(',', array_fill(0, count($d), '?')) . ')')
+            ->execute(array_values($d));
+        $nid = (int) $pdo->lastInsertId();
+        if (!$renew) {
+            $pdo->prepare("UPDATE employment_contracts SET status = 'converted', updated_by = ?, updated_at = ? WHERE id = ?")->execute([$operator, date('Y-m-d H:i:s'), $c['id']]);
+        }
+        HrContract::close_todos($pdo, (int) $c['id'], ($renew ? t('hrc_renew') : t('hrc_convert')) . ' → ' . $d['contract_no'], $operator);
+        $pdo->commit();
+        audit($pdo, 'hr', $renew ? 'renew' : 'convert', 'employment_contracts', $nid, $d['contract_no'],
+            sprintf('employment_contracts: %s → %s %s %s~%s; renewal_count %d', $c['contract_no'], $d['contract_no'], $d['contract_type'], Hr::dmy($start), Hr::dmy($end) ?: '—', $d['renewal_count']));
+        if (!$renew) {
+            audit($pdo, 'hr', 'convert', 'employment_contracts', (int) $c['id'], (string) $c['contract_no'], 'employment_contracts.status: ' . $c['status'] . ' → converted');
+        }
+        flash(sprintf(t($renew ? 'hrc_msg_renewed' : 'hrc_msg_converted'), $d['contract_no']));
+        if ($warn) {
+            flash(t('hrc_limit_warning'), 'error');
+        }
+        redirect('hr.contract', ['id' => $nid]);
+        break;
+
+    // Terminate: a draft is simply closed; an active / expired contract also
+    // runs the HR-01 resignation (unless the employee has already left).
+    case 'contract_terminate':
+        Csrf::verify();
+        $requireEdit();
+        [$c, $e] = $findContract((int) input('id', 0));
+        $back = ['hr.contract', ['id' => $c['id']]];
+        $date = trim((string) input('termination_date', ''));
+        $reason = trim((string) input('termination_reason', ''));
+        if (!in_array($c['status'], ['draft', 'active', 'expired'], true)) {
+            flash(t('hrc_err_locked'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        if (!Hr::valid_date($date) || $reason === '') {
+            flash(t('hrc_err_terminate_req'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        if ($c['status'] !== 'draft' && $date < $c['start_date']) {
+            flash(t('hrc_err_terminate_before'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        $pdo->prepare("UPDATE employment_contracts SET status = 'terminated', termination_date = ?, termination_reason = ?, updated_by = ?, updated_at = ? WHERE id = ?")
+            ->execute([$date, $reason, $operator, date('Y-m-d H:i:s'), $c['id']]);
+        HrContract::close_todos($pdo, (int) $c['id'], t('hrc_terminate'), $operator);
+        Hr::audit_fields($pdo, 'terminate', 'employment_contracts', (int) $c['id'], (string) $c['contract_no'],
+            ['status' => $c['status'], 'termination_date' => $c['termination_date'], 'termination_reason' => $c['termination_reason']],
+            ['status' => 'terminated', 'termination_date' => $date, 'termination_reason' => $reason]);
+        if ($c['status'] !== 'draft') {
+            if ($e['employment_status'] !== 'resigned') {
+                Hr::resign($pdo, $e, $date, $reason, $operator);
+            }
+            // The resignation's "terminate the contract" todo is now done.
+            $pdo->prepare("UPDATE hr_todos SET status = 'done', handled_by = ?, handled_at = datetime('now','localtime'), handled_note = ?
+                           WHERE employee_id = ? AND type = 'contract_end' AND status = 'open'")
+                ->execute([$operator, (string) $c['contract_no'], $e['id']]);
+        }
+        flash(t($c['status'] === 'draft' ? 'hrc_msg_draft_closed' : 'hrc_msg_terminated'));
         redirect($back[0], $back[1]);
         break;
 

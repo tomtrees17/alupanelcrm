@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * 人力 / SDM — HR-00 (shared rules) and HR-01 (employee records).
+ * 人力 / SDM — HR-00 (shared rules) and HR-01 (employee records); contracts (HR-02) in HrContract.
  * Spec: docs/任务卡-人力一期.md. Decisions taken with the owner (2026-10-21):
  *   - viewers: hr role edits everything; the boss (admin) reads everything incl.
  *     salary; the general manager (permission 'hr_all', default: manager role)
@@ -296,7 +296,88 @@ final class Hr
         return $n;
     }
 
+    // ───────────────────────────── resignation ─────────────────────────────
+
+    /**
+     * HR-01 resignation, also reached from HR-02 contract termination:
+     * status → resigned, three todos, linked CRM accounts deactivated (never
+     * deleted). Returns the todo reference of this resignation.
+     */
+    public static function resign(PDO $pdo, array $e, string $date, string $reason, string $operator): string
+    {
+        $pdo->beginTransaction();
+        $pdo->prepare("UPDATE employees SET employment_status = 'resigned', resign_date = ?, resign_reason = ?, updated_by = ?, updated_at = ? WHERE id = ?")
+            ->execute([$date, $reason, $operator, date('Y-m-d H:i:s'), $e['id']]);
+        self::record_change($pdo, (int) $e['id'], 'status', 'employment_status', (string) $e['employment_status'], 'resigned', $date, $reason, $operator);
+        $ref = 'resign:' . $pdo->lastInsertId();   // one set of todos per resignation (it can be undone and redone)
+        foreach (['contract_end', 'bpjs_stop', 'account_off'] as $type) {
+            self::add_todo($pdo, $type, (int) $e['id'], $date, $ref);
+        }
+        $accounts = $pdo->prepare('SELECT id, name, active FROM users WHERE employee_id = ?');
+        $accounts->execute([$e['id']]);
+        $accts = $accounts->fetchAll();
+        $pdo->prepare('UPDATE users SET active = 0 WHERE employee_id = ?')->execute([$e['id']]);
+        $pdo->commit();
+        $label = $e['employee_no'] . ' ' . $e['full_name'];
+        self::audit_fields($pdo, 'resign', 'employees', (int) $e['id'], $label,
+            ['employment_status' => $e['employment_status'], 'resign_date' => $e['resign_date'], 'resign_reason' => $e['resign_reason']],
+            ['employment_status' => 'resigned', 'resign_date' => $date, 'resign_reason' => $reason]);
+        foreach ($accts as $u) {
+            audit($pdo, 'hr', 'resign', 'users', (int) $u['id'], (string) $u['name'], 'users.active: ' . (int) $u['active'] . ' → 0 (离职停用)');
+        }
+        return $ref;
+    }
+
     // ───────────────────────────── attachments ─────────────────────────────
+
+    /**
+     * Validate an uploaded file (≤10MB; extension AND content pdf / jpg / png)
+     * and move it into the employee's private dir under a random name.
+     * @return array{error?:string, stored?:string, name?:string, mime?:string, size?:int}  error = i18n key
+     */
+    public static function accept_upload(?array $file, int $empId): array
+    {
+        if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            return ['error' => 'hr_err_upload'];
+        }
+        $allowed = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png'];
+        $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+        if ((int) $file['size'] <= 0 || (int) $file['size'] > 10 * 1024 * 1024) {
+            return ['error' => 'hr_err_too_big'];
+        }
+        if (!isset($allowed[$ext]) || self::sniff((string) $file['tmp_name']) !== $allowed[$ext]) {
+            return ['error' => 'hr_err_type'];
+        }
+        $dir = self::upload_dir($empId);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0750, true);
+        }
+        $stored = bin2hex(random_bytes(12)) . '.' . ($ext === 'jpeg' ? 'jpg' : $ext);
+        $moved = is_uploaded_file((string) $file['tmp_name'])
+            ? move_uploaded_file((string) $file['tmp_name'], $dir . '/' . $stored)
+            : (PHP_SAPI === 'cli' && rename((string) $file['tmp_name'], $dir . '/' . $stored));   // test harness only
+        if (!$moved) {
+            return ['error' => 'hr_err_upload'];
+        }
+        return ['stored' => $stored, 'name' => (string) $file['name'], 'mime' => $allowed[$ext], 'size' => (int) $file['size']];
+    }
+
+    /** Stream a stored private file (after the caller's permission check). */
+    public static function send_file(int $empId, string $stored, ?string $mime, string $name): void
+    {
+        $path = self::upload_dir($empId) . '/' . basename($stored);
+        if (!is_file($path)) {
+            http_response_code(404);
+            exit('Not found');
+        }
+        header('Content-Type: ' . ($mime ?: 'application/octet-stream'));
+        header("Content-Disposition: inline; filename*=UTF-8''" . rawurlencode($name));
+        header('Content-Length: ' . (string) filesize($path));
+        header('X-Content-Type-Options: nosniff');
+        header('Cache-Control: private, no-store');
+        readfile($path);
+        exit;
+    }
 
     /** Tests point this at a temp dir so a run on the server never writes into data/. */
     public static ?string $uploadRoot = null;

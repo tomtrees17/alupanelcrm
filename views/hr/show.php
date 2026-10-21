@@ -1,5 +1,5 @@
 <?php
-/** @var array $e */ /** @var string $tab */ /** @var array $viewer */ /** @var bool $salaryVisible */ /** @var ?string $salary */
+/** @var array $e */ /** @var string $tab */ /** @var array $viewer */ /** @var bool $salaryVisible */ /** @var ?string $salary */ /** @var array $contracts */ /** @var ?array $currentContract */
 /** @var array $attachments */ /** @var array $changes */ /** @var ?array $account */ /** @var ?array $supervisor */ /** @var array $staff */ /** @var string $today */
 $pct = Hr::completeness($e);
 $dash = fn($v) => ($v === null || $v === '') ? '<span class="muted">—</span>' : e((string) $v);
@@ -191,8 +191,37 @@ $valueOf = function (?string $field, ?string $v) use ($salaryVisible): string {
     <?php endif; ?>
 </div>
 
-<?php elseif ($tab === 'contracts' || $tab === 'bpjs'): ?>
-<div class="card"><div class="empty"><?= t($tab === 'contracts' ? 'hr_contracts_soon' : 'hr_bpjs_soon') ?></div></div>
+<?php elseif ($tab === 'contracts'): ?>
+<?php include __DIR__ . '/_contract_status.php'; ?>
+<?php if ($currentContract): ?>
+<div class="card"><div class="card-body">
+    <strong><?= t('hrc_current') ?>:</strong> <a href="<?= url('hr.contract', ['id' => $currentContract['id']]) ?>"><code><?= e($currentContract['contract_no']) ?></code></a>
+    <?= e($currentContract['contract_type']) ?> · <?= e(Hr::dmy($currentContract['start_date'])) ?> – <?= $currentContract['end_date'] ? e(Hr::dmy($currentContract['end_date'])) : '—' ?>
+    <?php if ($currentContract['contract_type'] === 'PKWT'): ?><span class="muted small"> · <?= sprintf(t('hrc_days_left_n'), HrContract::days($today, (string) $currentContract['end_date'])) ?></span><?php endif; ?>
+</div></div>
+<?php endif; ?>
+<div class="card">
+    <div class="card-header"><span class="card-title"><?= t('hr_contracts') ?></span>
+        <?php if ($viewer['edit']): ?><a class="btn btn-primary btn-sm" href="<?= url('hr.contract_new', ['employee_id' => $e['id']]) ?>"><?= t('hrc_new') ?></a><?php endif; ?></div>
+    <div class="table-wrap"><table>
+        <thead><tr><th><?= t('hrc_no') ?></th><th><?= t('hrc_type') ?></th><th><?= t('hrc_period') ?></th><th><?= t('hr_status') ?></th><th><?= t('hrc_scan') ?></th></tr></thead>
+        <tbody>
+        <?php if (!$contracts): ?><tr><td colspan="5" class="empty"><?= t('no_data') ?></td></tr><?php endif; ?>
+        <?php foreach ($contracts as $k): ?>
+            <tr class="clickable" onclick="location.href='<?= url('hr.contract', ['id' => $k['id']]) ?>'">
+                <td class="nowrap"><code><?= e($k['contract_no']) ?></code></td>
+                <td><?= e($k['contract_type']) ?><?= $k['contract_type'] === 'PKWT' && (int) $k['renewal_count'] > 0 ? ' <span class="muted small">' . sprintf(t('hrc_renewal_n'), (int) $k['renewal_count']) . '</span>' : '' ?></td>
+                <td class="nowrap"><?= e(Hr::dmy($k['start_date'])) ?> – <?= $k['end_date'] ? e(Hr::dmy($k['end_date'])) : '—' ?></td>
+                <td><?= $contractTag((string) $k['status']) ?></td>
+                <td><?= $k['file_path'] ? '✓' : '<span class="muted">—</span>' ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table></div>
+</div>
+
+<?php elseif ($tab === 'bpjs'): ?>
+<div class="card"><div class="empty"><?= t('hr_bpjs_soon') ?></div></div>
 
 <?php else: ?>
 <div class="card"><div class="table-wrap"><table>

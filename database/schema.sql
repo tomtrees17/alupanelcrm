@@ -441,7 +441,31 @@ CREATE TABLE hr_todos (
     created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     UNIQUE (type, employee_id, ref)
 );
+-- HR-02 contracts
+CREATE TABLE employment_contracts (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_no          TEXT UNIQUE,                -- KK/AMI/{MM}/{YYYY}/{NNN}: start date's month/year, serial per year
+    employee_id          INTEGER NOT NULL REFERENCES employees(id),
+    contract_type        TEXT NOT NULL,              -- PKWT|PKWTT
+    is_probation         INTEGER NOT NULL DEFAULT 0, -- PKWTT only
+    probation_months     INTEGER,                    -- ≤ 3
+    start_date           TEXT NOT NULL,
+    end_date             TEXT,                       -- NULL for PKWTT
+    position TEXT, work_location TEXT,
+    salary_enc           TEXT,                       -- AES-256-GCM like employees.base_salary_enc
+    signed_date          TEXT,
+    status               TEXT NOT NULL DEFAULT 'draft', -- draft|active|expired|terminated|converted
+    previous_contract_id INTEGER REFERENCES employment_contracts(id),
+    renewal_count        INTEGER NOT NULL DEFAULT 0, -- PKWT renewals so far in the chain
+    file_path TEXT, file_name TEXT, file_mime TEXT, file_size INTEGER,  -- scan under data/hr/{employee_id}/
+    termination_date TEXT, termination_reason TEXT,
+    synced_at            TEXT,                       -- copied salary/position/location to the employee record
+    created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_by TEXT, updated_at TEXT
+);
 CREATE INDEX idx_emp_attach ON employee_attachments(employee_id);
+CREATE INDEX idx_contracts_emp ON employment_contracts(employee_id, status);
+CREATE INDEX idx_contracts_end ON employment_contracts(status, end_date);
 CREATE INDEX idx_emp_changes ON employee_changes(employee_id, id);
 CREATE INDEX idx_hr_todos_open ON hr_todos(status, due_date);
 

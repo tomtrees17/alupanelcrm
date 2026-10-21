@@ -58,10 +58,10 @@ foreach (['delivery_lat', 'delivery_lng', 'delivery_region', 'geo_source'] as $c
     $pdo->exec("ALTER TABLE orders DROP COLUMN {$col}");
 }
 // before 人力 (HR-00/01): no employee tables, no users.employee_id / users.active.
-foreach (['idx_hr_todos_open', 'idx_emp_changes', 'idx_emp_attach'] as $ix) {
+foreach (['idx_hr_todos_open', 'idx_emp_changes', 'idx_emp_attach', 'idx_contracts_emp', 'idx_contracts_end'] as $ix) {
     $pdo->exec("DROP INDEX IF EXISTS {$ix}");
 }
-foreach (['hr_todos', 'employee_changes', 'employee_attachments', 'employees'] as $tbl) {
+foreach (['employment_contracts', 'hr_todos', 'employee_changes', 'employee_attachments', 'employees'] as $tbl) {
     $pdo->exec("DROP TABLE IF EXISTS {$tbl}");
 }
 $pdo->exec('ALTER TABLE users DROP COLUMN employee_id');
@@ -152,7 +152,7 @@ ok('existing customer untouched, industry/region left for the enrichment job', $
     && $lama['industry'] === null && $lama['region'] === null && (int) $lama['industry_pending'] === 0);
 
 // 人力: tables + columns added; every CRM account except admin gets a record, logins unaffected.
-ok('HR tables created', $has('employees') && $has('employee_attachments') && $has('employee_changes') && $has('hr_todos'));
+ok('HR tables created (incl. HR-02 contracts)', $has('employees') && $has('employee_attachments') && $has('employee_changes') && $has('hr_todos') && $has('employment_contracts'));
 $ucolsHr = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
 ok('users gains employee_id + active', in_array('employee_id', $ucolsHr, true) && in_array('active', $ucolsHr, true));
 $links = $pdo->query('SELECT u.name, u.active, e.department FROM users u LEFT JOIN employees e ON e.id = u.employee_id ORDER BY u.id')->fetchAll();
