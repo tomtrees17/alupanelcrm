@@ -159,8 +159,15 @@ ok('print total is the quoted amount', str_contains($p1, 'Rp8.935.000'));
 ok('print has no Pembulatan when zero', !str_contains($render($printFile, ['invoice' => $zero, 'items' => $items, 'orderNo' => 'SO-1']), 'Pembulatan'));
 ok('print stays free of Chinese', preg_match('/[\x{4e00}-\x{9fff}]/u', strip_tags(preg_replace('/<(script|style|div class="toolbar").*?<\/(script|style|div)>/su', '', $p1))) === 0);
 
-$w1 = $render(__DIR__ . '/../views/word/invoice.php', ['invoice' => $base, 'items' => $items, 'orderNo' => 'SO-1']);
-ok('Word export shows Pembulatan', str_contains($w1, 'Pembulatan') && str_contains($w1, '-Rp1'));
+$doc = new Docx();
+$body = '';
+(function () use ($base, $items, &$body, $doc) {
+    $invoice = $base;
+    $orderNo = 'SO-1';
+    $cfg = $GLOBALS['config'];
+    include __DIR__ . '/../views/word/invoice_docx.php';
+})();
+ok('Word export shows Pembulatan', str_contains($body, 'Pembulatan') && str_contains($body, '-Rp1'));
 
 $showFile = __DIR__ . '/../views/finance/show.php';
 $s1 = $render($showFile, ['invoice' => $base, 'items' => $items, 'payments' => [], 'voidBlock' => null]);

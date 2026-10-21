@@ -31,6 +31,7 @@ require __DIR__ . '/helpers.php';
 require __DIR__ . '/domain.php';
 require __DIR__ . '/Export.php';
 require __DIR__ . '/Word.php';
+require __DIR__ . '/Docx.php';
 require __DIR__ . '/Notify.php';
 require __DIR__ . '/Claude.php';
 require __DIR__ . '/Ai.php';

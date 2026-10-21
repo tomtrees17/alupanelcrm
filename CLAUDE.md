@@ -24,7 +24,7 @@
 
 SQLite 连接启用 **WAL + busy_timeout=5s + synchronous=NORMAL**（见 `Database::connect`），支持多人并发读写。运行时会产生 `crm.sqlite-wal/-shm`（已 gitignore）。
 
-导出功能均为零依赖自研：Excel 用 `ZipArchive` 直写 OOXML（`app/Export.php`，无 zip 扩展时降级 CSV）、Word 用 MSO-HTML `.doc`（`app/Word.php`）。**不要为此引入 PhpSpreadsheet 等库。**
+导出功能均为零依赖自研：Excel 用 `ZipArchive` 直写 OOXML（`app/Export.php`，无 zip 扩展时降级 CSV）；发票 Word 用 `ZipArchive` 直写真正的 `.docx`（`app/Docx.php`，可嵌 logo、固定列宽），送货单 Word 仍是 MSO-HTML `.doc`（`app/Word.php`）。**不要为此引入 PhpSpreadsheet 等库。**
 
 ## 3. 目录结构
 
@@ -46,7 +46,7 @@ app/
   domain.php                业务逻辑：审批流状态机、库存增减与预留重算、单号生成、发票状态、terbilang
   helpers.php               视图辅助：e/url/redirect/input/idr/num/no_cjk、权限判定、各 tr_* 翻译
   i18n.php                  中印双语字典 + t() + current_lang()
-  Export.php                Excel 导出   Word.php  Word 导出
+  Export.php                Excel 导出   Docx.php  发票 .docx   Word.php  送货单 .doc
   Claude.php                Anthropic API 唯一出口（token 上限 / 重试 / 每日预算）
   Enrich.php                客户区域 / 行业推断（地址文本 + Google 地理编码 + 规则 + Claude）
   CustomerData.php          客户数据清洗（销售名合并、电话、负责人建议）

@@ -112,10 +112,12 @@ switch ($action) {
             $o->execute([$invoice['order_id']]);
             $orderNo = (string) ($o->fetchColumn() ?: '');
         }
+        // A real .docx (fixed column widths, logo embedded) — see app/Docx.php.
         $cfg = $GLOBALS['config'];
-        ob_start();
-        include __DIR__ . '/../../views/word/invoice.php';
-        Word::download('Invoice_' . $invoice['invoice_no'], (string) ob_get_clean());
+        $doc = new Docx();
+        $body = '';
+        include __DIR__ . '/../../views/word/invoice_docx.php';
+        $doc->download('Invoice_' . $invoice['invoice_no'], $body);
         break;
 
     case 'update_no':

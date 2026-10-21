@@ -29,7 +29,7 @@ $v = fn(string $k) => e($customer[$k] ?? '');
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="form-group"><label class="form-label"><?= t('f_value') ?></label><input class="form-input" type="number" name="value" value="<?= $isEdit ? e($customer['value']) : '0' ?>"></div>
+            <div class="form-group"><label class="form-label"><?= t('f_value') ?></label><input class="form-input" type="number" step="any" min="0" inputmode="decimal" name="value" value="<?= $isEdit ? e($customer['value']) : '0' ?>"></div>
         </div>
         <div class="form-row">
             <div class="form-group"><label class="form-label"><?= t('f_last_contact') ?></label><input class="form-input" type="date" name="last_contact" value="<?= $v('last_contact') ?>"></div>

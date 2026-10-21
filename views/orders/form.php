@@ -57,7 +57,7 @@ $itemsJson = json_encode(array_map(fn($it) => [
                 <select class="form-select" name="delivery_service"><?php foreach (delivery_services() as $d): ?><option <?= $sel('delivery_service', $d) ?>><?= $d ?></option><?php endforeach; ?></select>
             </div>
             <div class="form-group"><label class="form-label"><?= t('f_delivery_date') ?></label><input class="form-input" type="date" name="delivery_date" value="<?= $ov('delivery_date') ?>"></div>
-            <div class="form-group"><label class="form-label"><?= t('f_shipping') ?></label><input class="form-input" type="number" name="shipping_cost" id="ship" value="<?= $isEdit ? e($order['shipping_cost']) : '0' ?>"></div>
+            <div class="form-group"><label class="form-label"><?= t('f_shipping') ?></label><input class="form-input" type="number" step="any" min="0" inputmode="decimal" name="shipping_cost" id="ship" value="<?= $isEdit ? e($order['shipping_cost']) : '0' ?>"></div>
         </div>
         <div class="form-group"><label class="form-label"><?= t('delivery_addr') ?></label><input class="form-input" name="delivery_address" value="<?= $ov('delivery_address') ?>"></div>
         <div class="form-row">
@@ -101,8 +101,8 @@ $itemsJson = json_encode(array_map(fn($it) => [
             <input type="hidden" name="sku[]" class="f-sku"><input type="hidden" name="color[]" class="f-color">
             <input type="hidden" name="spec[]" class="f-spec"><input type="hidden" name="size[]" class="f-size">
         </td>
-        <td><input class="form-input qty right" type="number" name="qty[]" value="1" style="width:90px"><div class="stock-warn"></div></td>
-        <td><input class="form-input price right" type="number" name="price[]" value="0" style="width:120px"></td>
+        <td><input class="form-input qty right" type="number" step="1" min="0" inputmode="numeric" name="qty[]" value="1" style="width:90px"><div class="stock-warn"></div></td>
+        <td><input class="form-input price right" type="number" step="any" min="0" inputmode="decimal" name="price[]" value="0" style="width:120px"></td>
         <td class="right line-total">Rp 0</td>
         <td class="right"><button type="button" class="btn btn-ghost btn-sm remove-row" style="color:var(--danger)">×</button></td>
     </tr>
@@ -115,7 +115,7 @@ const EXISTING = <?= $itemsJson ?>;
 const STOCK_LBL = <?= json_encode(t('available'), JSON_UNESCAPED_UNICODE) ?>;
 const AVAIL_LBL = <?= json_encode(t('available'), JSON_UNESCAPED_UNICODE) ?>;
 const BLOCK_MSG = <?= json_encode(t('stock_block_submit'), JSON_UNESCAPED_UNICODE) ?>;
-const fmt = n => 'Rp ' + Number(n||0).toLocaleString('id-ID');
+const fmt = n => 'Rp ' + Number(n||0).toLocaleString('id-ID', {maximumFractionDigits: 2});
 
 function validateRow(row) {
     const stock = row.dataset.stock;

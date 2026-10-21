@@ -23,7 +23,7 @@ $curStage = $deal['stage'] ?? $stage ?? '初步接触';
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="form-group"><label class="form-label"><?= t('f_deal_value') ?></label><input class="form-input" type="number" name="value" value="<?= $isEdit ? e($deal['value']) : '0' ?>"></div>
+            <div class="form-group"><label class="form-label"><?= t('f_deal_value') ?></label><input class="form-input" type="number" step="any" min="0" inputmode="decimal" name="value" value="<?= $isEdit ? e($deal['value']) : '0' ?>"></div>
         </div>
         <div class="form-row">
             <div class="form-group"><label class="form-label"><?= t('f_stage') ?></label>

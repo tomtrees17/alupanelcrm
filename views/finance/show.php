@@ -143,7 +143,7 @@ $voidBlock = $voidBlock ?? null;
             <form method="post" action="<?= url('finance.pay') ?>">
                 <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $invoice['id'] ?>">
                 <div class="form-row">
-                    <div class="form-group"><label class="form-label"><?= t('th_amount') ?> (Rp) *</label><input class="form-input" type="number" name="amount" value="<?= (int) $remaining ?>" required></div>
+                    <div class="form-group"><label class="form-label"><?= t('th_amount') ?> (Rp) *</label><input class="form-input" type="number" step="any" min="0" inputmode="decimal" name="amount" value="<?= e(rtrim(rtrim(number_format((float) $remaining, 2, '.', ''), '0'), '.')) ?>" required></div>
                     <div class="form-group"><label class="form-label"><?= t('th_date') ?></label><input class="form-input" type="date" name="pay_date" value="<?= date('Y-m-d') ?>"></div>
                 </div>
                 <div class="form-row">
