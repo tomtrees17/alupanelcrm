@@ -11,7 +11,7 @@
 - 界面语言：中文 / 印尼语（id）双语切换；货币印尼盾 IDR（Rp）
 - 交流语言：**中文**
 
-## 1.1 平台范围与开发规则（印尼分公司工作平台，2026-10-22 起）
+## 1.1 平台范围与开发规则（印尼分公司工作平台，2026-10-21 起）
 
 本仓库只做 PT Alupanel Mulia Indonesia 印尼分公司的工作平台（销售 → 人力 → 财务）。国内工厂的生产、采购、成本核算是另一个独立项目，**不在本仓库实现**，也不要为它预留表或页面；两边只通过 docs/项目章程.md 第八节的接口相连。
 
@@ -69,9 +69,10 @@ app/
   Enrich.php                客户区域 / 行业推断（地址文本 + Google 地理编码 + 规则 + Claude）
   CustomerData.php          客户数据清洗（销售名合并、电话、负责人建议）
   Insights.php              回访清单 A/B/C 计算 + 跟进记录与屏蔽
+  Hr.php                    人力：谁看什么（viewer/scope）、薪资加密、NIK/日期校验、字段级审计、用户→员工迁移
   Auth.php                  会话鉴权     Csrf.php  CSRF 令牌
   controllers/              dashboard customers insights pipeline tasks finance orders inventory
-                            approvals audit delivery users roles account auth lang
+                            approvals audit delivery users roles account auth lang hr
 
 views/                      按模块分目录 + layout.php + print/ + word/ + errors/
 database/schema.sql         表结构

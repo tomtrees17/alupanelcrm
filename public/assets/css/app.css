@@ -153,6 +153,7 @@ code { font-family: var(--mono); font-size: 11px; background: var(--surface3); p
 .tag-purple { background: rgba(168,85,247,.12); color: var(--accent4); }
 .tag-gray { background: rgba(139,149,168,.12); color: var(--text3); }
 .tag-red { background: rgba(220,38,38,.12); color: var(--danger); }
+.tag-yellow { background: rgba(217,119,6,.14); color: var(--warning); }
 .avatar { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0; }
 
 /* ─ PIPELINE ─ */
@@ -417,6 +418,16 @@ tfoot td { padding: 8px 14px; }
 .price-basis label { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; cursor: pointer; }
 .price-basis .form-label { margin: 0; }
 .form-input.derived { background: var(--bg, #f8fafc); color: var(--text2); }
+
+/* ─ 人力 / SDM ─ */
+.hr-subnav .filter-btn.disabled { opacity: .45; cursor: default; }
+.hr-meta { margin: -6px 0 12px; }
+.hr-low { color: var(--warning); }
+.hr-overdue td { background: rgba(227, 73, 72, .06); }
+.hr-complete { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 13px; }
+.hr-complete .bar { flex: 0 0 200px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.hr-complete .bar-fill { height: 100%; background: var(--c-sales, #2a78d6); }
+.inline-form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
 
 /* ─ RESPONSIVE (mobile) ─ */
 .nav-toggle { display: none; background: none; border: none; font-size: 22px; line-height: 1; color: var(--text); cursor: pointer; padding: 0 2px; }

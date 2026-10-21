@@ -254,7 +254,21 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 
 **测试**：`tests/pagination_test.php`；控制器渲染测试通过 `tests/support/run_controller.php` 子进程执行（控制器文件里声明了函数，同一进程不能 include 两次）。
 
-## 6x. 订单录入：含税 / 不含税单价（2026-10-22）
+## 6y. 人力 / SDM：HR-00 基础约定 + HR-01 员工档案（2026-10-21）
+
+按 docs/任务卡-人力一期.md 开发，规则见 CLAUDE.md §1.1。代码：`app/Hr.php`（权限/加密/校验/迁移）、`app/controllers/hr.php`、`views/hr/`，测试 `tests/hr_test.php`。
+
+- **菜单**「人力 / SDM」（`can_access('hr')`），首页 = 待办列表（按到期日，逾期标红）；子页 待办 / 员工，合同、BPJS 灰显待 HR-02/03。
+- **表**：`employees`（工号 AMI-0001 起）、`employee_attachments`、`employee_changes`、`hr_todos`（UNIQUE(type, employee_id, ref)）；`users` 加 `employee_id`、`active`。
+- **谁看什么**（后端过滤，`Hr::viewer()`）：hr 角色增改全部、看薪资；admin（老板）只读全部含薪资；有 `hr_all` 权限（默认只给 manager = 总经理 tania）只读全部**不含薪资**；勾了「部门主管」的员工只读本部门不含薪资（目前无人勾选）；其他人只看自己（含自己的薪资）；没员工档案的账号进不了。用户确认：平级管理、总经理管全部（1B）。
+- **薪资加密**：AES-256-GCM，存 `v1:base64(iv|tag|ct)`；密钥 `.env` 的 `HR_SALARY_KEY`（未配置时不能录薪资，不会明文落库）。变更历史里的薪资新旧值也加密；**audit_log 永不记金额**（用户 2A），只记"已修改"。**密钥丢失 = 薪资无法读出，必须另外备份。**
+- **审计**：字段级，一个字段一行 `table.field: 旧 → 新`，module = hr；新动作 resign / upload / handle。
+- **附件**：`data/hr/{employee_id}/` 随机文件名，目录 0750；只经 `hr.file` 鉴权下载；≤10MB，扩展名与文件头都须是 pdf/jpg/png。
+- **离职**：状态改离职 → 三条待办（合同终止 / BPJS 停保 / CRM 账号停用）→ 对应 `users.active = 0`（不删）。`Auth` 拒绝停用账号登录，已登录的下次请求即退出。
+- **迁移**（一次性，app_meta `hr_employees_v1`）：除 admin 外每个 CRM 账号建档，部门按角色：sales→销售、supervisor→财务（antonni）、finance_manager→财务、warehouse→仓库、clerk→行政（Fera）、manager→管理（tania），工作地 Jakarta、状态在职，其余待 HR 补。`perm_hr_v1`：hr 模块给所有非 admin 角色，hr_all 给 manager。
+- **未定 / 待后续**：新员工与 CRM 账号的关联目前只有迁移时自动关联，没有界面；每日 07:00 WIB 待办扫描在 HR-01 没有规则，随 HR-02/03 上线（注意服务器时区是 UTC+8，cron 要写 08:00）。
+
+## 6x. 订单录入：含税 / 不含税单价（2026-10-21）
 
 **为什么**：价目表是含税价，但部分客户按**不含税价**谈价格、要求发票单价就是那个数。以前销售/财务手工 ×1,11 换算。
 

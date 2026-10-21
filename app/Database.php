@@ -208,7 +208,7 @@ final class Database
         if (!in_array('rounding', $ivcols, true)) {
             $pdo->exec('ALTER TABLE invoices ADD COLUMN rounding REAL NOT NULL DEFAULT 0');
         }
-        // orders.price_basis + order_items.price_excl (含税/不含税单价, added 2026-10-22).
+        // orders.price_basis + order_items.price_excl (含税/不含税单价, added 2026-10-21).
         if (!in_array('price_basis', array_column($pdo->query('PRAGMA table_info(orders)')->fetchAll(), 'name'), true)) {
             $pdo->exec("ALTER TABLE orders ADD COLUMN price_basis TEXT NOT NULL DEFAULT 'incl'");
         }
@@ -337,6 +337,53 @@ final class Database
             $pdo->exec("INSERT OR IGNORE INTO role_permissions (role, module) VALUES ('sales', 'insights')");
             $pdo->exec("INSERT OR IGNORE INTO role_permissions (role, module) VALUES ('manager', 'insights_all'), ('supervisor', 'insights_all'), ('ops_supervisor', 'insights_all')");
             $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_insights_v2', '1')");
+        }
+
+        // 人力 / SDM (HR-00, HR-01, added 2026-10-21).
+        $ucols3 = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+        if (!in_array('employee_id', $ucols3, true)) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN employee_id INTEGER');
+        }
+        if (!in_array('active', $ucols3, true)) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1');
+        }
+        $pdo->exec("CREATE TABLE IF NOT EXISTS employees (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, employee_no TEXT UNIQUE, full_name TEXT NOT NULL, nik TEXT UNIQUE,
+            npwp TEXT, birth_place TEXT, birth_date TEXT, gender TEXT, religion TEXT, marital_status TEXT,
+            ktp_address TEXT, current_address TEXT, phone TEXT, personal_email TEXT,
+            emergency_contact_name TEXT, emergency_contact_relation TEXT, emergency_contact_phone TEXT,
+            bank_name TEXT, bank_account_no TEXT, bank_account_name TEXT, ptkp_status TEXT,
+            department TEXT, position TEXT, work_location TEXT, supervisor_id INTEGER, is_dept_head INTEGER NOT NULL DEFAULT 0,
+            join_date TEXT, employment_status TEXT NOT NULL DEFAULT 'active', resign_date TEXT, resign_reason TEXT,
+            base_salary_enc TEXT, salary_effective_date TEXT,
+            created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), updated_by TEXT, updated_at TEXT)");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS employee_attachments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL, doc_type TEXT NOT NULL, file_path TEXT NOT NULL,
+            file_name TEXT, mime TEXT, size INTEGER, uploaded_by TEXT, uploaded_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS employee_changes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL, change_type TEXT NOT NULL,
+            field TEXT, old_value TEXT, new_value TEXT, effective_date TEXT NOT NULL, note TEXT NOT NULL, operator TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS hr_todos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, employee_id INTEGER, ref TEXT NOT NULL DEFAULT '',
+            due_date TEXT, status TEXT NOT NULL DEFAULT 'open', handled_by TEXT, handled_at TEXT, handled_note TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), UNIQUE (type, employee_id, ref))");
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_emp_attach ON employee_attachments(employee_id)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_emp_changes ON employee_changes(employee_id, id)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_hr_todos_open ON hr_todos(status, due_date)');
+        // Module 'hr' for everyone (each person reads at least their own record);
+        // 'hr_all' (read all, no salary) for the general manager. Once; later admin edits stick.
+        if (!$pdo->query("SELECT 1 FROM app_meta WHERE k = 'perm_hr_v1'")->fetchColumn()) {
+            foreach (all_roles() as $role) {
+                if ($role !== 'admin') {
+                    $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role, module) VALUES (?, 'hr')")->execute([$role]);
+                }
+            }
+            $pdo->exec("INSERT OR IGNORE INTO role_permissions (role, module) VALUES ('manager', 'hr_all')");
+            $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_hr_v1', '1')");
+        }
+        if (class_exists('Hr')) {
+            Hr::migrate_users($pdo);
         }
 
         // login_attempts table (brute-force throttle, added later).
@@ -655,7 +702,7 @@ final class Database
 
         self::seedPermissions($pdo);
         $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (k TEXT PRIMARY KEY, v TEXT)');
-        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1'), ('pwd_policy_v1', '1'), ('perm_approvals', '1'), ('perm_insights', '1'), ('perm_insights_v2', '1')");
+        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1'), ('pwd_policy_v1', '1'), ('perm_approvals', '1'), ('perm_insights', '1'), ('perm_insights_v2', '1'), ('perm_hr_v1', '1')");
 
         $pdo->commit();
     }

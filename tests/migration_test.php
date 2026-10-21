@@ -57,6 +57,16 @@ foreach (['industry', 'industry_source', 'industry_confidence', 'industry_pendin
 foreach (['delivery_lat', 'delivery_lng', 'delivery_region', 'geo_source'] as $col) {
     $pdo->exec("ALTER TABLE orders DROP COLUMN {$col}");
 }
+// before 人力 (HR-00/01): no employee tables, no users.employee_id / users.active.
+foreach (['idx_hr_todos_open', 'idx_emp_changes', 'idx_emp_attach'] as $ix) {
+    $pdo->exec("DROP INDEX IF EXISTS {$ix}");
+}
+foreach (['hr_todos', 'employee_changes', 'employee_attachments', 'employees'] as $tbl) {
+    $pdo->exec("DROP TABLE IF EXISTS {$tbl}");
+}
+$pdo->exec('ALTER TABLE users DROP COLUMN employee_id');
+$pdo->exec('ALTER TABLE users DROP COLUMN active');
+$pdo->exec("INSERT INTO users (name,email,password_hash,role) VALUES ('Rina','rina@alupanel.local','x','sales'),('tania','tania@alupanel.local','x','manager')");
 $pdo->exec("INSERT INTO customers (id, name, company, owner, city) VALUES (777, 'Pak Lama', 'Toko Kaca Lama', 'ridwan', 'Kec Koja')");
 $pdo->exec("INSERT INTO role_permissions (role, module) VALUES ('manager','orders'),('sales','orders')");
 // Production has already run every earlier one-time migration; without these
@@ -140,6 +150,16 @@ ok('an admin revoking 回访清单 later is not undone by the next page load', !
 $lama = $pdo->query('SELECT * FROM customers WHERE id = 777')->fetch();
 ok('existing customer untouched, industry/region left for the enrichment job', $lama['name'] === 'Pak Lama' && $lama['owner'] === 'ridwan'
     && $lama['industry'] === null && $lama['region'] === null && (int) $lama['industry_pending'] === 0);
+
+// 人力: tables + columns added; every CRM account except admin gets a record, logins unaffected.
+ok('HR tables created', $has('employees') && $has('employee_attachments') && $has('employee_changes') && $has('hr_todos'));
+$ucolsHr = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+ok('users gains employee_id + active', in_array('employee_id', $ucolsHr, true) && in_array('active', $ucolsHr, true));
+$links = $pdo->query('SELECT u.name, u.active, e.department FROM users u LEFT JOIN employees e ON e.id = u.employee_id ORDER BY u.id')->fetchAll();
+ok('existing accounts get employee records (not admin), all still active', array_column($links, 'department', 'name') === ['Admin' => null, 'Rina' => 'sales', 'tania' => 'management']
+    && array_unique(array_map('intval', array_column($links, 'active'))) === [1], json_encode($links));
+ok('人力 module granted to staff roles; 全部人力档案 to manager only', in_array('sales', $pdo->query("SELECT role FROM role_permissions WHERE module = 'hr'")->fetchAll(PDO::FETCH_COLUMN), true)
+    && $pdo->query("SELECT GROUP_CONCAT(role) FROM role_permissions WHERE module = 'hr_all'")->fetchColumn() === 'manager');
 
 // 'audit' must NOT be granted to anyone by the migration — admin-only by default.
 $granted = $pdo->query("SELECT COUNT(*) FROM role_permissions WHERE module='audit'")->fetchColumn();

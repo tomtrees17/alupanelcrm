@@ -68,6 +68,7 @@ $sub   = $pageSub ?? (I18N[$lang]['sub_' . $module] ?? '');
             <a class="nav-item<?= $active('dashboard') ?>" href="<?= url('dashboard.index') ?>"><span class="nav-icon">⬡</span> <?= t('nav_dashboard') ?></a>
             <?php if (can_access('customers')): ?><a class="nav-item<?= $active('customers') ?>" href="<?= url('customers.index') ?>"><span class="nav-icon">◎</span> <?= t('nav_customers') ?></a><?php endif; ?>
             <?php if (can_access('insights')): ?><a class="nav-item<?= $active('insights') ?>" href="<?= url('insights.index') ?>"><span class="nav-icon">↻</span> <?= t('nav_insights') ?></a><?php endif; ?>
+            <?php if (can_access('hr')): ?><a class="nav-item<?= $active('hr') ?>" href="<?= url('hr.index') ?>"><span class="nav-icon">☺</span> <?= t('nav_hr') ?></a><?php endif; ?>
             <?php if (can_access('pipeline')): ?><a class="nav-item<?= $active('pipeline') ?>" href="<?= url('pipeline.index') ?>"><span class="nav-icon">⟋</span> <?= t('nav_pipeline') ?></a><?php endif; ?>
             <?php if (can_access('tasks')): ?><a class="nav-item<?= $active('tasks') ?>" href="<?= url('tasks.index') ?>"><span class="nav-icon">◻</span> <?= t('nav_tasks') ?><?php if ($pendingTasks): ?><span class="nav-badge"><?= $pendingTasks ?></span><?php endif; ?></a><?php endif; ?>
             <?php if (can_access('finance')): ?><a class="nav-item<?= $active('finance') ?>" href="<?= url('finance.index') ?>"><span class="nav-icon">◈</span> <?= t('nav_finance') ?></a><?php endif; ?>

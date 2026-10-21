@@ -12,6 +12,8 @@ CREATE TABLE users (
     phone         TEXT,                              -- WhatsApp number, 628xxx (notifications)
     lang          TEXT    NOT NULL DEFAULT 'id',     -- preferred UI + notification language
     must_change_password INTEGER NOT NULL DEFAULT 0, -- force a password change on next login
+    employee_id   INTEGER,                           -- 人力: the person behind the account (HR-00)
+    active        INTEGER NOT NULL DEFAULT 1,        -- 0 = deactivated on resignation; login refused, never deleted
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -387,6 +389,61 @@ CREATE TABLE insights_history (
     lists       TEXT    NOT NULL,   -- e.g. "a", "bc"
     PRIMARY KEY (day, customer_id)
 );
+
+-- ── 人力 / SDM (HR-00, HR-01): employees are the platform's "people" table ──
+CREATE TABLE employees (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_no         TEXT UNIQUE,                 -- AMI-0001
+    full_name           TEXT NOT NULL,
+    nik                 TEXT UNIQUE,                 -- 16 digits; NULL until HR fills it (migrated accounts)
+    npwp TEXT, birth_place TEXT, birth_date TEXT, gender TEXT, religion TEXT, marital_status TEXT,
+    ktp_address TEXT, current_address TEXT, phone TEXT, personal_email TEXT,
+    emergency_contact_name TEXT, emergency_contact_relation TEXT, emergency_contact_phone TEXT,
+    bank_name TEXT, bank_account_no TEXT, bank_account_name TEXT,
+    ptkp_status         TEXT,                        -- stored only (no tax maths in phase 1)
+    department          TEXT,                        -- sales|warehouse|finance|office|management
+    position            TEXT,
+    work_location       TEXT,                        -- Jakarta|Surabaya|Bandung
+    supervisor_id       INTEGER REFERENCES employees(id),
+    is_dept_head        INTEGER NOT NULL DEFAULT 0,  -- 部门主管: reads own department (none today: flat team)
+    join_date           TEXT,
+    employment_status   TEXT NOT NULL DEFAULT 'active', -- probation|active|resigned
+    resign_date TEXT, resign_reason TEXT,
+    base_salary_enc     TEXT,                        -- AES-256-GCM, key HR_SALARY_KEY in .env
+    salary_effective_date TEXT,
+    created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_by TEXT, updated_at TEXT
+);
+CREATE TABLE employee_attachments (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL REFERENCES employees(id),
+    doc_type    TEXT NOT NULL,                       -- ktp|npwp|kk|ijazah|foto|lainnya
+    file_path   TEXT NOT NULL,                       -- stored name under data/hr/{employee_id}/
+    file_name   TEXT, mime TEXT, size INTEGER,
+    uploaded_by TEXT, uploaded_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE employee_changes (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id    INTEGER NOT NULL REFERENCES employees(id),
+    change_type    TEXT NOT NULL,                    -- position|salary|location|supervisor|status
+    field TEXT, old_value TEXT, new_value TEXT,      -- salary values encrypted
+    effective_date TEXT NOT NULL, note TEXT NOT NULL, operator TEXT,
+    created_at     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE hr_todos (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    type        TEXT NOT NULL,                       -- contract_end|bpjs_stop|account_off|… (see i18n hrtodo_*)
+    employee_id INTEGER REFERENCES employees(id),
+    ref         TEXT NOT NULL DEFAULT '',            -- e.g. contract id, so one todo per thing
+    due_date    TEXT,
+    status      TEXT NOT NULL DEFAULT 'open',        -- open|done
+    handled_by TEXT, handled_at TEXT, handled_note TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    UNIQUE (type, employee_id, ref)
+);
+CREATE INDEX idx_emp_attach ON employee_attachments(employee_id);
+CREATE INDEX idx_emp_changes ON employee_changes(employee_id, id);
+CREATE INDEX idx_hr_todos_open ON hr_todos(status, due_date);
 
 CREATE INDEX idx_orders_customer ON orders(customer_id);
 CREATE INDEX idx_deals_customer  ON deals(customer_id);

@@ -170,6 +170,9 @@ if ($secret('OSS_ACCESS_KEY_ID') !== '' && $secret('OSS_ACCESS_KEY_SECRET') !== 
     $config['offsite']['key_id'] = $secret('OSS_ACCESS_KEY_ID');
     $config['offsite']['key_secret'] = $secret('OSS_ACCESS_KEY_SECRET');
 }
+// 人力: salary encryption key (base64 of 32 random bytes). Kept out of the
+// database and out of backups on purpose; losing it makes salaries unreadable.
+$config['hr']['salary_key'] = $secret('HR_SALARY_KEY');
 if ($secret('WA_TOKEN') !== '') {
     $config['wa']['token'] = $secret('WA_TOKEN');
 }

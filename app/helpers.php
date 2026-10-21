@@ -273,13 +273,13 @@ function role_label(string $r): string
 /** Modules whose access is route-guarded + configurable per role. */
 function controllable_modules(): array
 {
-    return ['customers', 'insights', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'audit'];
+    return ['customers', 'insights', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'hr', 'audit'];
 }
 
 /** Non-route view permissions (dashboard widgets, export, etc.), configurable per role. */
 function view_permissions(): array
 {
-    return ['performance', 'export', 'insights_all'];   // 全员销售业绩 / 导出 Excel / 全部客户分析
+    return ['performance', 'export', 'insights_all', 'hr_all'];   // 全员销售业绩 / 导出 Excel / 全部客户分析 / 人力档案看全部（不含薪资）
 }
 
 /** All permission keys shown in the 权限设置 matrix. */
@@ -292,14 +292,14 @@ function permission_keys(): array
 function default_permissions(): array
 {
     return [
-        'manager'         => ['customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'export'],
-        'finance_manager' => ['customers', 'insights', 'finance', 'orders', 'inventory', 'approvals', 'performance'],
-        'ops_supervisor'  => ['customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals', 'performance'],
-        'supervisor'      => ['customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
-        'sales'           => ['customers', 'insights', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
-        'warehouse'       => ['orders', 'inventory', 'approvals'],
-        'hr'              => ['customers', 'insights', 'tasks', 'approvals'],
-        'clerk'           => ['customers', 'insights', 'tasks', 'orders', 'approvals'],
+        'manager'         => ['hr', 'hr_all', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'export'],
+        'finance_manager' => ['hr', 'customers', 'insights', 'finance', 'orders', 'inventory', 'approvals', 'performance'],
+        'ops_supervisor'  => ['hr', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals', 'performance'],
+        'supervisor'      => ['hr', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
+        'sales'           => ['hr', 'customers', 'insights', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
+        'warehouse'       => ['hr', 'orders', 'inventory', 'approvals'],
+        'hr'              => ['hr', 'customers', 'insights', 'tasks', 'approvals'],
+        'clerk'           => ['hr', 'customers', 'insights', 'tasks', 'orders', 'approvals'],
         // admin is omitted on purpose → always full access.
     ];
 }
@@ -536,7 +536,7 @@ function delivery_services(): array
 /** Modules that can appear in the audit log (filter dropdown order). */
 function audit_modules(): array
 {
-    return ['orders', 'finance', 'inventory', 'customers', 'approvals', 'pipeline', 'tasks', 'users', 'roles', 'account', 'auth'];
+    return ['orders', 'finance', 'inventory', 'customers', 'approvals', 'pipeline', 'tasks', 'hr', 'users', 'roles', 'account', 'auth'];
 }
 
 /** Actions that can appear in the audit log (filter dropdown order). */
@@ -545,7 +545,7 @@ function audit_actions(): array
     return [
         'create', 'update', 'delete', 'submit', 'approve', 'reject', 'fulfill',
         'pay', 'reverse', 'void', 'unvoid', 'adjust', 'move', 'permission', 'password', 'login', 'logout', 'login_failed',
-        'merge', 'assign', 'enrich', 'cleanup',
+        'merge', 'assign', 'enrich', 'cleanup', 'resign', 'upload', 'handle',
     ];
 }
 
@@ -570,5 +570,6 @@ function audit_action_class(string $a): string
         'login'   => 'tag-gray',   'logout'      => 'tag-gray',  'login_failed' => 'tag-red',
         'permission' => 'tag-orange', 'password' => 'tag-orange', 'move' => 'tag-blue',
         'merge' => 'tag-orange', 'assign' => 'tag-blue', 'enrich' => 'tag-blue', 'cleanup' => 'tag-orange',
+        'resign' => 'tag-red', 'upload' => 'tag-blue', 'handle' => 'tag-green',
     ][$a] ?? 'tag-gray';
 }

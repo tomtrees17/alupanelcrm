@@ -19,7 +19,8 @@ final class Auth
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
-        if ($user && password_verify($password, $user['password_hash'])) {
+        // A deactivated account (人力: resigned) is refused even with the right password.
+        if ($user && (int) ($user['active'] ?? 1) === 1 && password_verify($password, $user['password_hash'])) {
             session_regenerate_id(true);
             $_SESSION['user_id'] = (int) $user['id'];
             $this->user = $user;
@@ -45,7 +46,9 @@ final class Auth
         if ($id) {
             $stmt = $this->pdo->prepare('SELECT * FROM users WHERE id = ?');
             $stmt->execute([$id]);
-            $this->user = $stmt->fetch() ?: null;
+            $row = $stmt->fetch() ?: null;
+            // Deactivated mid-session: the next request is logged out.
+            $this->user = ($row && (int) ($row['active'] ?? 1) === 1) ? $row : null;
         }
         return $this->user;
     }

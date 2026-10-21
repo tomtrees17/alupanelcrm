@@ -9,6 +9,8 @@ declare(strict_types=1);
  *
  *   php run_controller.php <db-file> <controller> <action> <json-get> <json-user> [<json-post> [<json-session>]]
  *
+ * Env: TEST_HTTP_REFERER / TEST_HTTP_HOST, TEST_HR_KEY, TEST_HR_UPLOAD_ROOT, TEST_FILES (JSON for $_FILES).
+ *
  * With <json-post> the request is a POST carrying a valid CSRF token. Flash
  * messages are appended to the output as <!--FLASH:[...]--> so tests can see
  * the outcome of an action that ends in redirect().
@@ -23,7 +25,7 @@ require __DIR__ . '/../../app/helpers.php';
 require __DIR__ . '/../../app/domain.php';
 require __DIR__ . '/../../app/Database.php';
 require __DIR__ . '/../../app/Csrf.php';
-foreach (['Notify', 'Claude', 'Ai', 'Dashboard', 'Export', 'Word', 'Docx', 'Enrich', 'CustomerData', 'Insights'] as $cls) {
+foreach (['Notify', 'Claude', 'Ai', 'Dashboard', 'Export', 'Word', 'Docx', 'Enrich', 'CustomerData', 'Insights', 'Hr'] as $cls) {
     if (is_file(__DIR__ . "/../../app/{$cls}.php")) {
         require_once __DIR__ . "/../../app/{$cls}.php";
     }
@@ -55,6 +57,17 @@ foreach (['HTTP_REFERER', 'HTTP_HOST'] as $k) {
     if (getenv('TEST_' . $k) !== false) {
         $_SERVER[$k] = (string) getenv('TEST_' . $k);
     }
+}
+// HR tests: salary key, a throwaway upload root, and simulated uploads
+// ({"file": {"name", "tmp_name", "size", "error"}}).
+if (getenv('TEST_HR_KEY') !== false) {
+    Hr::$keyOverride = (string) getenv('TEST_HR_KEY');
+}
+if (getenv('TEST_HR_UPLOAD_ROOT') !== false) {
+    Hr::$uploadRoot = (string) getenv('TEST_HR_UPLOAD_ROOT');
+}
+if (getenv('TEST_FILES') !== false) {
+    $_FILES = (array) json_decode((string) getenv('TEST_FILES'), true);
 }
 register_shutdown_function(function (): void {
     echo "\n<!--FLASH:" . json_encode($_SESSION['flash'] ?? [], JSON_UNESCAPED_UNICODE) . "-->";

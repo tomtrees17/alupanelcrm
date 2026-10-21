@@ -1,0 +1,324 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * 人力 / SDM — HR-00 (shared rules) and HR-01 (employee records).
+ * Spec: docs/任务卡-人力一期.md. Decisions taken with the owner (2026-10-21):
+ *   - viewers: hr role edits everything; the boss (admin) reads everything incl.
+ *     salary; the general manager (permission 'hr_all', default: manager role)
+ *     reads everything except salary; an employee HR ticks as 部门主管 reads
+ *     their own department without salary; everyone else reads only their own
+ *     record (own salary visible). Structure is flat today: nobody is ticked.
+ *   - salary amounts are AES-256-GCM encrypted with HR_SALARY_KEY from .env and
+ *     never written to audit_log (only "changed", effective date, reason).
+ *   - nothing is deleted; every change is audited field by field.
+ */
+final class Hr
+{
+    public const DEPARTMENTS = ['sales', 'warehouse', 'finance', 'office', 'management'];
+    public const LOCATIONS = ['Jakarta', 'Surabaya', 'Bandung'];
+    public const STATUSES = ['probation', 'active', 'resigned'];
+    public const GENDERS = ['L', 'P'];
+    public const RELIGIONS = ['Islam', 'Kristen Protestan', 'Katolik', 'Hindu', 'Buddha', 'Konghucu'];
+    public const MARITAL = ['belum_kawin', 'kawin', 'cerai_hidup', 'cerai_mati'];
+    public const PTKP = ['TK/0', 'TK/1', 'TK/2', 'TK/3', 'K/0', 'K/1', 'K/2', 'K/3'];
+    public const DOC_TYPES = ['ktp', 'npwp', 'kk', 'ijazah', 'foto', 'lainnya'];
+    public const CHANGE_TYPES = ['position', 'salary', 'location', 'supervisor', 'status'];
+
+    /** Fields HR fills on the basic-info form (no effective date needed). */
+    public const BASIC_FIELDS = [
+        'full_name', 'nik', 'npwp', 'birth_place', 'birth_date', 'gender', 'religion', 'marital_status',
+        'ktp_address', 'current_address', 'phone', 'personal_email',
+        'emergency_contact_name', 'emergency_contact_relation', 'emergency_contact_phone',
+        'bank_name', 'bank_account_no', 'bank_account_name', 'ptkp_status',
+    ];
+    /** Job fields: every change needs an effective date and a note, and lands in employee_changes. */
+    public const JOB_FIELDS = ['department', 'position', 'work_location', 'supervisor_id', 'employment_status', 'is_dept_head'];
+
+    /** What "资料完整度" counts (NPWP is optional by law, supervisor is optional in a flat team). */
+    public const COMPLETENESS_FIELDS = [
+        'full_name', 'nik', 'birth_place', 'birth_date', 'gender', 'religion', 'marital_status',
+        'ktp_address', 'current_address', 'phone', 'personal_email',
+        'emergency_contact_name', 'emergency_contact_relation', 'emergency_contact_phone',
+        'bank_name', 'bank_account_no', 'bank_account_name', 'ptkp_status',
+        'department', 'position', 'work_location', 'join_date', 'base_salary_enc',
+    ];
+
+    /** Key for tests; production reads HR_SALARY_KEY from .env via config. */
+    public static ?string $keyOverride = null;
+
+    // ───────────────────────────── who sees what ─────────────────────────────
+
+    /**
+     * The viewer's HR scope.
+     * @return array{edit:bool,scope:string,salary:bool,department:?string,employee_id:?int}
+     *   scope: all | department | self | none
+     */
+    public static function viewer(PDO $pdo): array
+    {
+        $auth = $GLOBALS['auth'] ?? null;
+        $user = $auth ? $auth->user() : null;
+        $none = ['edit' => false, 'scope' => 'none', 'salary' => false, 'department' => null, 'employee_id' => null];
+        if (!$user) {
+            return $none;
+        }
+        $empId = isset($user['employee_id']) && $user['employee_id'] !== null ? (int) $user['employee_id'] : null;
+        $emp = null;
+        if ($empId) {
+            $st = $pdo->prepare('SELECT id, department, is_dept_head FROM employees WHERE id = ?');
+            $st->execute([$empId]);
+            $emp = $st->fetch() ?: null;
+        }
+        $role = (string) ($user['role'] ?? '');
+        if ($role === 'hr') {
+            return ['edit' => true, 'scope' => 'all', 'salary' => true, 'department' => null, 'employee_id' => $empId];
+        }
+        if ($role === 'admin') {   // the boss: read everything, salary included
+            return ['edit' => false, 'scope' => 'all', 'salary' => true, 'department' => null, 'employee_id' => $empId];
+        }
+        if (can_access('hr_all')) {  // general manager: everything except salary
+            return ['edit' => false, 'scope' => 'all', 'salary' => false, 'department' => null, 'employee_id' => $empId];
+        }
+        if ($emp && (int) $emp['is_dept_head'] === 1 && (string) $emp['department'] !== '') {
+            return ['edit' => false, 'scope' => 'department', 'salary' => false, 'department' => (string) $emp['department'], 'employee_id' => $empId];
+        }
+        if ($emp) {
+            return ['edit' => false, 'scope' => 'self', 'salary' => false, 'department' => null, 'employee_id' => $empId];
+        }
+        return $none;
+    }
+
+    /** May this viewer read this employee? */
+    public static function can_see(array $viewer, array $employee): bool
+    {
+        return match ($viewer['scope']) {
+            'all'        => true,
+            'department' => (string) $employee['department'] === $viewer['department'] || (int) $employee['id'] === $viewer['employee_id'],
+            'self'       => (int) $employee['id'] === $viewer['employee_id'],
+            default      => false,
+        };
+    }
+
+    /** May this viewer see this employee's salary? (own salary is always visible to oneself) */
+    public static function can_see_salary(array $viewer, array $employee): bool
+    {
+        return $viewer['salary'] || ($viewer['employee_id'] !== null && (int) $employee['id'] === $viewer['employee_id']);
+    }
+
+    /** SQL filter for lists, matching can_see(). @return array{0:string,1:array} */
+    public static function scope_sql(array $viewer, string $alias = 'e'): array
+    {
+        return match ($viewer['scope']) {
+            'all'        => ['1=1', []],
+            'department' => ["({$alias}.department = ? OR {$alias}.id = ?)", [$viewer['department'], (int) $viewer['employee_id']]],
+            'self'       => ["{$alias}.id = ?", [(int) $viewer['employee_id']]],
+            default      => ['0=1', []],
+        };
+    }
+
+    // ───────────────────────────── salary encryption ─────────────────────────────
+
+    private static function key(): ?string
+    {
+        $raw = self::$keyOverride ?? (string) ($GLOBALS['config']['hr']['salary_key'] ?? '');
+        if ($raw === '') {
+            return null;
+        }
+        $k = base64_decode($raw, true);
+        return ($k !== false && strlen($k) === 32) ? $k : null;
+    }
+
+    public static function crypto_ready(): bool
+    {
+        return self::key() !== null;
+    }
+
+    /** "v1:" + base64(iv | tag | ciphertext). Throws when no key is configured. */
+    public static function encrypt(?string $plain): ?string
+    {
+        if ($plain === null || $plain === '') {
+            return null;
+        }
+        $key = self::key();
+        if ($key === null) {
+            throw new RuntimeException('HR_SALARY_KEY is not configured');
+        }
+        $iv = random_bytes(12);
+        $tag = '';
+        $ct = openssl_encrypt($plain, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+        if ($ct === false) {
+            throw new RuntimeException('encryption failed');
+        }
+        return 'v1:' . base64_encode($iv . $tag . $ct);
+    }
+
+    /** null when empty, unreadable, or no key (never throws on read). */
+    public static function decrypt(?string $stored): ?string
+    {
+        if ($stored === null || $stored === '' || !str_starts_with($stored, 'v1:')) {
+            return null;
+        }
+        $key = self::key();
+        $bin = base64_decode(substr($stored, 3), true);
+        if ($key === null || $bin === false || strlen($bin) < 29) {
+            return null;
+        }
+        $pt = openssl_decrypt(substr($bin, 28), 'aes-256-gcm', $key, OPENSSL_RAW_DATA, substr($bin, 0, 12), substr($bin, 12, 16));
+        return $pt === false ? null : $pt;
+    }
+
+    // ───────────────────────────── records ─────────────────────────────
+
+    public static function next_employee_no(PDO $pdo): string
+    {
+        $max = 0;
+        foreach ($pdo->query("SELECT employee_no FROM employees WHERE employee_no LIKE 'AMI-%'") as $r) {
+            if (preg_match('/^AMI-(\d+)$/', (string) $r['employee_no'], $m)) {
+                $max = max($max, (int) $m[1]);
+            }
+        }
+        return sprintf('AMI-%04d', $max + 1);
+    }
+
+    /** 0–100. */
+    public static function completeness(array $e): int
+    {
+        $filled = 0;
+        foreach (self::COMPLETENESS_FIELDS as $f) {
+            if (trim((string) ($e[$f] ?? '')) !== '') {
+                $filled++;
+            }
+        }
+        return (int) floor(100 * $filled / count(self::COMPLETENESS_FIELDS));
+    }
+
+    public static function valid_nik(string $nik): bool
+    {
+        return (bool) preg_match('/^\d{16}$/', $nik);
+    }
+
+    /** The employee_no that already holds this NIK, or null. */
+    public static function nik_taken(PDO $pdo, string $nik, int $exceptId = 0): ?string
+    {
+        $st = $pdo->prepare('SELECT employee_no FROM employees WHERE nik = ? AND id <> ?');
+        $st->execute([$nik, $exceptId]);
+        $no = $st->fetchColumn();
+        return $no === false ? null : (string) $no;
+    }
+
+    /** 2026-10-22 → 22-10-2026 (Indonesian convention on HR pages). */
+    public static function dmy(?string $ymd): string
+    {
+        if ($ymd === null || !preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $ymd, $m)) {
+            return '';
+        }
+        return "{$m[3]}-{$m[2]}-{$m[1]}";
+    }
+
+    public static function valid_date(string $d): bool
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
+            return false;
+        }
+        [$y, $m, $dd] = array_map('intval', explode('-', $d));
+        return checkdate($m, $dd, $y);
+    }
+
+    /**
+     * Field-level audit (HR-00: table, record id, field, old, new, operator, time).
+     * One audit_log row per changed field; salary values are never written.
+     */
+    public static function audit_fields(PDO $pdo, string $action, string $table, int $id, string $label, array $before, array $after): void
+    {
+        foreach ($after as $field => $new) {
+            $old = $before[$field] ?? null;
+            if ((string) $old === (string) $new) {
+                continue;
+            }
+            $detail = str_contains($field, 'salary')
+                ? "{$table}.{$field}: (已修改，金额不记入日志)"
+                : sprintf('%s.%s: %s → %s', $table, $field, self::audit_value($old), self::audit_value($new));
+            audit($pdo, 'hr', $action, $table, $id, $label, $detail);
+        }
+    }
+
+    private static function audit_value($v): string
+    {
+        $s = trim((string) $v);
+        return $s === '' ? '(空)' : mb_strimwidth($s, 0, 200, '…');
+    }
+
+    /** Append to the employee's change history (salary values stored encrypted). */
+    public static function record_change(PDO $pdo, int $empId, string $type, string $field, ?string $old, ?string $new, string $effective, string $note, string $operator): void
+    {
+        if (str_contains($field, 'salary')) {
+            $old = $old === null || $old === '' ? null : self::encrypt($old);
+            $new = $new === null || $new === '' ? null : self::encrypt($new);
+        }
+        $pdo->prepare('INSERT INTO employee_changes (employee_id, change_type, field, old_value, new_value, effective_date, note, operator) VALUES (?,?,?,?,?,?,?,?)')
+            ->execute([$empId, $type, $field, $old, $new, $effective, $note, $operator]);
+    }
+
+    /** A pending todo, once per (type, employee, reference). */
+    public static function add_todo(PDO $pdo, string $type, ?int $empId, string $due, string $ref = ''): void
+    {
+        $pdo->prepare('INSERT OR IGNORE INTO hr_todos (type, employee_id, ref, due_date) VALUES (?,?,?,?)')
+            ->execute([$type, $empId, $ref, $due]);
+    }
+
+    /**
+     * One-time (app_meta 'hr_employees_v1'): an employee record for every
+     * existing CRM account except the system administrator account, linked via
+     * users.employee_id. Department from the CRM role as the company is staffed
+     * today (2026-10-21: the only supervisor-role account is in finance; the
+     * clerk is office staff). Everything else is left for HR to fill in.
+     */
+    public static function migrate_users(PDO $pdo): int
+    {
+        if ($pdo->query("SELECT 1 FROM app_meta WHERE k = 'hr_employees_v1'")->fetchColumn()) {
+            return 0;
+        }
+        $deptByRole = [
+            'sales' => 'sales', 'supervisor' => 'finance', 'finance_manager' => 'finance', 'warehouse' => 'warehouse',
+            'clerk' => 'office', 'hr' => 'office', 'manager' => 'management', 'ops_supervisor' => 'management',
+        ];
+        $n = 0;
+        $users = $pdo->query("SELECT id, name, role FROM users WHERE role <> 'admin' AND employee_id IS NULL ORDER BY id")->fetchAll();
+        $ins = $pdo->prepare("INSERT INTO employees (employee_no, full_name, department, work_location, employment_status, created_by, updated_by)
+                              VALUES (?, ?, ?, 'Jakarta', 'active', 'system', 'system')");
+        $link = $pdo->prepare('UPDATE users SET employee_id = ? WHERE id = ?');
+        foreach ($users as $u) {
+            $ins->execute([self::next_employee_no($pdo), (string) $u['name'], $deptByRole[(string) $u['role']] ?? null]);
+            $link->execute([(int) $pdo->lastInsertId(), (int) $u['id']]);
+            $n++;
+        }
+        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('hr_employees_v1', '1')");
+        return $n;
+    }
+
+    // ───────────────────────────── attachments ─────────────────────────────
+
+    /** Tests point this at a temp dir so a run on the server never writes into data/. */
+    public static ?string $uploadRoot = null;
+
+    public static function upload_dir(int $empId): string
+    {
+        return (self::$uploadRoot ?? dirname(__DIR__) . '/data/hr') . '/' . $empId;
+    }
+
+    /** Magic-byte sniffing for the allowed set (pdf / jpg / png). */
+    public static function sniff(string $path): ?string
+    {
+        $h = (string) @file_get_contents($path, false, null, 0, 8);
+        if (strncmp($h, "\x89PNG\r\n\x1a\n", 8) === 0) {
+            return 'image/png';
+        }
+        if (strncmp($h, "\xFF\xD8\xFF", 3) === 0) {
+            return 'image/jpeg';
+        }
+        if (strncmp($h, '%PDF', 4) === 0) {
+            return 'application/pdf';
+        }
+        return null;
+    }
+}
