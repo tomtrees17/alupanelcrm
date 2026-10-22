@@ -825,10 +825,12 @@ config.php                  应用与公司配置
 
 ## 10. 提交历史（main）
 
-最近 30 条（共 128 条，含本条文档提交；完整历史用 `git log --oneline`）：
+最近 30 条（共 130 条，含本条文档提交；完整历史用 `git log --oneline`）：
 
 ```
 xxxxxxx Docs: refresh commit history
+d3f3425 AI: requests the API refused without using tokens no longer count toward the per-record limit
+19ff910 Docs: refresh commit history
 63a97aa AI: keep schema limits the API rejects out of requests; retry failed bank matches
 e8c3f3d Faktur: company NPWP for the Coretax import file
 60162b2 Docs: refresh commit history
@@ -856,8 +858,6 @@ c78f9b4 Finance: decimal amounts on order/payment forms; invoice Word export as 
 d67c3a6 Dashboard: count sheets on the shipping basis, like sales
 860fbff Dashboard: total sheets tile with period-over-period change
 0abad03 Dashboard: sheets sold per salesperson in the ranking
-09ba775 Untrack business documents accidentally committed; ignore office files in the repo root
-07aeee3 AI: inventory assistant on Claude Opus 5.5
 ```
 
 ## 11. 用户偏好
