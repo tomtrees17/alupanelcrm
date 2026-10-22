@@ -24,6 +24,8 @@ require __DIR__ . '/../app/Notify.php';
 require __DIR__ . '/../app/Claude.php';
 require __DIR__ . '/../app/AiTask.php';
 require __DIR__ . '/../app/Bank.php';
+require __DIR__ . '/../app/Export.php';
+require __DIR__ . '/../app/Faktur.php';
 require __DIR__ . '/../app/Ai.php';
 require __DIR__ . '/../app/Dashboard.php';
 require __DIR__ . '/../app/Oss.php';

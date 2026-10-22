@@ -9,7 +9,8 @@ declare(strict_types=1);
  *
  *   php run_controller.php <db-file> <controller> <action> <json-get> <json-user> [<json-post> [<json-session>]]
  *
- * Env: TEST_HTTP_REFERER / TEST_HTTP_HOST, TEST_HR_KEY, TEST_HR_UPLOAD_ROOT, TEST_FILES (JSON for $_FILES).
+ * Env: TEST_HTTP_REFERER / TEST_HTTP_HOST, TEST_HR_KEY, TEST_HR_UPLOAD_ROOT, TEST_FILES (JSON for $_FILES),
+ *      TEST_FAKTUR_STORE (where generated Faktur files go).
  *
  * With <json-post> the request is a POST carrying a valid CSRF token. Flash
  * messages are appended to the output as <!--FLASH:[...]--> so tests can see
@@ -25,7 +26,7 @@ require __DIR__ . '/../../app/helpers.php';
 require __DIR__ . '/../../app/domain.php';
 require __DIR__ . '/../../app/Database.php';
 require __DIR__ . '/../../app/Csrf.php';
-foreach (['Notify', 'Claude', 'AiTask', 'Bank', 'Ai', 'Dashboard', 'Export', 'Word', 'Docx', 'Enrich', 'CustomerData', 'Insights', 'Hr', 'HrContract', 'HrBpjs', 'SalesHistory'] as $cls) {
+foreach (['Notify', 'Claude', 'AiTask', 'Bank', 'Faktur', 'Ai', 'Dashboard', 'Export', 'Word', 'Docx', 'Enrich', 'CustomerData', 'Insights', 'Hr', 'HrContract', 'HrBpjs', 'SalesHistory'] as $cls) {
     if (is_file(__DIR__ . "/../../app/{$cls}.php")) {
         require_once __DIR__ . "/../../app/{$cls}.php";
     }
@@ -65,6 +66,9 @@ if (getenv('TEST_HR_KEY') !== false) {
 }
 if (getenv('TEST_HR_UPLOAD_ROOT') !== false) {
     Hr::$uploadRoot = (string) getenv('TEST_HR_UPLOAD_ROOT');
+}
+if (getenv('TEST_FAKTUR_STORE') !== false) {
+    Faktur::$storeDir = (string) getenv('TEST_FAKTUR_STORE');
 }
 if (getenv('TEST_FILES') !== false) {
     $_FILES = (array) json_decode((string) getenv('TEST_FILES'), true);

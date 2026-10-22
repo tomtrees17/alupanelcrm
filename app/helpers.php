@@ -536,7 +536,7 @@ function delivery_services(): array
 /** Modules that can appear in the audit log (filter dropdown order). */
 function audit_modules(): array
 {
-    return ['orders', 'finance', 'bank', 'inventory', 'customers', 'approvals', 'pipeline', 'tasks', 'hr', 'users', 'roles', 'account', 'auth'];
+    return ['orders', 'finance', 'bank', 'tax', 'inventory', 'customers', 'approvals', 'pipeline', 'tasks', 'hr', 'users', 'roles', 'account', 'auth'];
 }
 
 /** Actions that can appear in the audit log (filter dropdown order). */

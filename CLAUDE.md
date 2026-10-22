@@ -69,6 +69,7 @@ app/
   Claude.php                Anthropic API 唯一出口（token 上限 / 重试 / 每日预算）
   AiTask.php                AI 任务调用层（FA-AI-00）：模型按任务配置、prompt 版本、schema 校验、美元日/月预算、ai_calls 台账、建议采纳统计
   Bank.php                  银行流水与回款对账（FA-AI-01）：BCA/ICBC 解析、打标、规则/AI 匹配、确认写入 payments、回款状态
+  Faktur.php                销项 Faktur（FA-TAX-01）：FAKTUR/GUNGGUNG/TBC 分类、填 DJP Coretax 导入模板、买方税务资料
   Enrich.php                客户区域 / 行业推断（地址文本 + Google 地理编码 + 规则 + Claude）
   CustomerData.php          客户数据清洗（销售名合并、电话、负责人建议）
   Insights.php              回访清单 A/B/C 计算 + 跟进记录与屏蔽
@@ -78,12 +79,13 @@ app/
   HrBpjs.php                人力 BPJS（HR-03）：两套记录、费率按月、金额计算（上限/JP/超额家属）、月度快照、离职联动
   Auth.php                  会话鉴权     Csrf.php  CSRF 令牌
   controllers/              dashboard customers insights pipeline tasks finance orders inventory
-                            approvals audit delivery users roles account auth lang hr ai bank
+                            approvals audit delivery users roles account auth lang hr ai bank tax
 
 views/                      按模块分目录 + layout.php + print/ + word/ + errors/
 prompts/                    AI 提示词 {task}_v{n}.txt（改提示词即新建下一版，旧版保留）
 database/schema.sql         表结构
 database/seed_products.sql  269 个产品（由 tools/gen_products.php 从原型抽取，一次性）
+database/coretax/           DJP Coretax 销项导入模板 v1.6.1 空白副本（Faktur.php 复制后填数据行）
 tools/
   reset_password.php        CLI 重置账号密码（运维）
   backup_db.php             VACUUM INTO 一致快照 + 附件打包，滚动保留 14 份
@@ -93,6 +95,7 @@ tools/
   clean_customer_data.php   一次性客户数据清洗（默认预演，--apply 先快照）
   import_sales_history.php  导入旧记账软件「销售单」Excel 为历史销售（默认预演，--apply 写入，--purge-batch 撤销）
   import_bank_book.php      导入财务工作簿 Buku Bank（别名种子，默认预演，--apply 写入）+ 回款匹配盲测（--benchmark=YYYY-MM [--ai]）
+  import_customer_tax.php   一次性导入买方 NPWP 等税务资料（默认预演，--apply 写入，只填空的）
   run_tests.php             零依赖测试运行器（见 5.7）
 tests/                      测试用例 *_test.php（内存 SQLite，不碰运行时数据）
 data/                       运行时 SQLite + uploads/（gitignore，**在 web 根之外**）

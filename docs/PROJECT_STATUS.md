@@ -254,6 +254,61 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 
 **测试**：`tests/pagination_test.php`；控制器渲染测试通过 `tests/support/run_controller.php` 子进程执行（控制器文件里声明了函数，同一进程不能 include 两次）。
 
+## 6zf. 财务 AI · FA-TAX-01 销项 Faktur 导入表（2026-10-22）
+
+按 docs/任务卡-财务AI.md v2 开发，纯规则，不用 AI。代码：`app/Faktur.php`、`app/controllers/tax.php`、`views/tax/`、`database/coretax/Faktur_PK_Template_v1.6.1.xlsx`（DJP 官方模板的空白副本）、`tools/import_customer_tax.php`；测试 `tests/faktur_test.php`。入口：财务管理页头「销项 Faktur」。权限：沿用 `finance` 模块。
+
+**用户决定（2026-10-22）**
+- **买方税务资料放在客户上，只由财务维护**。客户表新增 `tax_npwp / tax_nik / tax_name / tax_address / tax_nitku / tax_email`，在 Faktur 页「税务资料」里编辑；销售页面不显示、不要求填写。
+- 已有资料用 `tools/import_customer_tax.php` 一次性导入。
+- **TBC 只给财务看**，不给销售推任何提醒（章程第二原则）。
+- **脱敏样本里有真实数据**：`samples_test/Coretax_Faktur_Template_…_SAMPLE.xlsx` 的 Faktur 表第 4–5 行是真实买方（姓名、NIK、住址），文件属性里还有两个人名，已在 `edea8d2` 清除，只留两行虚构数据。**旧提交 `84327a3` 里仍有原文件**，是否改写 git 历史待用户定。测试会检查样本里不再有这些内容。
+
+**分类**（`Faktur::auto_class()`；财务可逐张发票改，改动存 `invoices.faktur_class` 并记审计）
+- 客户有 NPWP 或 NIK → FAKTUR。
+- 否则名称带法人形式（PT / CV / UD / FA / Koperasi / Yayasan / Tbk / PD / Perum / Persero），或下单客户类型是 Distributor / Contractor → TBC（这类不进导入表，列给财务去补）。
+- 其余 → GUNGGUNG。
+
+**生成导入表**（`Faktur::generate()`）
+- 复制 DJP 模板，只改写 Faktur（第 4 行起）和 DetailFaktur（第 2 行起）的数据行；表头、列序、参考表、批注、校验规则都原样保留（测试逐表比对样本）。ID 一律写成文本，保留开头的 0。
+- **Faktur 行**：
+  - Baris 从 1 连号；Tanggal Faktur 写 DD/MM/YYYY；Normal；Kode Transaksi 04；Referensi = 发票号。
+  - ID TKU 卖方 = `company_nitku`，留空时用 NPWP + 000000。
+  - 买方 ID：NPWP 写 16 位（旧 15 位号自动补成 16 位）。只有 NIK 的个人，按财务现行做法把 NIK 当 TIN 填（与他们手填的模板一致）。
+  - 买方 NITKU：留空时用 ID + 000000。
+  - 名称：取 NPWP 登记名，其次是公司名 / 开票对象。地址：取 NPWP 登记地址，其次是发票地址。
+- **DetailFaktur**：
+  - 每个 SKU 一行，同一发票的行用同一个 Baris。
+  - 固定值：A / 760600 / UM.0021 / 折扣 0 / 税率 12 / PPnBM 0。
+  - 品名与印出来的发票相同：`(规格) SKU (颜色)`。
+  - Harga Satuan = 发票上的税前单价。DPP、DPP Nilai Lain、PPN 按行用 `invoice_amounts_coretax()` 算（两位小数截断）。
+  - **发票有运费时单独一行**：B / Ongkos Kirim / UM.0033，Kode Barang 留空。这个写法要找财务确认。
+- **阻断项**（有一项就不能生成；财务修资料，或把发票改分类）：
+  - 没配置本公司 NPWP；
+  - FAKTUR 发票的 NPWP 位数不对、NIK 位数不对、缺号、地址为空、没有明细；
+  - 各行 DPP / PPN 合计与发票的差额超过每行 Rp1（卡上的容差）。
+- 文件存 `data/faktur/`（私有），走鉴权下载。同一期间再生成时，旧版标记为 superseded 但保留。
+
+**Digunggung 汇总**：按期间列出 GUNGGUNG 发票（发票号、日期、买方、DPP、DPP Nilai Lain、PPN、总额），带合计行，同样保存。
+
+**导入已有的买方资料**（一次性）
+
+```bash
+cd /www/wwwroot/www.alupanel.cc
+/www/server/php/82/bin/php tools/import_customer_tax.php --file=/root/ACP_Faktur_PK_Template_v1.6.1.xlsx            # 预演（默认读 Faktur 表）
+/www/server/php/82/bin/php tools/import_customer_tax.php --file=/root/ACP_Faktur_PK_Template_v1.6.1.xlsx --apply
+/www/server/php/82/bin/php tools/import_customer_tax.php --file=/root/DETAIL_DATA_INVOICE.xlsx --sheet="表名"          # 其他表：按表头找「发票号」和「NPWP」列
+```
+
+- 按发票号找到平台发票，再经订单找到客户。`1301 - AMI - 10 - 26` 和 `1301 - AMI - INV - 10 - 26` 视为同一张。
+- 只填资料还空着的客户，不覆盖财务后来的修改。
+- 同一客户出现不同 NPWP 时报冲突，保留第一个。
+
+**上线前要做**
+- 在 `config.php` 填 `company_npwp`（16 位）；分公司要用别的 NITKU 时再填 `company_nitku`。不填就不能生成。
+- 和财务确认运费行的写法。
+- **未做**：卡上第 4 步「Coretax 结果清单回写 Faktur 号」，要等财务提供一份导出样本（卡上「仍需财务提供」第 3 项）。在那之前，Faktur 号仍可在发票页手工补录。
+
 ## 6ze. 财务 AI · FA-AI-01 银行流水对账（回款匹配）（2026-10-22）
 
 按 docs/任务卡-财务AI.md v2 开发。代码：`app/Bank.php`、`app/controllers/bank.php`、`views/bank/`、`prompts/bank_match_v1.txt`、`tools/import_bank_book.php`；测试 `tests/bank_test.php`（只用 samples_test/，发票为虚构）。入口：财务管理页头「银行流水」「回款记录」。权限：沿用 `finance` 模块。
@@ -737,8 +792,9 @@ app/
   Export.php                无依赖 Excel 导出（.xlsx via ZipArchive，CSV 兜底）
   Claude.php / AiTask.php   AI：唯一 HTTP 出口 / 任务调用层（模型按任务配置、prompt 版本、schema 校验、美元预算、ai_calls 台账，见 6zd）
   Bank.php                  银行流水：BCA/ICBC 解析、打标、规则匹配、AI 匹配、确认入账、回款状态、历史导入与盲测（见 6ze）
+  Faktur.php                销项 Faktur：FAKTUR/GUNGGUNG/TBC 分类、填 DJP Coretax 导入模板、Digunggung 汇总、买方税务资料（见 6zf）
   Auth.php / Csrf.php
-  controllers/              dashboard customers pipeline tasks finance orders inventory approvals audit delivery users roles account auth lang hr ai bank
+  controllers/              dashboard customers pipeline tasks finance orders inventory approvals audit delivery users roles account auth lang hr ai bank tax
 prompts/                    AI 提示词 {task}_v{n}.txt（改提示词即升版本，旧版保留，见 6zd）
 views/                      按模块分目录 + layout.php + print/ + errors/（account/password.php 改密页）
 database/schema.sql         表结构
@@ -746,6 +802,8 @@ database/seed_products.sql  269 个产品（由 tools/gen_products.php 从原型
 tools/reset_password.php    CLI 重置账号密码（运维，见 6d）
 tools/backup_db.php         DB 快照 + 附件打包备份（运维，见 6e）
 tools/import_bank_book.php  财务工作簿 Buku Bank 导入（别名种子）+ 回款匹配盲测（见 6ze）
+tools/import_customer_tax.php 买方 NPWP 等税务资料一次性导入（Coretax 模板或任意含发票号+NPWP 的表，见 6zf）
+database/coretax/           DJP Coretax 销项导入模板 v1.6.1 空白副本（生成 Faktur 用）
 tools/run_tests.php         零依赖测试运行器（`php tools/run_tests.php`）
 tests/*_test.php            测试用例（内存 SQLite，不碰 data/crm.sqlite）
 data/                       运行时 SQLite + uploads/（gitignore，在 web 根之外）
@@ -756,11 +814,11 @@ config.php                  应用与公司配置
 
 ## 8. config.php 可定制项
 
-`company_full / company_addr / company_npwp / banks[ICBC,BCA] / signer_name / signer_title`（发票抬头）、`ppn_rate=11`、`currency=Rp`、`brand=AluPanel`。
+`company_full / company_addr / banks[ICBC,BCA] / signer_name / signer_title`（发票抬头）、`company_npwp / company_nitku`（Coretax 导入表的卖方，FA-TAX-01，**待填**）、`coretax`（Kode Transaksi / Kode Barang / 单位 / 运费行，见 6zf）、`bank`（回款匹配容差等，见 6ze）、`ai`（任务、单价、美元上限，见 6zd）、`ppn_rate=11`、`currency=Rp`、`brand=AluPanel`。
 
 ## 9. 数据模型（表）
 
-**bank_accounts / bank_imports / bank_transactions / payment_allocations / customer_payer_aliases / bank_book（银行流水与回款对账，见 6ze）**, payments(+noncash 结案差额行), **ai_calls(AI 调用台账：任务/模型/prompt 版本/tokens/费用/耗时/状态，见 6zd)**, **ai_suggestions(AI 建议与人工确认、采纳率)**, hr_todos(+type ai_budget：老板专属、无员工), **sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
+**faktur_exports（生成的 Coretax / Digunggung 文件，见 6zf）**, customers(+tax_npwp/tax_nik/tax_name/tax_address/tax_nitku/tax_email 买方税务资料), invoices(+faktur_class 分类覆盖), **bank_accounts / bank_imports / bank_transactions / payment_allocations / customer_payer_aliases / bank_book（银行流水与回款对账，见 6ze）**, payments(+noncash 结案差额行), **ai_calls(AI 调用台账：任务/模型/prompt 版本/tokens/费用/耗时/状态，见 6zd)**, **ai_suggestions(AI 建议与人工确认、采纳率)**, hr_todos(+type ai_budget：老板专属、无员工), **sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
 
 ## 10. 提交历史（main）
 
@@ -810,7 +868,7 @@ b40fe6f Insights: call-list pages for sales, manager view with activity, distrib
 **安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **备份异地同步到 OSS**(见 6e) / **列表分页 + 搜索**(见 6o) / **客户分析·数据准备**(见 6p) / **AI 花费护栏**(见 6p) / **回访清单计算 + 跟进记录**(见 6q) / **回访清单页 + 客户分析看板 + 送货地图**(见 6r) / **客户分析权限**(见 6s) / **看板张数列 + 张数卡片**(见 6t) / **订单小数 + 发票 .docx + 尾差并入 VAT**(见 6u) / **表单过期友好提示**(见 6v) / **发票按 Coretax 口径**(见 6w) / **订单含税/不含税单价**(见 6x) / **自动化测试**(`tools/run_tests.php`，870 项)。
 
 **待办（按优先级）**：
--2. **财务 AI**（docs/任务卡-财务AI.md v2，顺序 00 → 01 → TAX-01 → 02 → 03）：**FA-AI-00 ✅**（见 6zd）、**FA-AI-01 ✅ 待用户确认**（见 6ze）。下一张 FA-TAX-01。FA-AI-01 上线后要在服务器做的：① `tools/import_bank_book.php` 预演 → `--apply` → `--benchmark=2026-09 --ai`，把准确率记进 docs/进度.md；② 财务用一次真实的 BCA / ICBC CSV，确认「与文件汇总」显示一致（脱敏样本的汇总被清零了）。FA-AI-01 未做 / 已知：撤销确认没有入口（错了只能在发票页冲销收款，冲销不会把流水退回未匹配）；LOST 坏账状态没有来源；BCA 付款人截取靠格式推断，异常格式会落到 AI 或人工。遗留给后续卡的：PDF 只发需要的页（FA-AI-03 时定方案）；01 的业务表用 `ai_suggestion_id` 关联 ai_suggestions（01 时确认）。已知低危：① 超预算待办的日期 ref 用 PHP `date()`，花费窗口用 SQLite `localtime`；若 PHP 时区与服务器系统时区不一致，在午夜前后待办日期可能差一天（只影响待办标题，不影响拦截）。② `ai.prices` 是 2026-10 的官方价，Anthropic 调价时要手工改；Haiku 5.5 的缓存读价 $0.01 是按输入价的 10% 推定的。③ 库存助手仍记在 ai_queries（没进 ai_calls），使用情况页单列；以后可以迁到任务层。
+-2. **财务 AI**（docs/任务卡-财务AI.md v2，顺序 00 → 01 → TAX-01 → 02 → 03）：**FA-AI-00 ✅**（见 6zd）、**FA-AI-01 ✅ 待用户确认**（见 6ze）。**FA-TAX-01 ✅ 待用户确认**（见 6zf；上线前填 `company_npwp`，运费行写法待财务确认，Coretax 结果清单回写等样本）。下一张 FA-AI-02 报销票据识别（要先拿到 10–20 张小票照片和现行报销审批人）。**已知问题（与本卡无关，未改）**：`tools/backup_db.php` 只打包 `data/uploads/`，**人力附件 `data/hr/`（KTP / NPWP / 合同扫描件）从未进过备份**，`data/faktur/` 也不在内（可重新生成，影响小）——建议尽快把 `data/hr` 加进备份。FA-AI-01 上线后要在服务器做的：① `tools/import_bank_book.php` 预演 → `--apply` → `--benchmark=2026-09 --ai`，把准确率记进 docs/进度.md；② 财务用一次真实的 BCA / ICBC CSV，确认「与文件汇总」显示一致（脱敏样本的汇总被清零了）。FA-AI-01 未做 / 已知：撤销确认没有入口（错了只能在发票页冲销收款，冲销不会把流水退回未匹配）；LOST 坏账状态没有来源；BCA 付款人截取靠格式推断，异常格式会落到 AI 或人工。遗留给后续卡的：PDF 只发需要的页（FA-AI-03 时定方案）；01 的业务表用 `ai_suggestion_id` 关联 ai_suggestions（01 时确认）。已知低危：① 超预算待办的日期 ref 用 PHP `date()`，花费窗口用 SQLite `localtime`；若 PHP 时区与服务器系统时区不一致，在午夜前后待办日期可能差一天（只影响待办标题，不影响拦截）。② `ai.prices` 是 2026-10 的官方价，Anthropic 调价时要手工改；Haiku 5.5 的缓存读价 $0.01 是按输入价的 10% 推定的。③ 库存助手仍记在 ai_queries（没进 ai_calls），使用情况页单列；以后可以迁到任务层。
 -1. **历史销售**（见 6zc）：线上先预演 `tools/import_sales_history.php --file=…` 看未匹配客户/业务员报告，定 `--alias` 后 `--apply`；再考虑把 sales_history 接进回访清单的最近购买。
 0. **客户分析板块**（任务书四部分，见 6p）：一、数据准备 ✅（6p）；二、三个清单 ✅（6q）；三、页面 ✅（6r）；四、权限 ✅ 待验收（6s）。宝塔计划任务 `tools/nightly.php` 每天 02:30 已加，`.env` 已配。四部分均已上线（2026-10-16）。**智能查库存已启用 Claude（2026-10-16；服务器 `config.local.php` 加了 `'ai' => ['driver' => 'claude']`），模型 `claude-opus-5-5`**——曾短暂用 `claude-opus-5`，比较后改回 5.5（更便宜且更新；用户不需要 Sonnet/Haiku 对比测试）。请求带 `fallbacks: "default"`；行业判断同为 `claude-opus-5-5`。剩余：70 个无负责人客户待在「数据整理」分配。**`.env` 里的 Anthropic 密钥曾在聊天中明文出现，用户决定继续使用——建议择机在 console.anthropic.com 轮换。** erpandi 已于 2026-10-16 合并到 erfandi（21 客户 / 31 订单，快照 `backups/pre_merge_erpandi_*`）。晨间 WhatsApp 提醒待 WhatsApp 启用后再做（6r）。
 1. ~~**关闭 SSH 密码认证**~~ —— **已完成**（2026-10-12，见 6f）。~~**备份异地同步**~~ —— **已完成并启用**（2026-10-13，阿里云 OSS，见 6e）；**系统安全补丁**（登录提示 72 个安全更新，26 个 Important，挑空闲时段 `dnf upgrade-minimal --security`）

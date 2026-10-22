@@ -39,7 +39,15 @@ CREATE TABLE customers (
     region              TEXT,             -- jkt_utara..bogor_depok|other|unknown; NULL = no shipped order yet
     delivery_regions    TEXT,             -- JSON {region: order count} over all shipped orders
     enriched_at         TEXT,
-    created_at   TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+    tax_npwp       TEXT,                  -- buyer tax data for Coretax (FA-TAX-01), kept by finance: NPWP 16 digits
+    tax_nik        TEXT,                  -- NIK 16 digits (individual buyer)
+    tax_name       TEXT,                  -- name as registered with the NPWP
+    tax_address    TEXT,                  -- address as registered with the NPWP
+    tax_nitku      TEXT,                  -- 22 digits; empty = NPWP/NIK + 000000
+    tax_email      TEXT,
+    tax_updated_by TEXT,
+    tax_updated_at TEXT
 );
 
 -- ── Deals (sales pipeline) ──
@@ -198,6 +206,7 @@ CREATE TABLE invoices (
     voided_at     TEXT,                      -- set = 作废; excluded from receivables
     voided_by     TEXT,
     void_reason   TEXT,
+    faktur_class  TEXT,                      -- FA-TAX-01 override: FAKTUR | GUNGGUNG | TBC; NULL = automatic
     created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -700,4 +709,21 @@ CREATE TABLE bank_book (
     id INTEGER PRIMARY KEY AUTOINCREMENT, trx_code TEXT NOT NULL UNIQUE, trx_date TEXT NOT NULL, description TEXT NOT NULL,
     amount REAL NOT NULL, invoice_raw TEXT, invoice_ids TEXT, customer_id INTEGER, payer_name TEXT,
     batch TEXT, imported_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+-- ── Output tax invoices for Coretax (FA-TAX-01, app/Faktur.php): files generated per period ──
+CREATE TABLE faktur_exports (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind          TEXT NOT NULL,                  -- faktur (DJP import template) | gunggung (retail total list)
+    period_from   TEXT NOT NULL,
+    period_to     TEXT NOT NULL,
+    stored        TEXT NOT NULL,                  -- file name under data/faktur/ (private)
+    file_name     TEXT NOT NULL,                  -- download name
+    invoices      INTEGER NOT NULL DEFAULT 0,
+    lines         INTEGER NOT NULL DEFAULT 0,
+    dpp_total     REAL NOT NULL DEFAULT 0,
+    ppn_total     REAL NOT NULL DEFAULT 0,
+    superseded_at TEXT,                           -- set when the same period is generated again
+    created_by    TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );

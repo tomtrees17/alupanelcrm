@@ -36,6 +36,7 @@ require __DIR__ . '/Notify.php';
 require __DIR__ . '/Claude.php';
 require __DIR__ . '/AiTask.php';
 require __DIR__ . '/Bank.php';
+require __DIR__ . '/Faktur.php';
 require __DIR__ . '/Ai.php';
 require __DIR__ . '/Dashboard.php';
 require __DIR__ . '/Enrich.php';
