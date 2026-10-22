@@ -2,6 +2,7 @@
 <div class="page-head">
     <h1><?= t('page_orders') ?></h1>
     <div class="head-actions">
+        <a class="btn btn-ghost" href="<?= url('orders.co_index') ?>"><?= t('co_register') ?></a>
         <a class="btn btn-ghost" href="<?= url('delivery.index') ?>"><?= t('do_invoice') ?></a>
         <a class="btn btn-primary" href="<?= url('orders.create') ?>"><?= t('btn_add_order') ?></a>
     </div>

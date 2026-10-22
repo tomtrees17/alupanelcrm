@@ -117,10 +117,15 @@ function order_totals(PDO $pdo, int $orderId): array
 /** Next sequential sales-order number: 0477/AMI-CO/MM/YY */
 function next_order_no(PDO $pdo): string
 {
-    $max = 0;
-    foreach ($pdo->query("SELECT order_no FROM orders") as $r) {
-        if (preg_match('/^(\d+)\//', (string) $r['order_no'], $mm)) {
-            $max = max($max, (int) $mm[1]);
+    // One sequence for the whole company: continues after the highest number
+    // in the orders table OR the imported Google-Form register (see CoNumbers),
+    // so the platform never re-issues a number the form already gave out.
+    $max = class_exists('CoNumbers') ? CoNumbers::max_seq($pdo) : 0;
+    if (!class_exists('CoNumbers')) {
+        foreach ($pdo->query("SELECT order_no FROM orders") as $r) {
+            if (preg_match('/^(\d+)\//', (string) $r['order_no'], $mm)) {
+                $max = max($max, (int) $mm[1]);
+            }
         }
     }
     $seq = str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT);

@@ -424,6 +424,11 @@ final class Database
             require_once __DIR__ . '/SalesHistory.php';
         }
         SalesHistory::ensure_schema($pdo);
+        // CO numbers: Google-Form register + orders.co_no (one sequence from now on).
+        if (!class_exists('CoNumbers')) {
+            require_once __DIR__ . '/CoNumbers.php';
+        }
+        CoNumbers::ensure_schema($pdo);
 
         // AI task layer (FA-AI-00): the ai_calls ledger and ai_suggestions.
         if (!class_exists('AiTask')) {

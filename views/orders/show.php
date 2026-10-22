@@ -75,8 +75,26 @@ $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['ro
             <div><dt><?= t('f_delivery_date') ?></dt><dd><?= e($order['delivery_date']) ?: '—' ?></dd></div>
             <div><dt><?= t('f_payment_term') ?></dt><dd><?= e($order['payment_term']) ?><?= $order['payment_term'] === 'custom' ? ' Net ' . (int) $order['custom_days'] . 'd' : '' ?></dd></div>
             <div><dt><?= t('th_submitter') ?></dt><dd><?= e($order['submitter']) ?></dd></div>
+            <div><dt><?= t('co_no') ?></dt><dd>
+                <?php if (!empty($order['co_no'])): ?>
+                    <?= e($order['co_no']) ?><?php if ($order['co_no'] !== $order['order_no']): ?> <span class="muted small">(<?= t('co_form_number') ?>)</span><?php endif; ?>
+                <?php else: ?>—<?php endif; ?>
+            </dd></div>
             <div><dt><?= t('do_invoice') ?></dt><dd><?= e($order['do_number']) ?: '—' ?> / <?= $invoice ? '<a href="' . url('finance.show', ['id' => $invoice['id']]) . '">' . e($order['invoice_number']) . '</a>' : '—' ?></dd></div>
         </dl>
+        <?php if (!empty($canLinkCo) && (empty($order['co_no']) || $order['co_no'] !== $order['order_no'])): ?>
+            <form method="post" action="<?= url('orders.link_co') ?>" class="co-link" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0">
+                <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $order['id'] ?>">
+                <select class="form-select" name="co_no" style="max-width:420px">
+                    <option value=""><?= empty($order['co_no']) ? t('co_choose') : t('co_unlink') ?></option>
+                    <?php foreach (($coAvailable ?? []) as $r): ?>
+                        <option value="<?= e($r['co_no']) ?>"<?= ($order['co_no'] ?? '') === $r['co_no'] ? ' selected' : '' ?>><?= e($r['co_no']) ?> · <?= e($r['sales_name']) ?> · <?= e($r['company'] ?: $r['client_name']) ?> · <?= e(substr((string) $r['issued_at'], 0, 10)) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button class="btn btn-ghost btn-sm" type="submit"><?= t('co_link_btn') ?></button>
+                <span class="muted small"><?= order_editable($order) ? t('co_link_hint_draft') : t('co_link_hint') ?></span>
+            </form>
+        <?php endif; ?>
         <div class="notes"><strong><?= t('delivery_addr') ?>：</strong><?= e($order['delivery_address']) ?: e($order['address']) ?><?= $order['note'] ? '<br><strong>' . t('th_note') . '：</strong>' . e($order['note']) : '' ?></div>
     </div></div>
 

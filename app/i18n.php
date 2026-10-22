@@ -855,6 +855,15 @@ const I18N = [
         'hist_doc_no' => '原单号', 'hist_customer_raw' => '原客户名', 'hist_salesperson' => '业务员', 'hist_sheets' => '张数',
         'hist_no_data' => '没有历史单据', 'hist_sum' => '当前筛选合计', 'hist_unlinked' => '未关联', 'hist_lines' => '%d 行',
         'yr_all_years' => '全部年份',
+        // ── CO numbers (Google-Form register) ──
+        'co_no' => 'CO 号', 'co_form_number' => '表单领的号，客户认这个', 'co_register' => 'CO 号登记', 'co_register_sub' => '原 Google 表单发出的 CO 号；系统现在从最大号接着发',
+        'co_pick' => 'CO 号', 'co_new_no' => '系统自动发号（下一个：%s）', 'co_keep_no' => '保留当前订单号', 'co_pick_hint' => '已经在表单领过号的，从这里选，订单就用那个号；没领过的不用管',
+        'co_choose' => '— 挂接表单领的 CO 号 —', 'co_unlink' => '— 解除 CO 号 —', 'co_link_btn' => '确定',
+        'co_link_hint' => '只记录对应关系，订单号不变（送货单和发票已用它）', 'co_link_hint_draft' => '草稿：订单号会改为所选 CO 号',
+        'co_stat_total' => '登记总数', 'co_stat_open' => '未挂订单', 'co_stat_last' => '最后发号', 'co_stat_next' => '系统下一个号',
+        'co_only_open' => '未挂订单', 'co_only_linked' => '已挂订单', 'co_search' => '搜索 CO 号 / 销售 / 客户 / 电话 / 订单号',
+        'th_co_no' => 'CO 号', 'th_issued_at' => '领号时间', 'th_sales_name' => '销售', 'th_client' => '联系人', 'co_no_rows' => '没有登记记录', 'co_not_imported' => '尚未导入表单登记（tools/import_co_requests.php）',
+        'msg_co_linked' => 'CO 号已挂接。', 'msg_co_unlinked' => 'CO 号已解除。', 'msg_co_taken' => '这个 CO 号已被另一张订单使用。', 'msg_co_not_found' => '登记里没有这个 CO 号。', 'msg_co_no_perm' => '无权挂接 CO 号。',
     ],
     'id' => [
         'lang_name' => 'Indonesia', 'app_tagline' => 'Sistem Manajemen Bisnis ACP',
@@ -1689,6 +1698,15 @@ const I18N = [
         'hist_doc_no' => 'No. asli', 'hist_customer_raw' => 'Nama pelanggan asli', 'hist_salesperson' => 'Sales', 'hist_sheets' => 'Lembar',
         'hist_no_data' => 'Tidak ada dokumen historis', 'hist_sum' => 'Total filter ini', 'hist_unlinked' => 'Belum terhubung', 'hist_lines' => '%d baris',
         'yr_all_years' => 'Semua tahun',
+        // ── CO numbers (Google-Form register) ──
+        'co_no' => 'No. CO', 'co_form_number' => 'nomor dari formulir, yang dikenal pelanggan', 'co_register' => 'Daftar No. CO', 'co_register_sub' => 'Nomor CO dari Google Form lama; sistem kini melanjutkan dari nomor terbesar',
+        'co_pick' => 'No. CO', 'co_new_no' => 'Nomor otomatis (berikutnya: %s)', 'co_keep_no' => 'Pakai nomor pesanan saat ini', 'co_pick_hint' => 'Jika nomor sudah diminta lewat formulir, pilih di sini agar pesanan memakai nomor itu; jika belum, biarkan',
+        'co_choose' => '— Hubungkan No. CO dari formulir —', 'co_unlink' => '— Lepas No. CO —', 'co_link_btn' => 'Simpan',
+        'co_link_hint' => 'Hanya mencatat hubungan; nomor pesanan tetap (sudah dipakai surat jalan & invoice)', 'co_link_hint_draft' => 'Draft: nomor pesanan akan diganti dengan No. CO yang dipilih',
+        'co_stat_total' => 'Total terdaftar', 'co_stat_open' => 'Belum terhubung', 'co_stat_last' => 'Nomor terakhir', 'co_stat_next' => 'Nomor berikutnya',
+        'co_only_open' => 'Belum terhubung', 'co_only_linked' => 'Sudah terhubung', 'co_search' => 'Cari No. CO / sales / pelanggan / telepon / no. pesanan',
+        'th_co_no' => 'No. CO', 'th_issued_at' => 'Waktu minta', 'th_sales_name' => 'Sales', 'th_client' => 'Kontak', 'co_no_rows' => 'Tidak ada data', 'co_not_imported' => 'Daftar formulir belum diimpor (tools/import_co_requests.php)',
+        'msg_co_linked' => 'No. CO terhubung.', 'msg_co_unlinked' => 'No. CO dilepas.', 'msg_co_taken' => 'No. CO ini sudah dipakai pesanan lain.', 'msg_co_not_found' => 'No. CO tidak ada di daftar.', 'msg_co_no_perm' => 'Tidak berhak menghubungkan No. CO.',
     ],
 ];
 

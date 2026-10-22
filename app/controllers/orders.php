@@ -16,8 +16,8 @@ switch ($action) {
             $args[] = $statusFilter;
         }
         if ($q !== '') {
-            $cond[] = '(o.order_no LIKE ? OR o.customer_name LIKE ? OR o.company LIKE ? OR o.submitter LIKE ? OR o.invoice_number LIKE ?)';
-            array_push($args, "%$q%", "%$q%", "%$q%", "%$q%", "%$q%");
+            $cond[] = '(o.order_no LIKE ? OR o.co_no LIKE ? OR o.customer_name LIKE ? OR o.company LIKE ? OR o.submitter LIKE ? OR o.invoice_number LIKE ?)';
+            array_push($args, "%$q%", "%$q%", "%$q%", "%$q%", "%$q%", "%$q%");
         }
         if (sees_only_own()) {
             $cond[] = 'o.submitter = ?';
@@ -68,6 +68,7 @@ switch ($action) {
         }
         view('orders.show', [
             'pageTitle' => $order['order_no'], 'pageSub' => $order['company'],
+            'canLinkCo' => co_can_link($auth, $order), 'coAvailable' => CoNumbers::available($pdo, 120, $order['co_no'] ?? null),
             'order' => $order, 'items' => $items->fetchAll(), 'totals' => $totals,
             'invoice' => $invoice, 'deliveryId' => $deliveryId,
         ]);
@@ -78,6 +79,7 @@ switch ($action) {
             'pageTitle' => t('btn_add_order'), 'pageSub' => '', 'order' => null, 'items' => [],
             'customers' => order_customer_list($pdo), 'products' => order_product_list($pdo),
             'canAssignSales' => !sees_only_own(), 'salesStaff' => order_sales_list($pdo),
+            'coAvailable' => CoNumbers::available($pdo), 'nextNo' => next_order_no($pdo),
         ]);
         break;
 
@@ -100,6 +102,7 @@ switch ($action) {
             'order' => $order, 'items' => $its->fetchAll(),
             'customers' => order_customer_list($pdo), 'products' => order_product_list($pdo),
             'canAssignSales' => !sees_only_own(), 'salesStaff' => order_sales_list($pdo, $order['submitter']),
+            'coAvailable' => CoNumbers::available($pdo, 60, $order['co_no'] ?? null), 'nextNo' => null,
         ]);
         break;
 
@@ -156,6 +159,7 @@ switch ($action) {
             flash(sprintf(t('msg_order_has_invoice'), $invNo), 'error');
             redirect('orders.show', ['id' => $order['id']]);
         }
+        CoNumbers::unlink($pdo, (int) $order['id']);   // the form number goes back to the pool
         $pdo->prepare('DELETE FROM orders WHERE id = ?')->execute([$order['id']]);
         recompute_reservations($pdo);   // release any reserved stock
         audit(
@@ -169,6 +173,57 @@ switch ($action) {
         );
         flash(t('msg_order_deleted'));
         redirect('orders.index');
+        break;
+
+    // ── CO numbers (Google-Form register) ──────────────────────────────────
+    case 'co_index':
+        $q = trim((string) input('q', ''));
+        $only = (string) input('only', '');
+        $cond = [];
+        $args = [];
+        if ($q !== '') {
+            $cond[] = '(r.co_no LIKE ? OR r.sales_name LIKE ? OR r.company LIKE ? OR r.client_name LIKE ? OR r.phone LIKE ? OR o.order_no LIKE ?)';
+            array_push($args, "%$q%", "%$q%", "%$q%", "%$q%", "%$q%", "%$q%");
+        }
+        if ($only === 'open') {
+            $cond[] = 'r.order_id IS NULL';
+        } elseif ($only === 'linked') {
+            $cond[] = 'r.order_id IS NOT NULL';
+        }
+        $where = $cond ? ' WHERE ' . implode(' AND ', $cond) : '';
+        $base = ' FROM co_requests r LEFT JOIN orders o ON o.id = r.order_id' . $where;
+        $pg = paginate($pdo, 'SELECT COUNT(*)' . $base, $args);
+        $st = $pdo->prepare('SELECT r.*, o.order_no, o.status AS order_status' . $base . ' ORDER BY r.seq DESC' . $pg['limit']);
+        $st->execute($args);
+        $stats = $pdo->query('SELECT COUNT(*) total, SUM(order_id IS NULL) open, MAX(seq) max_seq, MAX(issued_at) last_issued FROM co_requests')->fetch() ?: [];
+        view('orders.co_index', ['rows' => $st->fetchAll(), 'q' => $q, 'only' => $only, 'pg' => $pg, 'stats' => $stats, 'nextNo' => next_order_no($pdo)]);
+        break;
+
+    case 'link_co':
+        Csrf::verify();
+        $order = find_order($pdo, (int) input('id', 0));
+        if (!co_can_link($auth, $order)) {
+            flash(t('msg_co_no_perm'), 'error');
+            redirect('orders.show', ['id' => $order['id']]);
+        }
+        $coNo = trim((string) input('co_no', ''));
+        try {
+            if ($coNo === '') {
+                $before = (string) ($order['co_no'] ?? '');
+                CoNumbers::unlink($pdo, (int) $order['id']);
+                audit($pdo, 'orders', 'update', 'order', (int) $order['id'], (string) $order['order_no'], 'CO 号解除: ' . $before);
+                flash(t('msg_co_unlinked'));
+            } else {
+                // A draft has no paperwork yet, so it can take the CO number as its order number.
+                $rename = order_editable($order);
+                CoNumbers::link($pdo, (int) $order['id'], $coNo, own_name(), $rename, 'manual');
+                audit($pdo, 'orders', 'update', 'order', (int) $order['id'], $rename ? $coNo : (string) $order['order_no'], 'CO 号挂接: ' . $coNo . ($rename ? '（订单号改为该号）' : ''));
+                flash(t('msg_co_linked'));
+            }
+        } catch (RuntimeException $e) {
+            flash(t($e->getMessage() === 'co_taken' ? 'msg_co_taken' : 'msg_co_not_found'), 'error');
+        }
+        redirect('orders.show', ['id' => $order['id']]);
         break;
 
     default:
@@ -213,7 +268,7 @@ function order_sales_list(PDO $pdo, ?string $keep = null): array
  * The "do" field decides: "submit" → pending_sup (with stock check); else → draft.
  * Returns the order id.
  */
-function save_order(PDO $pdo, Auth $auth, ?array $existing): int
+function save_order(PDO $pdo, object $auth, ?array $existing): int   // $auth unused; typed loosely so the test harness stub can drive this
 {
     $isEdit = $existing !== null;
     $back = $isEdit ? ['orders.edit', ['id' => $existing['id']]] : ['orders.create', []];
@@ -326,11 +381,12 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
             $pdo->prepare($sql)->execute($params);
             $pdo->prepare('DELETE FROM order_items WHERE order_id = ?')->execute([$oid]);
         } else {
+            $newNo = next_order_no($pdo);
             $pdo->prepare(
                 'INSERT INTO orders (order_no,customer_id,customer_name,company,address,phone,client_type,delivery_service,delivery_address,submitter,shipping_cost,delivery_date,note,payment_term,custom_days,status,created_by,price_basis)
                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
             )->execute([
-                next_order_no($pdo), $customerId, $custName, trim((string) input('company', '')),
+                $newNo, $customerId, $custName, trim((string) input('company', '')),
                 trim((string) input('address', '')), trim((string) input('phone', '')),
                 (string) input('client_type', 'End User'), (string) input('delivery_service', 'Self Pickup'),
                 trim((string) input('delivery_address', '')), $submitter,
@@ -339,6 +395,14 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
                 (int) input('custom_days', 0), $status, own_name(), $basis,
             ]);
             $oid = (int) $pdo->lastInsertId();
+            // From now on the order number is the CO number the customer sees.
+            $pdo->prepare('UPDATE orders SET co_no = ? WHERE id = ?')->execute([$newNo, $oid]);
+        }
+        // A number already requested through the old Google Form: the order takes it
+        // instead of a fresh one (drafts only — nothing printed yet carries the number).
+        $pickCo = trim((string) input('co_no', ''));
+        if ($pickCo !== '' && $pickCo !== (string) ($existing['co_no'] ?? '')) {
+            CoNumbers::link($pdo, $oid, $pickCo, own_name(), true, 'picked on order form');
         }
 
         $ins = $pdo->prepare('INSERT INTO order_items (order_id,product_id,sku,color,spec,size,qty,unit,price,price_excl) VALUES (?,?,?,?,?,?,?,?,?,?)');
@@ -348,13 +412,20 @@ function save_order(PDO $pdo, Auth $auth, ?array $existing): int
         }
         recompute_reservations($pdo);
         $pdo->commit();
+    } catch (RuntimeException $ex) {
+        $pdo->rollBack();
+        if (in_array($ex->getMessage(), ['co_taken', 'co_not_found'], true)) {
+            flash(t($ex->getMessage() === 'co_taken' ? 'msg_co_taken' : 'msg_co_not_found'), 'error');
+            redirect($back[0], $back[1]);
+        }
+        throw $ex;
     } catch (Throwable $ex) {
         $pdo->rollBack();
         throw $ex;
     }
 
     $orderNo = (string) ($existing['order_no'] ?? '');
-    if ($orderNo === '') {
+    if ($orderNo === '' || $pickCo !== '') {
         $noStmt = $pdo->prepare('SELECT order_no FROM orders WHERE id = ?');
         $noStmt->execute([$oid]);
         $orderNo = (string) $noStmt->fetchColumn();
@@ -608,4 +679,13 @@ function find_order(PDO $pdo, int $id): array
         redirect('orders.index');
     }
     return $row;
+}
+
+/** Who may tie an order to a Google-Form CO number: anyone who sees all orders, or the order's own sales while it is still a draft. */
+function co_can_link(object $auth, array $order): bool
+{
+    if ($auth->isAdmin() || !sees_only_own() || can_access('finance')) {
+        return true;
+    }
+    return order_editable($order);
 }

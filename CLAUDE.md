@@ -76,6 +76,7 @@ app/
   Hr.php                    人力：谁看什么（viewer/scope）、薪资加密、NIK/日期校验、字段级审计、用户→员工迁移
   HrContract.php            人力合同（HR-02）：编号、续签链/法定上限提醒、到期扫描与待办、生效同步档案
   SalesHistory.php          历史销售（平台上线前的旧记账软件数据）：xlsx 读取、匹配客户/产品/业务员、导入、年度统计
+  CoNumbers.php             CO 号：Google 表单登记导入、一条流水号（max(orders, 登记)+1）、领号/挂接、老订单自动匹配
   HrBpjs.php                人力 BPJS（HR-03）：两套记录、费率按月、金额计算（上限/JP/超额家属）、月度快照、离职联动
   Auth.php                  会话鉴权     Csrf.php  CSRF 令牌
   controllers/              dashboard customers insights pipeline tasks finance orders inventory
@@ -96,6 +97,7 @@ tools/
   import_sales_history.php  导入旧记账软件「销售单」Excel 为历史销售（默认预演，--apply 写入，--purge-batch 撤销）
   import_bank_book.php      导入财务工作簿 Buku Bank（别名种子，默认预演，--apply 写入）+ 回款匹配盲测（--benchmark=YYYY-MM [--ai]）
   import_customer_tax.php   一次性导入买方 NPWP 等税务资料（默认预演，--apply 写入，只填空的）
+  import_co_requests.php    导入 Google 表单 CO 号登记（--file）；老订单挂号匹配（--link，默认预演）
   run_tests.php             零依赖测试运行器（见 5.7）
 tests/                      测试用例 *_test.php（内存 SQLite，不碰运行时数据）
 data/                       运行时 SQLite + uploads/（gitignore，**在 web 根之外**）

@@ -131,6 +131,7 @@ CREATE TABLE orders (
     reject_note  TEXT, reject_by    TEXT, reject_date TEXT,   -- last rejection (sent back to draft)
     do_number        TEXT,
     invoice_number   TEXT,
+    co_no            TEXT,                   -- CO number as the customer knows it (= order_no from 1379 on; older orders link the Google-Form number here)
     delivery_lat     REAL,                   -- geocoded delivery point (NULL = none / not resolved)
     delivery_lng     REAL,
     delivery_region  TEXT,                   -- NULL = not processed yet; 'unknown' = could not resolve
@@ -727,3 +728,22 @@ CREATE TABLE faktur_exports (
     created_by    TEXT,
     created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
+-- ── CO number register: imported from the Google Form "Request CO Number" the sales used before the platform issued numbers ──
+CREATE TABLE co_requests (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    seq         INTEGER NOT NULL UNIQUE,     -- 1378
+    co_no       TEXT    NOT NULL UNIQUE,     -- 1378/AMI-CO/10/26
+    issued_at   TEXT    NOT NULL,            -- form timestamp
+    sales_name  TEXT,                        -- as chosen on the form (Ridwan / Angga W / Mr. Fang …)
+    company     TEXT,
+    client_name TEXT,
+    phone       TEXT,
+    order_id    INTEGER,                     -- platform order this number belongs to, once linked
+    linked_by   TEXT,
+    linked_at   TEXT,
+    link_note   TEXT,                        -- auto / manual / why
+    source      TEXT    NOT NULL DEFAULT 'google_form',
+    batch       TEXT,
+    imported_at TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_co_requests_order ON co_requests(order_id);

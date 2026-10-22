@@ -38,6 +38,21 @@ $basis = ($order['price_basis'] ?? 'incl') === 'excl' ? 'excl' : 'incl';
             </datalist>
         </div>
         <?php endif; ?>
+        <?php $coLocked = $isEdit && !empty($order['co_no']); ?>
+        <div class="form-group">
+            <label class="form-label"><?= t('co_pick') ?></label>
+            <?php if ($coLocked): ?>
+                <input class="form-input" type="text" value="<?= e($order['co_no']) ?>" disabled>
+            <?php else: ?>
+                <select class="form-select" name="co_no">
+                    <option value=""><?= $isEdit ? t('co_keep_no') : e(sprintf(t('co_new_no'), (string) ($nextNo ?? ''))) ?></option>
+                    <?php foreach (($coAvailable ?? []) as $r): ?>
+                        <option value="<?= e($r['co_no']) ?>"><?= e($r['co_no']) ?> · <?= e($r['sales_name']) ?> · <?= e($r['company'] ?: $r['client_name']) ?> · <?= e(substr((string) $r['issued_at'], 0, 10)) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="muted" style="font-size:11px;margin-top:4px"><?= t('co_pick_hint') ?></div>
+            <?php endif; ?>
+        </div>
         <div class="form-row">
             <div class="form-group"><label class="form-label"><?= t('th_customer') ?> *</label>
                 <input class="form-input" type="text" name="customer_name" id="customer-name" list="cust-list" autocomplete="off" required value="<?= e($order['customer_name'] ?? '') ?>" placeholder="<?= t('cust_name_ph') ?>">
