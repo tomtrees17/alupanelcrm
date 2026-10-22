@@ -825,9 +825,13 @@ config.php                  应用与公司配置
 
 ## 10. 提交历史（main）
 
-最近 30 条（共 125 条，含本条文档提交；完整历史用 `git log --oneline`）：
+最近 30 条（共 128 条，含本条文档提交；完整历史用 `git log --oneline`）：
 
 ```
+xxxxxxx Docs: refresh commit history
+63a97aa AI: keep schema limits the API rejects out of requests; retry failed bank matches
+e8c3f3d Faktur: company NPWP for the Coretax import file
+60162b2 Docs: refresh commit history
 90cdbc8 Finance AI: FA-TAX-01 Coretax output-tax import file and buyer tax data
 edea8d2 samples_test: remove two real buyer rows and author names from the Coretax fixture
 746e07d Docs: refresh commit history
@@ -854,10 +858,6 @@ d67c3a6 Dashboard: count sheets on the shipping basis, like sales
 0abad03 Dashboard: sheets sold per salesperson in the ranking
 09ba775 Untrack business documents accidentally committed; ignore office files in the repo root
 07aeee3 AI: inventory assistant on Claude Opus 5.5
-340c5e6 AI: server-side fallback for inventory questions on refusal
-4930c75 Docs: Fera owns the Shopee customers
-865ef57 Docs: refresh commit history
-716899a Insights: sales get call lists without customer management; per-customer checks on every list action
 ```
 
 ## 11. 用户偏好
