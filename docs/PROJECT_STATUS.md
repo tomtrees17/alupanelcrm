@@ -254,6 +254,76 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 
 **测试**：`tests/pagination_test.php`；控制器渲染测试通过 `tests/support/run_controller.php` 子进程执行（控制器文件里声明了函数，同一进程不能 include 两次）。
 
+## 6ze. 财务 AI · FA-AI-01 银行流水对账（回款匹配）（2026-10-22）
+
+按 docs/任务卡-财务AI.md v2 开发。代码：`app/Bank.php`、`app/controllers/bank.php`、`views/bank/`、`prompts/bank_match_v1.txt`、`tools/import_bank_book.php`；测试 `tests/bank_test.php`（只用 samples_test/，发票为虚构）。入口：财务管理页头「银行流水」「回款记录」。权限：沿用 `finance` 模块。
+
+**用户决定（2026-10-22）**
+- **备注号码怎么对应发票**：两种都试，唯一才算。完整 CO 格式（`1306/AMI-CO/10/26`）按订单号找发票；只有序号的（`1302,1303-AMI`、`CO 1222`、`Inv 1309`）同时按发票序号和订单序号找。只有恰好一张未结发票、且金额不超过余额才算规则匹配，否则交给 AI 或人。
+- **少付结案**：记一条非现金结案行（`payments.noncash = 1`，方式注明 PPh (Bukti Potong) / Biaya bank / Pembulatan / Selisih），应收自动归零；看板「回款」只算现金（`Dashboard` 两处查询加了 `noncash = 0`）；冲销时会把 noncash 一并复制。
+- **AI 匹配的时机**：财务点按钮才跑（列表页「AI 匹配未配上的（剩 n 笔）」，每次最多 `bank.ai_batch` = 15 笔；单笔页也可点「让 AI 匹配这一笔」）。规则匹配在导入时自动跑，不花钱。
+
+**导入**（`bank.import`）
+- 按文件第一行自动识别银行：BCA 的 `Informasi Rekening`、ICBC 的 `Branch Name:`。解析规格见任务卡 0.2 / 0.3。
+- 每笔流水按哈希入库，重复导入自动跳过：BCA = 日期 + Keterangan + Jumlah + Saldo；ICBC = 时间 + Summary + 进 / 出 + Balance。PEND 行跳过。
+- 导入记录（`bank_imports`）显示：新增 / 跳过 / PEND 笔数、进账笔数与合计、「与文件汇总」（BCA 的 Mutasi Kredit / Debet，ICBC 的 Total 行）、「余额连续」（逐行核对 期初 + 进 − 出 = 余额）。
+- **脱敏样本的文件汇总是 0**（BCA 的 Mutasi Kredit 0.00 / 0 笔，ICBC 的 Total 借方 0,00），所以样本显示「不一致」；余额链校验通过。真实文件应显示「一致」。
+- 账户只存后四位，第一次导入时自动建档（`bank_accounts`）。ICBC 的对方账号只用来判断内部转账（后四位 = 自己的 BCA 账户），不入库。
+- **流水号在导入时就生成**（卡上写「确认后」）：`BCA-IN-YYMM-NNNN` / `BCA-OUT-…` / `ICBC-IN-…`，按银行、方向、交易月份分别连号，接着库里已有的最大号往下排。这样出账、非货款也有号，而且编号按日期顺序，不按确认的先后。
+
+**打标**（规则，不调 AI）
+- ICBC：Salary → 工资；收款人含 PENERIMAAN NEGARA / PAJAK，或摘要以 Pajak 开头 → 税款；Pindah Dana 或对方是自己的账户 → 内部转账；Bunga → 利息；BPJS → 社保；其余 → 待分类。
+- BCA 出账：BIAYA ADM / BA JASA / BIAYA TRANSFER / Deliv Fee → 费用。
+- BCA 进账：GoPay（DOMPET ANAK BANGSA）/ ESPAY / SHOPEE → 平台代收；Bunga → 利息（直接记为非货款）；其余 → 货款。
+- ICBC 全部和 BCA 出账的 match_status = `na`，不参与匹配。
+
+**付款人与备注**（`Bank::bca_payer()` / `refs()`）
+- 付款人取 Keterangan 末尾：双空格分段时取最后一段；否则从末尾往前取连续的大写词，遇到备注词（DP / LUNAS / PAYMENT / INV / SISA / CO …）停下。
+- BI-FAST、SWITCHING、SETORAN CDM 各有固定格式。
+
+**规则匹配**（`rule_proposal()`，容差 `bank.tolerance` = Rp1,000）
+1. 备注号码各自指向唯一一张未结发票，且金额 ≤ 余额合计 + 容差；
+2. 付款人命中已确认的别名，且该客户恰有一张未结发票的余额 = 金额（± 容差）；
+3. 全系统只有一张未结发票的余额 = 金额，且付款人与客户名相似度 ≥ 0.8（去掉 PT / CV / TOKO 后比较）。
+
+平台代收不走 2、3。确认一笔后，同一付款人还在等待的其他行会立刻重跑规则，所以同一文件里第二次出现的付款人也走规则，不调 AI。
+
+**AI 匹配**（task `bank_match`，`prompts/bank_match_v1.txt`，标准档 Opus 5.5，effort medium）
+- 发给模型的内容：
+  - 日期、金额、去掉银行内部码（`0110/FTSCY/WS95051`、`WSID:`、10 位以上的长号码）后的 Keterangan、付款人；
+  - 候选发票最多 30 张：近 120 天开票的未结发票，按金额接近程度、名称相似度、别名、备注号码打分预筛，每张带编号、CO 号、客户、已知付款人名、PIC、开票日、余额。
+- 平台代收时告诉模型「付款人不可用，按金额匹配」。
+- 模型只返回发票 id 列表、置信度（高 / 中 / 低）、差额类型、印尼语 + 中文原因各一句；**金额由 `allocate()` 按规则分**：按顺序先填满各张余额，多出的放在最后一张（多付），不够时按差额类型处理（部分付 / 手续费 / 代扣税 / 尾差）。
+- 返回了候选以外的 id 会校验失败，重问 1 次后记「AI 未处理」。
+- 建议写入 `ai_suggestions`，确认时比对，算进「AI 使用情况」的采纳率。
+
+**确认**（单笔一键「确认入账」，规则匹配可「全部确认」；可改发票和金额，也可手选发票）
+- 每张发票写一条现金收款到原有的 `payments` 台账：日期 = 流水日期，收据号 = 流水号，方式 = BCA（平台代收为 `BCA · SHOPEE` 等）。然后 `recompute_invoice_paid()`，所以发票页、应收、看板账龄不用改就能读到新余额。
+- 少付且选了结案原因（手续费 / 代扣税 / 尾差 / 其他）的，再记一条非现金结案行；选「部分付款」的不结案。
+- 写入 `payment_allocations`（金额、差额、原因、对应的 payment / 结案 payment），付款人名写进 `customer_payer_aliases`（来源 confirmed，平台不记）。
+- 「全部确认」逐笔按当前余额重算规则，与原建议不一致的跳过（避免同一张发票被两笔流水重复入账成「多付」）。
+- 多付的可以关联退款的出账流水号；代扣税的进「待收 Bukti Potong」页，收到后点「已收到」。
+- 非货款进账可标为 股东注资 / 退款 / 利息 / 内部转账 / 其他，也可改回未匹配（只改状态，没有入账）。
+- 审计：模块 `bank`，动作 import / confirm / classify / link / handle / export。
+
+**回款记录**（`bank.receipts`，替代工作簿「5. Catatan Penerimaan」）
+- 按开票月份每张发票一行：总额、已收现金、结案差额、Balanced、状态、最后付款日、退款流水、付款明细；可导出同列名的 Excel（最多 6 笔付款）。
+- 状态沿用财务现用名称（`Bank::collection_status()`）：PAID - Balance / Lebih Bayar / Kurang Bayar（少付已结案）/ Shoppe / Gudang / Cash，Sebagian - Kurang Bayar，UNPAID - Kurang Bayar。**LOST（坏账）平台里还没有来源，不会出现。**
+
+**历史导入与盲测**（`tools/import_bank_book.php`，真实工作簿只在服务器上跑）
+
+```bash
+cd /www/wwwroot/www.alupanel.cc
+/www/server/php/82/bin/php tools/import_bank_book.php --file=/root/Point_2026.xlsx            # 预演：能找到发票的笔数、要学的付款人、冲突、找不到的发票号
+/www/server/php/82/bin/php tools/import_bank_book.php --file=/root/Point_2026.xlsx --apply    # 写入 bank_book + 别名（source history）
+/www/server/php/82/bin/php tools/import_bank_book.php --benchmark=2026-09                     # 9 月盲测，只跑规则（免费）
+/www/server/php/82/bin/php tools/import_bank_book.php --benchmark=2026-09 --ai --verbose      # 规则 + AI（花钱，计入美元上限）
+chown -R www:www data
+```
+
+- 读「1. Mutasi Bank BCA」表的 BCA-IN 行，列按表头名找。Nomor Invoice `1301 - AMI - 10 - 26` 对应平台的 `1301 - AMI - INV - 10 - 26`。
+- 盲测隐藏工作簿的发票号；用当天的未结余额（只算该日之前的收款）；**只用其他月份学到的付款人**。输出规则 / AI 各自的命中数和正确数、AI 高置信错误率、总准确率（目标 ≥ 85%，高置信错误 ≤ 5%）。
+
 ## 6zd. 财务 AI · FA-AI-00 AI 调用层（2026-10-22）
 
 按 docs/任务卡-财务AI.md v2 开发（只做了 00，01 起待用户看过再继续）。代码：`app/AiTask.php`、`app/controllers/ai.php`、`views/ai/usage.php`、`prompts/`，测试 `tests/ai_task_test.php`（含迁移测试和真实控制器渲染）。
@@ -666,14 +736,16 @@ app/
   i18n.php                  中印双语字典 + t() + current_lang()
   Export.php                无依赖 Excel 导出（.xlsx via ZipArchive，CSV 兜底）
   Claude.php / AiTask.php   AI：唯一 HTTP 出口 / 任务调用层（模型按任务配置、prompt 版本、schema 校验、美元预算、ai_calls 台账，见 6zd）
+  Bank.php                  银行流水：BCA/ICBC 解析、打标、规则匹配、AI 匹配、确认入账、回款状态、历史导入与盲测（见 6ze）
   Auth.php / Csrf.php
-  controllers/              dashboard customers pipeline tasks finance orders inventory approvals audit delivery users roles account auth lang hr ai
+  controllers/              dashboard customers pipeline tasks finance orders inventory approvals audit delivery users roles account auth lang hr ai bank
 prompts/                    AI 提示词 {task}_v{n}.txt（改提示词即升版本，旧版保留，见 6zd）
 views/                      按模块分目录 + layout.php + print/ + errors/（account/password.php 改密页）
 database/schema.sql         表结构
 database/seed_products.sql  269 个产品（由 tools/gen_products.php 从原型抽取）
 tools/reset_password.php    CLI 重置账号密码（运维，见 6d）
 tools/backup_db.php         DB 快照 + 附件打包备份（运维，见 6e）
+tools/import_bank_book.php  财务工作簿 Buku Bank 导入（别名种子）+ 回款匹配盲测（见 6ze）
 tools/run_tests.php         零依赖测试运行器（`php tools/run_tests.php`）
 tests/*_test.php            测试用例（内存 SQLite，不碰 data/crm.sqlite）
 data/                       运行时 SQLite + uploads/（gitignore，在 web 根之外）
@@ -688,7 +760,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-**ai_calls(AI 调用台账：任务/模型/prompt 版本/tokens/费用/耗时/状态，见 6zd)**, **ai_suggestions(AI 建议与人工确认、采纳率)**, hr_todos(+type ai_budget：老板专属、无员工), **sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
+**bank_accounts / bank_imports / bank_transactions / payment_allocations / customer_payer_aliases / bank_book（银行流水与回款对账，见 6ze）**, payments(+noncash 结案差额行), **ai_calls(AI 调用台账：任务/模型/prompt 版本/tokens/费用/耗时/状态，见 6zd)**, **ai_suggestions(AI 建议与人工确认、采纳率)**, hr_todos(+type ai_budget：老板专属、无员工), **sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
 
 ## 10. 提交历史（main）
 
@@ -738,7 +810,7 @@ f65e35d Docs: first production run of customer enrichment
 **安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **备份异地同步到 OSS**(见 6e) / **列表分页 + 搜索**(见 6o) / **客户分析·数据准备**(见 6p) / **AI 花费护栏**(见 6p) / **回访清单计算 + 跟进记录**(见 6q) / **回访清单页 + 客户分析看板 + 送货地图**(见 6r) / **客户分析权限**(见 6s) / **看板张数列 + 张数卡片**(见 6t) / **订单小数 + 发票 .docx + 尾差并入 VAT**(见 6u) / **表单过期友好提示**(见 6v) / **发票按 Coretax 口径**(见 6w) / **订单含税/不含税单价**(见 6x) / **自动化测试**(`tools/run_tests.php`，870 项)。
 
 **待办（按优先级）**：
--2. **财务 AI**（docs/任务卡-财务AI.md v2，顺序 00 → 01 → TAX-01 → 02 → 03）：**FA-AI-00 ✅**（见 6zd，待用户看过再开 01）。下一张 FA-AI-01 银行流水对账。遗留给后续卡的：PDF 只发需要的页（FA-AI-03 时定方案）；01 的业务表用 `ai_suggestion_id` 关联 ai_suggestions（01 时确认）。已知低危：① 超预算待办的日期 ref 用 PHP `date()`，花费窗口用 SQLite `localtime`；若 PHP 时区与服务器系统时区不一致，在午夜前后待办日期可能差一天（只影响待办标题，不影响拦截）。② `ai.prices` 是 2026-10 的官方价，Anthropic 调价时要手工改；Haiku 5.5 的缓存读价 $0.01 是按输入价的 10% 推定的。③ 库存助手仍记在 ai_queries（没进 ai_calls），使用情况页单列；以后可以迁到任务层。
+-2. **财务 AI**（docs/任务卡-财务AI.md v2，顺序 00 → 01 → TAX-01 → 02 → 03）：**FA-AI-00 ✅**（见 6zd）、**FA-AI-01 ✅ 待用户确认**（见 6ze）。下一张 FA-TAX-01。FA-AI-01 上线后要在服务器做的：① `tools/import_bank_book.php` 预演 → `--apply` → `--benchmark=2026-09 --ai`，把准确率记进 docs/进度.md；② 财务用一次真实的 BCA / ICBC CSV，确认「与文件汇总」显示一致（脱敏样本的汇总被清零了）。FA-AI-01 未做 / 已知：撤销确认没有入口（错了只能在发票页冲销收款，冲销不会把流水退回未匹配）；LOST 坏账状态没有来源；BCA 付款人截取靠格式推断，异常格式会落到 AI 或人工。遗留给后续卡的：PDF 只发需要的页（FA-AI-03 时定方案）；01 的业务表用 `ai_suggestion_id` 关联 ai_suggestions（01 时确认）。已知低危：① 超预算待办的日期 ref 用 PHP `date()`，花费窗口用 SQLite `localtime`；若 PHP 时区与服务器系统时区不一致，在午夜前后待办日期可能差一天（只影响待办标题，不影响拦截）。② `ai.prices` 是 2026-10 的官方价，Anthropic 调价时要手工改；Haiku 5.5 的缓存读价 $0.01 是按输入价的 10% 推定的。③ 库存助手仍记在 ai_queries（没进 ai_calls），使用情况页单列；以后可以迁到任务层。
 -1. **历史销售**（见 6zc）：线上先预演 `tools/import_sales_history.php --file=…` 看未匹配客户/业务员报告，定 `--alias` 后 `--apply`；再考虑把 sales_history 接进回访清单的最近购买。
 0. **客户分析板块**（任务书四部分，见 6p）：一、数据准备 ✅（6p）；二、三个清单 ✅（6q）；三、页面 ✅（6r）；四、权限 ✅ 待验收（6s）。宝塔计划任务 `tools/nightly.php` 每天 02:30 已加，`.env` 已配。四部分均已上线（2026-10-16）。**智能查库存已启用 Claude（2026-10-16；服务器 `config.local.php` 加了 `'ai' => ['driver' => 'claude']`），模型 `claude-opus-5-5`**——曾短暂用 `claude-opus-5`，比较后改回 5.5（更便宜且更新；用户不需要 Sonnet/Haiku 对比测试）。请求带 `fallbacks: "default"`；行业判断同为 `claude-opus-5-5`。剩余：70 个无负责人客户待在「数据整理」分配。**`.env` 里的 Anthropic 密钥曾在聊天中明文出现，用户决定继续使用——建议择机在 console.anthropic.com 轮换。** erpandi 已于 2026-10-16 合并到 erfandi（21 客户 / 31 订单，快照 `backups/pre_merge_erpandi_*`）。晨间 WhatsApp 提醒待 WhatsApp 启用后再做（6r）。
 1. ~~**关闭 SSH 密码认证**~~ —— **已完成**（2026-10-12，见 6f）。~~**备份异地同步**~~ —— **已完成并启用**（2026-10-13，阿里云 OSS，见 6e）；**系统安全补丁**（登录提示 72 个安全更新，26 个 Important，挑空闲时段 `dnf upgrade-minimal --security`）

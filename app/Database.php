@@ -430,6 +430,11 @@ final class Database
             require_once __DIR__ . '/AiTask.php';
         }
         AiTask::ensure_schema($pdo);
+        // Bank statements and collection matching (FA-AI-01), payments.noncash.
+        if (!class_exists('Bank')) {
+            require_once __DIR__ . '/Bank.php';
+        }
+        Bank::ensure_schema($pdo);
         // 「AI 使用情况」 for the finance manager (the boss sees everything anyway). Once; later admin edits stick.
         if (!$pdo->query("SELECT 1 FROM app_meta WHERE k = 'perm_ai_usage_v1'")->fetchColumn()) {
             $pdo->exec("INSERT OR IGNORE INTO role_permissions (role, module) VALUES ('finance_manager', 'ai_usage')");

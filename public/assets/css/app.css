@@ -286,6 +286,7 @@ tfoot td { padding: 8px 14px; }
 .delta.down { color: var(--danger); }
 .delta.flat { color: var(--text3); }
 .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nowrap { white-space: nowrap; }
 
 .chart-legend { display: flex; gap: 14px; font-size: 11px; color: var(--text2); }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }

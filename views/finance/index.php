@@ -2,6 +2,8 @@
 <div class="page-head">
     <h1><?= t('page_finance') ?></h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn btn-ghost" href="<?= url('bank.index') ?>"><?= t('bank_title') ?></a>
+        <a class="btn btn-ghost" href="<?= url('bank.receipts') ?>"><?= t('bank_receipts') ?></a>
         <a class="btn btn-ghost" href="<?= url('finance.yearly') ?>"><?= t('yr_link_yearly') ?></a>
         <?php if (can_access('ai_usage')): ?><a class="btn btn-ghost" href="<?= url('ai.usage') ?>"><?= t('nav_ai_usage') ?></a><?php endif; ?>
         <?php if (can_export()): ?><a class="btn btn-ghost" href="<?= url('finance.export') ?>"><?= t('btn_export') ?></a><?php endif; ?>

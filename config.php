@@ -94,6 +94,7 @@ $config = [
         // (default: newest prompts/{task}_v{n}.txt), optional max_input_chars.
         'tasks' => [
             'industry' => ['tier' => 'standard', 'effort' => 'low', 'max_tokens' => 4096],   // 客户行业推断 (Enrich)
+            'bank_match' => ['tier' => 'standard', 'effort' => 'medium', 'max_tokens' => 4096],   // 银行进账 ↔ 发票 (FA-AI-01)
         ],
         // USD per million tokens (Anthropic list price, checked 2026-10). A model not
         // listed is priced as 'default' — the dearest tier, so the caps never under-count.
@@ -103,6 +104,14 @@ $config = [
             'claude-haiku-5-5'  => ['in' => 0.10, 'out' => 0.50, 'cache_read' => 0.01, 'cache_write' => 0.125],
             'default'           => ['in' => 10.00, 'out' => 50.00, 'cache_read' => 1.00, 'cache_write' => 12.50],
         ],
+    ],
+
+    // ── Bank statements and collection matching (FA-AI-01, app/Bank.php) ──
+    'bank' => [
+        'tolerance'      => 1000,   // Rp: a transfer this close to a balance counts as that balance (rounding)
+        'candidate_days' => 120,    // invoices shown to the model: issued within this many days before the transfer
+        'max_candidates' => 30,
+        'ai_batch'       => 15,     // lines per click of 「AI 匹配」 (one model call each)
     ],
 
     // ── Geocoding (tools/enrich_customers.php: order address → lat/lng + kota) ──

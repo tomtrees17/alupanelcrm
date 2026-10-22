@@ -62,9 +62,10 @@ final class SalesHistory
      * Minimal .xlsx reader: first worksheet, shared strings resolved, each row
      * as a list of cell values (floats for numbers, strings otherwise, null for
      * empty). Enough for a flat export; no styles, formulas or dates — the old
-     * app writes dates as text.
+     * app writes dates as text. $sheet picks a worksheet by its tab name
+     * (the finance workbook, FA-AI-01); null = the first one.
      */
-    public static function read_xlsx(string $path): array
+    public static function read_xlsx(string $path, ?string $sheet = null): array
     {
         if (!class_exists('ZipArchive')) {
             throw new RuntimeException('zip extension missing');
@@ -86,7 +87,7 @@ final class SalesHistory
                 $strings[] = $t;
             }
         }
-        $sheetName = self::first_sheet($zip);
+        $sheetName = self::first_sheet($zip, $sheet);
         $xml = $zip->getFromName($sheetName);
         $zip->close();
         if ($xml === false) {
@@ -124,7 +125,7 @@ final class SalesHistory
         return $rows;
     }
 
-    private static function first_sheet(ZipArchive $zip): string
+    private static function first_sheet(ZipArchive $zip, ?string $name = null): string
     {
         // Resolve sheet 1 through the workbook relationships; fall back to the usual path.
         $wb = $zip->getFromName('xl/workbook.xml');
@@ -132,7 +133,16 @@ final class SalesHistory
         if ($wb !== false && $rels !== false) {
             $w = new SimpleXMLElement($wb);
             $w->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
-            $first = $w->xpath('//m:sheets/m:sheet')[0] ?? null;
+            $first = null;
+            foreach ($w->xpath('//m:sheets/m:sheet') ?: [] as $sh) {
+                if ($name === null || trim((string) $sh['name']) === $name) {
+                    $first = $sh;
+                    break;
+                }
+            }
+            if ($first === null && $name !== null) {
+                throw new RuntimeException("worksheet \"{$name}\" not found");
+            }
             if ($first !== null) {
                 $rid = (string) $first->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships')['id'];
                 $r = new SimpleXMLElement($rels);

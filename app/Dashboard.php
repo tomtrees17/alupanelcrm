@@ -258,11 +258,13 @@ final class Dashboard
         return $st->fetchAll();
     }
 
+    /** Cash collected: settlement rows (accepted withholding / fee / rounding shortfalls, FA-AI-01) are not money in. */
     private static function payment_rows(PDO $pdo, string $from, string $to): array
     {
         $st = $pdo->prepare(
             "SELECT COALESCE(NULLIF(pay_date,''), date(created_at)) AS d, amount AS v
-               FROM payments WHERE COALESCE(NULLIF(pay_date,''), date(created_at)) BETWEEN ? AND ?"
+               FROM payments WHERE COALESCE(NULLIF(pay_date,''), date(created_at)) BETWEEN ? AND ?
+                AND COALESCE(noncash, 0) = 0"
         );
         $st->execute([$from, $to]);
         return $st->fetchAll();
@@ -380,7 +382,7 @@ final class Dashboard
             $st = $pdo->prepare(
                 "SELECT o.submitter, SUM(p.amount) s FROM payments p
                    JOIN invoices i ON i.id = p.invoice_id LEFT JOIN orders o ON o.id = i.order_id
-                  WHERE COALESCE(NULLIF(p.pay_date,''), date(p.created_at)) BETWEEN ? AND ? GROUP BY o.submitter"
+                  WHERE COALESCE(NULLIF(p.pay_date,''), date(p.created_at)) BETWEEN ? AND ? AND COALESCE(p.noncash, 0) = 0 GROUP BY o.submitter"
             );
             $st->execute([$from, $to]);
             foreach ($st as $r) {

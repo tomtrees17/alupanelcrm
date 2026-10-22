@@ -222,6 +222,7 @@ CREATE TABLE payments (
     note        TEXT,
     created_by  TEXT,                          -- who registered / reversed it
     reversal_of INTEGER REFERENCES payments(id),-- set on the offsetting row only
+    noncash     INTEGER NOT NULL DEFAULT 0,       -- 1 = settlement of an accepted shortfall (withholding tax, bank fee, rounding), not cash in
     created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX idx_payments_invoice ON payments(invoice_id);
@@ -619,3 +620,84 @@ CREATE TABLE sales_history_items (
     note       TEXT                            -- 样品 / 理赔 / 退换 etc.
 );
 CREATE INDEX idx_sales_history_items ON sales_history_items(history_id);
+
+-- ── Bank statements and collection matching (FA-AI-01, app/Bank.php) ──
+CREATE TABLE bank_accounts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    bank       TEXT NOT NULL,                      -- BCA | ICBC
+    last4      TEXT NOT NULL,                      -- the account number is never stored in full
+    currency   TEXT NOT NULL DEFAULT 'IDR',
+    parser     TEXT NOT NULL,                      -- bca_csv | icbc_csv
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    UNIQUE (parser, last4)
+);
+CREATE TABLE bank_imports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER NOT NULL REFERENCES bank_accounts(id), file_name TEXT, period TEXT,
+    rows_total INTEGER NOT NULL DEFAULT 0, added INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, pending INTEGER NOT NULL DEFAULT 0,
+    credit_sum REAL NOT NULL DEFAULT 0, credit_n INTEGER NOT NULL DEFAULT 0, debit_sum REAL NOT NULL DEFAULT 0, debit_n INTEGER NOT NULL DEFAULT 0,
+    file_credit REAL, file_credit_n INTEGER, file_debit REAL, file_debit_n INTEGER,   -- the file's own footer
+    totals_ok INTEGER, balance_ok INTEGER, rule_matched INTEGER NOT NULL DEFAULT 0,
+    imported_by TEXT, imported_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE bank_transactions (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id        INTEGER NOT NULL REFERENCES bank_accounts(id),
+    import_id         INTEGER,
+    trx_date          TEXT NOT NULL,               -- 回款日期 = this date
+    amount            REAL NOT NULL,
+    direction         TEXT NOT NULL,               -- in | out
+    description       TEXT NOT NULL,               -- Keterangan / Summary as exported
+    branch            TEXT,
+    balance           REAL,
+    counterparty_name TEXT,                        -- payer (BCA, by rule from the note) / receiver (ICBC)
+    refs              TEXT,                        -- JSON: invoice / CO numbers found in the note
+    hash              TEXT NOT NULL UNIQUE,        -- re-imports skip known lines
+    trx_code          TEXT,                        -- BCA-IN-2610-0001 (Buku Bank numbering)
+    tag               TEXT NOT NULL DEFAULT 'other', -- goods|platform|salary|tax|internal|interest|fee|social|other
+    match_status      TEXT NOT NULL DEFAULT 'na',  -- unmatched|rule|ai|confirmed|non_ar|na (ICBC, outgoing)
+    match_note        TEXT,
+    proposal          TEXT,                        -- JSON: rule / AI proposal {source, lines, diff_amount, diff_reason}
+    ai_suggestion_id  INTEGER,                     -- ai_suggestions.id
+    ai_confidence     TEXT,
+    ai_reason         TEXT,
+    ai_status         TEXT,                        -- ok|none|no_candidates|failed|over_budget
+    non_ar_reason     TEXT,                        -- capital|refund|interest|internal|other
+    confirmed_by      TEXT,
+    confirmed_at      TEXT,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_bank_trx_date ON bank_transactions(account_id, trx_date);
+CREATE INDEX idx_bank_trx_status ON bank_transactions(match_status, trx_date);
+CREATE INDEX idx_bank_trx_code ON bank_transactions(trx_code);
+CREATE TABLE payment_allocations (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    transaction_id        INTEGER NOT NULL REFERENCES bank_transactions(id),
+    invoice_id            INTEGER NOT NULL REFERENCES invoices(id),
+    amount                REAL NOT NULL,           -- cash put on this invoice
+    diff_amount           REAL NOT NULL DEFAULT 0, -- amount − what the invoice owed (− short, + over)
+    diff_reason           TEXT NOT NULL DEFAULT 'none', -- none|partial|overpaid|fee|withholding|rounding|other
+    payment_id            INTEGER REFERENCES payments(id),
+    settle_payment_id     INTEGER REFERENCES payments(id), -- the non-cash row closing a shortfall
+    refund_transaction_id INTEGER REFERENCES bank_transactions(id), -- overpayment refunded by this outgoing line
+    bukti_potong_at       TEXT,                    -- withholding: slip received
+    created_by            TEXT,
+    created_at            TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_alloc_trx ON payment_allocations(transaction_id);
+CREATE INDEX idx_alloc_invoice ON payment_allocations(invoice_id);
+CREATE TABLE customer_payer_aliases (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id  INTEGER NOT NULL REFERENCES customers(id),
+    payer_name   TEXT NOT NULL,                    -- as the bank writes it (cut at ~18 characters)
+    payer_key    TEXT NOT NULL,                    -- upper case, punctuation folded
+    source       TEXT NOT NULL,                    -- history (Buku Bank import) | confirmed (finance)
+    confirmed_by TEXT,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    UNIQUE (payer_key, customer_id)
+);
+-- Buku Bank IN lines from the finance workbook (tools/import_bank_book.php): alias seed + matching benchmark
+CREATE TABLE bank_book (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, trx_code TEXT NOT NULL UNIQUE, trx_date TEXT NOT NULL, description TEXT NOT NULL,
+    amount REAL NOT NULL, invoice_raw TEXT, invoice_ids TEXT, customer_id INTEGER, payer_name TEXT,
+    batch TEXT, imported_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);

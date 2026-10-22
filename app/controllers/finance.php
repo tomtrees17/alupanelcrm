@@ -231,11 +231,11 @@ switch ($action) {
 
         // Append an offsetting row; the original is never edited or deleted.
         $pdo->prepare(
-            'INSERT INTO payments (invoice_id,customer,amount,pay_date,method,receipt_no,note,created_by,reversal_of)
-             VALUES (?,?,?,?,?,?,?,?,?)'
+            'INSERT INTO payments (invoice_id,customer,amount,pay_date,method,receipt_no,note,created_by,reversal_of,noncash)
+             VALUES (?,?,?,?,?,?,?,?,?,?)'
         )->execute([
             $invoice['id'], $invoice['customer'], -1 * (float) $payment['amount'], date('Y-m-d'),
-            $payment['method'], $payment['receipt_no'], $reason, own_name(), (int) $payment['id'],
+            $payment['method'], $payment['receipt_no'], $reason, own_name(), (int) $payment['id'], (int) ($payment['noncash'] ?? 0),
         ]);
         $newPaid = recompute_invoice_paid($pdo, (int) $invoice['id'], date('Y-m-d'));
 

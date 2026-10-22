@@ -536,7 +536,7 @@ function delivery_services(): array
 /** Modules that can appear in the audit log (filter dropdown order). */
 function audit_modules(): array
 {
-    return ['orders', 'finance', 'inventory', 'customers', 'approvals', 'pipeline', 'tasks', 'hr', 'users', 'roles', 'account', 'auth'];
+    return ['orders', 'finance', 'bank', 'inventory', 'customers', 'approvals', 'pipeline', 'tasks', 'hr', 'users', 'roles', 'account', 'auth'];
 }
 
 /** Actions that can appear in the audit log (filter dropdown order). */
@@ -546,6 +546,7 @@ function audit_actions(): array
         'create', 'update', 'delete', 'submit', 'approve', 'reject', 'fulfill',
         'pay', 'reverse', 'void', 'unvoid', 'adjust', 'move', 'permission', 'password', 'login', 'logout', 'login_failed',
         'merge', 'assign', 'enrich', 'cleanup', 'resign', 'unresign', 'upload', 'handle', 'activate', 'renew', 'convert', 'terminate', 'export',
+        'import', 'confirm', 'classify', 'link',
     ];
 }
 
@@ -572,5 +573,6 @@ function audit_action_class(string $a): string
         'merge' => 'tag-orange', 'assign' => 'tag-blue', 'enrich' => 'tag-blue', 'cleanup' => 'tag-orange',
         'resign' => 'tag-red', 'unresign' => 'tag-orange', 'upload' => 'tag-blue', 'handle' => 'tag-green',
         'activate' => 'tag-green', 'renew' => 'tag-blue', 'convert' => 'tag-blue', 'terminate' => 'tag-red', 'export' => 'tag-purple',
+        'import' => 'tag-blue', 'confirm' => 'tag-green', 'classify' => 'tag-orange', 'link' => 'tag-blue',
     ][$a] ?? 'tag-gray';
 }
