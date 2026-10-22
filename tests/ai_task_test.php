@@ -149,6 +149,12 @@ $pdo->exec("UPDATE ai_calls SET created_at = datetime('now','localtime','-25 hou
 $queue[] = $reply($good);
 ok('after 24 h the record may be asked again', AiTask::run($pdo, $cfg, 'demo', $req)['status'] === 'ok');
 $queue = [];
+$err400 = [400, '{"type":"error","error":{"type":"invalid_request_error"}}', []];
+$queue = [$err400, $err400, $err400, $reply($good)];
+$req = ['ref_id' => 79] + $req;
+$r = [AiTask::run($pdo, $cfg, 'demo', $req), AiTask::run($pdo, $cfg, 'demo', $req), AiTask::run($pdo, $cfg, 'demo', $req), AiTask::run($pdo, $cfg, 'demo', $req)];
+ok('requests the API refused (no tokens used) do not use up the record\'s 2 calls', array_column($r, 'status') === ['api_error', 'api_error', 'api_error', 'ok']);
+$queue = [];
 
 // 5) Acceptance ②: daily cap $0.01 → once reached, every AI call is skipped and work stays manual.
 $pdo->exec('DELETE FROM ai_calls');

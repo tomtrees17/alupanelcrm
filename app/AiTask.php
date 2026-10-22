@@ -15,7 +15,8 @@ declare(strict_types=1);
  *     ai_queries rows priced at their model. Over a cap, nothing is sent, the
  *     row says over_budget, and the boss gets one todo for that day / month;
  *   - a bug guard: the same task on the same record at most
- *     ai.per_record_daily_calls (2) times in 24 hours;
+ *     ai.per_record_daily_calls (2) times in 24 hours (calls the API refused
+ *     without using tokens do not count);
  *   - the answer must be JSON that fits the task's schema. If not, it is
  *     asked once more and then given up (status invalid, "AI 未处理"): the
  *     caller falls back to manual work. Never a loop. This is separate from
@@ -284,8 +285,10 @@ final class AiTask
         if ($refId !== null) {
             $limit = max(1, (int) ($config['ai']['per_record_daily_calls'] ?? 2));
             $in = implode(',', array_map(fn($s) => "'{$s}'", self::SENT));
+            // Only calls the model actually answered count: a request the API refused
+            // outright (e.g. a 400 on the schema) used no tokens and must not lock the record.
             $st = $pdo->prepare("SELECT COUNT(*) FROM ai_calls WHERE task_type = ? AND ref_table IS ? AND ref_id = ? AND status IN ({$in})
-                                    AND created_at >= datetime('now','localtime','-1 day')");
+                                    AND input_tokens + output_tokens > 0 AND created_at >= datetime('now','localtime','-1 day')");
             $st->execute([$task, $refTable, $refId]);
             if ((int) $st->fetchColumn() >= $limit) {
                 return $done('repeat_skipped', "already called {$limit} times for this record in 24 h");
