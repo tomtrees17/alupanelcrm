@@ -90,7 +90,9 @@ ok('ok: one ai_calls row with the fields of the card', $row['task_type'] === 'de
 ok('ok: cost at the configured price (Haiku 5.5: $0.10 + $0.50 per M)', abs((float) $row['cost_usd'] - 0.0006) < 1e-9, (string) $row['cost_usd']);
 $body = $sent[0]['body'];
 ok('request: model, prompt, schema, effort from config', $body['model'] === 'claude-haiku-5-5' && $body['system'] === 'Read the bank line and answer in JSON.'
-    && $body['output_config']['format']['schema'] === $schema && $body['output_config']['effort'] === 'low' && $body['max_tokens'] === 1000);
+    && $body['output_config']['format']['schema'] === AiTask::api_schema($schema) && $body['output_config']['effort'] === 'low' && $body['max_tokens'] === 1000);
+ok('request: constraints the API rejects (minimum, maxItems, …) are left out of the schema sent', !str_contains(json_encode($body['output_config']['format']['schema']), 'minimum')
+    && AiTask::api_schema(['type' => 'array', 'maxItems' => 6, 'minItems' => 1, 'items' => ['type' => 'string', 'maxLength' => 9]]) === ['type' => 'array', 'items' => ['type' => 'string']]);
 ok('request: no server-side fallback on Haiku (none exists)', !isset($body['fallbacks']) && !str_contains(implode("\n", $sent[0]['headers']), 'server-side-fallback'));
 $queue = [$reply($good, 1000, 1000, 'claude-opus-5-5')];
 AiTask::run($pdo, $cfg, 'demo_std', ['content' => 'x', 'schema' => $schema]);
@@ -118,6 +120,10 @@ ok('non-JSON once, then valid → ok on the second attempt', $r['status'] === 'o
 $queue = [$reply(json_encode(['invoice_ids' => [12], 'confidence' => 'sure'])), $reply(json_encode(['invoice_ids' => ['12'], 'confidence' => 'high', 'amount' => 1]))];
 $r = AiTask::run($pdo, $cfg, 'demo', ['content' => 'x', 'schema' => $schema]);
 ok('JSON that breaks the schema twice → invalid', $r['status'] === 'invalid' && str_contains($r['error'], '$.amount: missing') && str_contains($r['error'], '$.invoice_ids[0]: expected integer'));
+$queue = [$reply(json_encode(['invoice_ids' => [1], 'confidence' => 'low', 'amount' => -5])), $reply(json_encode(['invoice_ids' => [1], 'confidence' => 'low', 'amount' => -5]))];
+$r = AiTask::run($pdo, $cfg, 'demo', ['content' => 'x', 'schema' => $schema]);
+ok('…but still enforced on the answer (minimum 0)', $r['status'] === 'invalid' && str_contains($r['error'], '$.amount: below 0'));
+$queue = [];
 $queue = [$reply($good), $reply($good)];
 $r = AiTask::run($pdo, $cfg, 'demo', ['content' => 'x', 'schema' => $schema, 'check' => fn(array $d): string => $d['amount'] > 1000 ? 'amount above the transfer' : '']);
 ok("a task's own rule counts like the schema", $r['status'] === 'invalid' && str_contains($r['error'], 'amount above the transfer'));

@@ -95,7 +95,7 @@ switch ($action) {
             'pageTitle' => t('bank_title'), 'accounts' => $accounts, 'acc' => $acc, 'month' => $month, 'months' => $months->fetchAll(PDO::FETCH_COLUMN),
             'status' => $status, 'dir' => $dir, 'q' => $q, 'rows' => $st->fetchAll(), 'pg' => $pg,
             'counts' => $counts->fetchAll(PDO::FETCH_KEY_PAIR),
-            'aiLeft' => (int) $pdo->query("SELECT COUNT(*) FROM bank_transactions WHERE match_status = 'unmatched' AND direction = 'in' AND ai_status IS NULL")->fetchColumn(),
+            'aiLeft' => (int) $pdo->query("SELECT COUNT(*) FROM bank_transactions WHERE match_status = 'unmatched' AND direction = 'in' AND COALESCE(ai_status, 'failed') IN ('failed', 'over_budget')")->fetchColumn(),
             'bpOpen' => (int) $pdo->query("SELECT COUNT(*) FROM payment_allocations WHERE diff_reason = 'withholding' AND bukti_potong_at IS NULL")->fetchColumn(),
             'aiOn' => AiTask::enabled($config),
         ]);
@@ -223,7 +223,8 @@ switch ($action) {
         }
         @set_time_limit(600);
         $limit = Bank::settings($config)['ai_batch'];
-        $st = $pdo->query("SELECT id FROM bank_transactions WHERE match_status = 'unmatched' AND direction = 'in' AND ai_status IS NULL ORDER BY trx_date, id LIMIT {$limit}");
+        // Never asked, or asked and failed / stopped by the budget. The per-line guard (2 calls in 24 h) stops any loop.
+        $st = $pdo->query("SELECT id FROM bank_transactions WHERE match_status = 'unmatched' AND direction = 'in' AND COALESCE(ai_status, 'failed') IN ('failed', 'over_budget') ORDER BY ai_status IS NOT NULL, trx_date, id LIMIT {$limit}");
         $done = ['ok' => 0, 'none' => 0, 'failed' => 0];
         foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $id) {
             $r = Bank::ai_match($pdo, $config, (int) $id);

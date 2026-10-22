@@ -352,6 +352,8 @@ cd /www/wwwroot/www.alupanel.cc
 - 返回了候选以外的 id 会校验失败，重问 1 次后记「AI 未处理」。
 - 建议写入 `ai_suggestions`，确认时比对，算进「AI 使用情况」的采纳率。
 
+**AI 重试**：「AI 匹配未配上的」除了从没问过的，也会重跑上次失败（AI 未处理）或被预算拦下的；先跑没问过的。不会无限重试：同一笔 24 小时内最多实际调用 2 次（接口报错也算一次）。
+
 **确认**（单笔一键「确认入账」，规则匹配可「全部确认」；可改发票和金额，也可手选发票）
 - 每张发票写一条现金收款到原有的 `payments` 台账：日期 = 流水日期，收据号 = 流水号，方式 = BCA（平台代收为 `BCA · SHOPEE` 等）。然后 `recompute_invoice_paid()`，所以发票页、应收、看板账龄不用改就能读到新余额。
 - 少付且选了结案原因（手续费 / 代扣税 / 尾差 / 其他）的，再记一条非现金结案行；选「部分付款」的不结案。
@@ -393,6 +395,7 @@ chown -R www:www data
 - **提示词**：放在 `prompts/{task}_v{n}.txt`，默认用最大版本号；`prompt_version` 可钉住旧版，用于回退。改提示词就新建 v(n+1)，旧版保留。`ai_calls.prompt_version` 记录每次用的哪一版。
 - **校验与重试**：要求结构化 JSON 输出（`output_config.format`），返回后再做两层检查：一是按 schema 校验（`AiTask::validate()`，零依赖，覆盖我们用到的 JSON Schema 子集）；二是任务自定义规则 `check`。
   - 不合格就重问 1 次，仍不合格记 `invalid`（即"AI 未处理"），由调用方转人工。不会循环。
+  - **结构化输出不接受数值 / 长度 / 数组大小约束**（minimum、maximum、multipleOf、minLength、maxLength、minItems、maxItems 等）：带上就是 HTTP 400，模型根本没跑。所以 `AiTask::api_schema()` 发送前把这些键剥掉，`validate()` 仍按完整 schema 校验答案（与官方 SDK 的做法一致）。2026-10-22 线上踩过：银行匹配的 schema 里有 `maxItems: 6`，每一笔 AI 匹配都 400，界面全是「AI 未处理」。
   - 接口错误（HTTP 错误 / 拒答 / 被截断）不重问，因为 `Claude::send()` 已对瞬时错误做过有限重试。
 - **预算**：调用前先问 `Claude::budget_left()`。它现在同时看两样，任一用完就返回 0：
   1. 每日 token：ai_queries + ai_calls 两张表合计；

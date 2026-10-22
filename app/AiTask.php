@@ -136,13 +136,31 @@ final class AiTask
             'messages'   => [['role' => 'user', 'content' => $content]],
             'output_config' => [
                 'effort' => $tc['effort'],
-                'format' => ['type' => 'json_schema', 'schema' => $schema],
+                'format' => ['type' => 'json_schema', 'schema' => self::api_schema($schema)],
             ],
         ];
         if (self::has_fallback($tc['model'])) {
             $body['fallbacks'] = 'default';
         }
         return $body;
+    }
+
+    /**
+     * The schema as the API takes it. Structured outputs reject numeric,
+     * string-length and array-size constraints (a 400 before the model runs),
+     * so they are left out of the request and enforced by validate() on the
+     * answer instead — what Anthropic's own SDKs do.
+     */
+    public static function api_schema(array $schema): array
+    {
+        $out = [];
+        foreach ($schema as $k => $v) {
+            if (in_array($k, ['minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf', 'minLength', 'maxLength', 'minItems', 'maxItems', 'uniqueItems'], true)) {
+                continue;
+            }
+            $out[$k] = is_array($v) ? self::api_schema($v) : $v;
+        }
+        return $out;
     }
 
     // ───────────────────────────── cost and budget ─────────────────────────────
@@ -299,7 +317,7 @@ final class AiTask
                 return $done('api_error', implode('; ', array_merge($notes, [$err])));
             }
             $data = Claude::text_json($json);
-            $bad = $data === null ? 'answer is not JSON' : self::validate($data, $body['output_config']['format']['schema']);
+            $bad = $data === null ? 'answer is not JSON' : self::validate($data, (array) ($req['schema'] ?? []));   // the full schema, limits included
             if ($bad === '' && isset($req['check']) && is_callable($req['check'])) {
                 $bad = (string) ($req['check'])($data);
             }

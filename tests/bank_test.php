@@ -156,6 +156,9 @@ ok('model input: date, amount, cleaned text, payer and ≤ 30 candidates with ba
     && count($u['candidates']) <= 30 && isset($u['candidates'][0]['balance'], $u['candidates'][0]['invoice_date'], $u['candidates'][0]['pic']));
 $all = json_encode($sent);
 ok('model input: no account numbers, no bank-internal codes', !str_contains($all, '1234567890') && !str_contains($all, 'WS95') && !str_contains($all, 'FTSCY') && !str_contains($all, '0120'));
+ok('regression: the bank request carries no maxItems (the API rejects it with a 400)', isset($sent[0]['output_config']['format']['schema']['properties']['invoice_ids']['items'])
+    && !str_contains(json_encode($sent[0]['output_config']), 'maxItems'));
+ok('…and more than 6 invoices from the model is still refused locally', str_contains(AiTask::validate(['invoice_ids' => [1, 2, 3, 4, 5, 6, 7], 'confidence' => 'low', 'diff_type' => 'combined', 'reason_id' => 'x', 'reason_zh' => 'x'], Bank::ai_schema()), 'more than 6'));
 ok('model call goes through the task layer (ai_calls row, bank_match v1)', (int) $pdo->query("SELECT COUNT(*) FROM ai_calls WHERE task_type = 'bank_match' AND status = 'ok' AND prompt_version = 1")->fetchColumn() === 4);
 $gopay = $line('%GoPay%');
 $n0 = count($sent);
