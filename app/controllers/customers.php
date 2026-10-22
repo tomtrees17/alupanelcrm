@@ -131,10 +131,14 @@ switch ($action) {
         $fu->execute([$customer['id']]);
         $ins = $pdo->prepare('SELECT * FROM customer_insights WHERE customer_id = ?');
         $ins->execute([$customer['id']]);
+        $hist = $pdo->prepare('SELECT h.*, (SELECT SUM(qty) FROM sales_history_items i WHERE i.history_id = h.id) AS sheets,
+                                (SELECT GROUP_CONCAT(sku || \' ×\' || CAST(qty AS INTEGER), \', \') FROM sales_history_items i WHERE i.history_id = h.id) AS lines
+                               FROM sales_history h WHERE h.customer_id = ? ORDER BY h.doc_date DESC, h.id DESC');
+        $hist->execute([$customer['id']]);
         view('customers.show', [
             'pageTitle' => $customer['name'], 'pageSub' => $customer['company'],
             'customer' => $customer, 'deals' => $deals->fetchAll(), 'orders' => $orders->fetchAll(),
-            'followups' => $fu->fetchAll(), 'insight' => $ins->fetch() ?: null,
+            'followups' => $fu->fetchAll(), 'insight' => $ins->fetch() ?: null, 'history' => $hist->fetchAll(),
             'snooze' => Insights::snoozed($pdo, $config, date('Y-m-d'))[(int) $customer['id']] ?? null,
         ]);
         break;

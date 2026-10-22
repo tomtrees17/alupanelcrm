@@ -98,6 +98,35 @@ $own = SalesHistory::yearly($pdo, 2026, 'erfandi');
 ok('owner filter: only that person\'s history', $own['total']['all'] === 1500000.0 && count($own['people']) === 1);
 ok('empty year is all zeros', SalesHistory::yearly($pdo, 2025)['total']['all'] === 0.0);
 
+// ── 4b) Customer list from history ──────────────────────────────────────────
+$pdo->exec("INSERT INTO sales_history (doc_no, doc_date, customer_name, salesperson, submitter, amount, paid) VALUES
+    ('XSD1', '2026-04-01', 'Toko Baru Jaya', 'anton', 'anton', 1000000, 1000000),
+    ('XSD2', '2026-05-01', 'TOKO BARU JAYA', 'Ridwan', 'Ridwan', 2000000, 2000000),
+    ('XSD3', '2026-05-02', 'PT Baru Jaya Abadi', 'Ridwan', 'Ridwan', 500000, 500000),
+    ('XSD4', '2026-06-01', '零售散客', 'Ridwan', 'Ridwan', 100000, 100000)");
+$pdo->exec("UPDATE customers SET tag = '潜在', owner = NULL, last_contact = '2026-01-01' WHERE id = 1");
+$rep = SalesHistory::sync_customers($pdo, false);
+ok('dry run: two names to create (spelling variants merged), walk-ins skipped', count($rep['create']) === 2, json_encode(array_column($rep['create'], 'name')));
+$tbj = array_values(array_filter($rep['create'], fn($c) => stripos($c['name'], 'baru jaya') === 0 || stripos($c['name'], 'toko') === 0))[0] ?? null;
+ok('most common spelling wins; owner only if a platform user', $tbj !== null && $tbj['docs'] === 2 && $tbj['owner'] === null, json_encode($tbj));
+ok('dry run creates nothing', (int) $pdo->query('SELECT COUNT(*) FROM customers')->fetchColumn() === 2);
+ok('existing buyer: tag / owner / last_contact would be refreshed', $rep['tagged'] >= 1 && $rep['owned'] >= 1 && $rep['contacted'] >= 1, json_encode([$rep['tagged'], $rep['owned'], $rep['contacted']]));
+$rep = SalesHistory::sync_customers($pdo, true);
+ok('apply: customers created and history linked', (int) $pdo->query('SELECT COUNT(*) FROM customers')->fetchColumn() === 4
+    && (int) $pdo->query("SELECT COUNT(*) FROM sales_history WHERE customer_id IS NULL AND customer_name <> '零售散客'")->fetchColumn() === 0);
+$c1 = $pdo->query('SELECT tag, owner, last_contact FROM customers WHERE id = 1')->fetch();
+ok('existing buyer refreshed: 成交, owner Ridwan, last_contact = last purchase', $c1['tag'] === '成交' && $c1['owner'] === 'Ridwan' && $c1['last_contact'] === '2026-03-05', json_encode($c1));
+$new = $pdo->query("SELECT name, tag, company, owner FROM customers WHERE name LIKE 'PT Baru Jaya%'")->fetch();
+ok('created customer tagged 成交, PT name copied to company, owner Ridwan', $new && $new['tag'] === '成交' && $new['company'] === 'PT Baru Jaya Abadi' && $new['owner'] === 'Ridwan', json_encode($new));
+$rep = SalesHistory::sync_customers($pdo, true);
+ok('second run is a no-op', $rep['create'] === [] && $rep['tagged'] === 0 && $rep['owned'] === 0 && $rep['contacted'] === 0, json_encode($rep));
+$GLOBALS['config'] = ($GLOBALS['config'] ?? []) + ['insights' => []];
+$ins = Insights::compute($pdo, $GLOBALS['config'], '2026-10-22');
+$row = $pdo->query('SELECT last_order_date, purchase_days FROM customer_insights WHERE customer_id = 1')->fetch();
+ok('call lists count history + platform purchases', $row && (int) $row['purchase_days'] === 2, json_encode($row));
+$row = $pdo->query('SELECT last_order_date, last_order_id, last_items FROM customer_insights WHERE customer_id = 2')->fetch();
+ok('history-only customer: last purchase and items come from the history document', $row && $row['last_order_date'] === '2026-07-20' && (int) $row['last_order_id'] < 0 && str_contains((string) $row['last_items'], 'SJ8001 4.0*0.21 ×5'), json_encode($row));
+
 $n = SalesHistory::purge_batch($pdo, 'b1');
 ok('purge removes the batch with its lines', $n === 2 && (int) $pdo->query('SELECT COUNT(*) FROM sales_history_items')->fetchColumn() === 0);
 

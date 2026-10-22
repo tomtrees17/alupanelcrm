@@ -97,6 +97,7 @@ tools/
   import_sales_history.php  导入旧记账软件「销售单」Excel 为历史销售（默认预演，--apply 写入，--purge-batch 撤销）
   import_bank_book.php      导入财务工作簿 Buku Bank（别名种子，默认预演，--apply 写入）+ 回款匹配盲测（--benchmark=YYYY-MM [--ai]）
   import_customer_tax.php   一次性导入买方 NPWP 等税务资料（默认预演，--apply 写入，只填空的）
+  sync_history_customers.php 从历史销售建客户档案 / 刷新标签·负责人·最后跟进，重算回访清单（默认预演）
   import_co_requests.php    导入 Google 表单 CO 号登记（--file）；老订单挂号匹配（--link，默认预演）
   run_tests.php             零依赖测试运行器（见 5.7）
 tests/                      测试用例 *_test.php（内存 SQLite，不碰运行时数据）

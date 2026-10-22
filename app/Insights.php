@@ -74,8 +74,17 @@ final class Insights
               ORDER BY o.customer_id, day, o.id'
         )->fetchAll();
 
+        // Pre-platform sales (sales_history, imported from the old bookkeeping app)
+        // are purchases too: without them a customer who bought monthly all year
+        // looks like a newcomer with one order. Their ids are negated so the two
+        // tables never collide in last_order_id.
+        $history = [];
+        if ($pdo->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sales_history'")->fetchColumn()) {
+            $history = $pdo->query('SELECT -id AS id, customer_id, doc_date AS day, amount FROM sales_history WHERE customer_id IS NOT NULL ORDER BY customer_id, doc_date, id')->fetchAll();
+        }
+
         $per = [];
-        foreach ($orders as $o) {
+        foreach (array_merge($history, $orders) as $o) {
             $day = substr((string) $o['day'], 0, 10);
             if ($day > $today) {
                 continue;   // a pickup dated in the future is not a purchase yet
@@ -90,7 +99,9 @@ final class Insights
             if ($day >= $since12) {
                 $per[$cid]['count12']++;
                 $per[$cid]['amount12'] += (float) $o['amount'];
-                $per[$cid]['order_ids12'][] = (int) $o['id'];
+                if ((int) $o['id'] > 0) {
+                    $per[$cid]['order_ids12'][] = (int) $o['id'];   // top_specs reads order_items only
+                }
             }
         }
 
@@ -124,6 +135,7 @@ final class Insights
         $threshold = $topN > 0 ? (float) $amounts[$topN - 1] : INF;
 
         $lastItems = $pdo->prepare('SELECT sku, spec, color, qty FROM order_items WHERE order_id = ? ORDER BY id');
+        $lastHistItems = $history !== [] ? $pdo->prepare('SELECT sku, spec, color, qty FROM sales_history_items WHERE history_id = ? ORDER BY line_no') : null;
         $rows = [];
         foreach ($per as $cid => $r) {
             if (isset($own[$cid])) {
@@ -140,9 +152,15 @@ final class Insights
             $inC = $r['amount12'] > 0 && $r['amount12'] >= $threshold && $since > $p['idle_days'];
             $overdue = $iv !== null ? (int) round($since - $iv) : null;
 
-            $lastItems->execute([$r['last_order_id']]);
+            if ($r['last_order_id'] < 0 && $lastHistItems !== null) {
+                $lastHistItems->execute([-$r['last_order_id']]);
+                $lastRows = $lastHistItems->fetchAll();
+            } else {
+                $lastItems->execute([$r['last_order_id']]);
+                $lastRows = $lastItems->fetchAll();
+            }
             $items = [];
-            foreach ($lastItems->fetchAll() as $it) {
+            foreach ($lastRows as $it) {
                 $items[] = trim($it['sku'] . ' ' . $it['spec']) . ' ×' . rtrim(rtrim(number_format((float) $it['qty'], 1, '.', ''), '0'), '.');
             }
             $rows[] = [

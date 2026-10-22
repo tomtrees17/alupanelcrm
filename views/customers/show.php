@@ -125,3 +125,24 @@ $dist = json_decode((string) ($customer['delivery_regions'] ?? ''), true) ?: [];
         </tbody>
     </table></div>
 </div>
+
+<?php if (!empty($history)): ?>
+<div class="card">
+    <div class="card-header"><span class="card-title"><?= t('hist_title') ?></span><span class="muted small"><?= count($history) ?> · <?= idr(array_sum(array_column($history, 'amount'))) ?></span></div>
+    <div class="table-wrap"><table>
+        <thead><tr><th><?= t('th_date') ?></th><th><?= t('hist_doc_no') ?></th><th><?= t('th_product') ?></th><th class="right"><?= t('hist_sheets') ?></th><th class="right"><?= t('th_amount') ?></th></tr></thead>
+        <tbody>
+        <?php foreach (array_slice($history, 0, 30) as $h): ?>
+            <tr>
+                <td><?= e($h['doc_date']) ?></td>
+                <td class="muted small"><?= e($h['doc_no']) ?></td>
+                <td class="small"><?= e((string) $h['lines']) ?></td>
+                <td class="right"><?= num($h['sheets'] ?? 0) ?></td>
+                <td class="right"><?= idr($h['amount']) ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table></div>
+    <?php if (count($history) > 30): ?><div class="card-body muted small"><a href="<?= url('finance.history', ['q' => $customer['name']]) ?>"><?= t('yr_link_history') ?> →</a></div><?php endif; ?>
+</div>
+<?php endif; ?>

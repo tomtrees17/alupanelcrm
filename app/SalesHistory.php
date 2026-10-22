@@ -513,6 +513,136 @@ final class SalesHistory
         return $st->rowCount();
     }
 
+    // ── Customer list from history ───────────────────────────────────────────
+
+    /**
+     * Create the customers that only the old app knew, and refresh the ones
+     * that bought: tag 潜在 → 成交, empty owner ← history salesperson,
+     * last_contact forward to the last history purchase. See
+     * tools/sync_history_customers.php. Returns what was (or would be) done.
+     */
+    public static function sync_customers(PDO $pdo, bool $apply): array
+    {
+        $rep = ['create' => [], 'tagged' => 0, 'owned' => 0, 'contacted' => 0];
+
+        // 1. Unlinked names → one customer per normalised name (most common spelling wins).
+        $rows = $pdo->query('SELECT id, customer_name, COALESCE(submitter, salesperson) AS who, amount, doc_date FROM sales_history WHERE customer_id IS NULL ORDER BY doc_date')->fetchAll();
+        $groups = [];
+        foreach ($rows as $r) {
+            if (self::is_walk_in($r['customer_name'])) {
+                continue;
+            }
+            $k = self::normalize_name(explode('/', $r['customer_name'])[0]);
+            if ($k === '') {
+                continue;
+            }
+            $g = &$groups[$k];
+            $g ??= ['names' => [], 'who' => [], 'ids' => [], 'docs' => 0, 'amount' => 0.0, 'last' => ''];
+            $g['names'][$r['customer_name']] = ($g['names'][$r['customer_name']] ?? 0) + 1;
+            if ((string) $r['who'] !== '') {
+                $g['who'][$r['who']] = ($g['who'][$r['who']] ?? 0) + 1;
+            }
+            $g['ids'][] = (int) $r['id'];
+            $g['docs']++;
+            $g['amount'] += (float) $r['amount'];
+            $g['last'] = max($g['last'], (string) $r['doc_date']);
+            unset($g);
+        }
+        $lk = self::lookups($pdo);
+        foreach ($groups as $k => $g) {
+            arsort($g['names']);
+            arsort($g['who']);
+            $name = (string) array_key_first($g['names']);
+            // Prefer a spelling with the legal form when the counts tie ("PT X" over "X").
+            foreach ($g['names'] as $n => $c) {
+                if ($c === reset($g['names']) && preg_match('/^(PT|CV)\b/i', $n)) {
+                    $name = $n;
+                    break;
+                }
+            }
+            // Owner only when that salesperson has a platform account; otherwise the
+            // customer lands in the "no owner" list for the manager to assign.
+            $owner = $g['who'] !== [] ? (string) array_key_first($g['who']) : null;
+            if ($owner !== null && !isset($lk['users'][mb_strtolower($owner)])) {
+                $owner = null;
+            }
+            $existing = $lk['customers'][$k] ?? null;   // created by an earlier run, or added by hand since the import
+            $rep['create'][] = ['name' => $name, 'owner' => $owner, 'docs' => $g['docs'], 'amount' => $g['amount'], 'ids' => $g['ids'], 'existing' => $existing];
+        }
+        if ($apply) {
+            $pdo->beginTransaction();
+            try {
+                $insC = $pdo->prepare('INSERT INTO customers (name, company, owner, tag, note, last_contact) VALUES (?, ?, ?, ?, ?, ?)');
+                $linkH = $pdo->prepare('UPDATE sales_history SET customer_id = ? WHERE id = ?');
+                foreach ($rep['create'] as &$c) {
+                    $cid = $c['existing'];
+                    if ($cid === null) {
+                        $insC->execute([$c['name'], preg_match('/^(PT|CV)\b/i', $c['name']) ? $c['name'] : null, $c['owner'], '成交', '来自历史销售导入', null]);
+                        $cid = (int) $pdo->lastInsertId();
+                        $c['created'] = true;
+                    }
+                    foreach ($c['ids'] as $hid) {
+                        $linkH->execute([$cid, $hid]);
+                    }
+                    $c['id'] = $cid;
+                }
+                unset($c);
+                $pdo->commit();
+                $made = count(array_filter($rep['create'], fn($c) => !empty($c['created'])));
+                if ($made > 0) {
+                    audit($pdo, 'customers', 'create', 'customer', null, '历史销售导入', sprintf('从历史销售批量建档 %d 个客户（tools/sync_history_customers.php）', $made));
+                }
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+        }
+
+        // 2. Refresh customers that bought (now including the ones just created).
+        $agg = $pdo->query("SELECT customer_id, MAX(doc_date) last_day, COUNT(*) n FROM sales_history WHERE customer_id IS NOT NULL GROUP BY customer_id")->fetchAll();
+        $whoOf = $pdo->prepare("SELECT COALESCE(submitter, salesperson) w, COUNT(*) c FROM sales_history WHERE customer_id = ? AND COALESCE(submitter, salesperson, '') <> '' GROUP BY w ORDER BY c DESC LIMIT 1");
+        $cust = $pdo->prepare('SELECT id, tag, owner, last_contact FROM customers WHERE id = ?');
+        $updTag = $pdo->prepare("UPDATE customers SET tag = '成交' WHERE id = ?");
+        $updOwner = $pdo->prepare('UPDATE customers SET owner = ? WHERE id = ?');
+        $updContact = $pdo->prepare('UPDATE customers SET last_contact = ? WHERE id = ?');
+        if ($apply) {
+            $pdo->beginTransaction();
+        }
+        foreach ($agg as $a) {
+            $cust->execute([(int) $a['customer_id']]);
+            $c = $cust->fetch();
+            if (!$c) {
+                continue;
+            }
+            if (($c['tag'] ?? '') === '潜在' || ($c['tag'] ?? '') === '') {
+                $rep['tagged']++;
+                if ($apply) {
+                    $updTag->execute([(int) $c['id']]);
+                }
+            }
+            if (trim((string) $c['owner']) === '') {
+                $whoOf->execute([(int) $c['id']]);
+                $w = $whoOf->fetch();
+                if ($w && isset($lk['users'][mb_strtolower((string) $w['w'])])) {
+                    $rep['owned']++;
+                    if ($apply) {
+                        $updOwner->execute([(string) $w['w'], (int) $c['id']]);
+                    }
+                }
+            }
+            if ((string) $c['last_contact'] < (string) $a['last_day']) {
+                $rep['contacted']++;
+                if ($apply) {
+                    $updContact->execute([(string) $a['last_day'], (int) $c['id']]);
+                }
+            }
+        }
+        if ($apply) {
+            $pdo->commit();
+        }
+        return $rep;
+    }
+
     // ── Reporting ────────────────────────────────────────────────────────────
 
     /** Years that have any sales, history or live, newest first. */
