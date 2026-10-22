@@ -30,3 +30,7 @@ Thumbs.db
 /*.doc
 /*.csv
 /*.pdf
+
+# Real finance/HR sample files (bank statements, invoices, workbooks) — never commit.
+# Only the de-identified fixtures in /samples_test/ belong in git.
+/samples/
