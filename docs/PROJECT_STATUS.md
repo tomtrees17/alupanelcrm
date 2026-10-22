@@ -764,9 +764,11 @@ config.php                  应用与公司配置
 
 ## 10. 提交历史（main）
 
-最近 30 条（共 120 条，含本条文档提交；完整历史用 `git log --oneline`）：
+最近 30 条（共 122 条，含本条文档提交；完整历史用 `git log --oneline`）：
 
 ```
+ec365de Finance AI: FA-AI-01 bank statement import and collection matching
+ff50f0e Docs: refresh commit history
 15ff01c Finance AI: FA-AI-00 task layer with USD budgets, call ledger and usage page
 84327a3 Docs: finance AI task card v2, charter v2.4, de-identified bank/tax fixtures
 3b3e287 Finance: import pre-platform sales as read-only history, yearly sales report
@@ -795,8 +797,6 @@ d67c3a6 Dashboard: count sheets on the shipping basis, like sales
 a6a90c5 Docs: refresh commit history
 b40fe6f Insights: call-list pages for sales, manager view with activity, distribution, delivery map and data quality
 4d46f39 Docs: refresh commit history
-4e9339e Customers: nightly call lists (due / at risk / worth visiting) and follow-up records
-f65e35d Docs: first production run of customer enrichment
 ```
 
 ## 11. 用户偏好
