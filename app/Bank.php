@@ -648,6 +648,22 @@ final class Bank
         return true;
     }
 
+    /**
+     * Run the rules again over every unmatched incoming line, e.g. after the
+     * history import taught new payer names. Free: no model call.
+     */
+    public static function rematch(PDO $pdo, array $config): int
+    {
+        $open = self::open_invoices($pdo);
+        $n = 0;
+        foreach ($pdo->query("SELECT id FROM bank_transactions WHERE match_status = 'unmatched' AND direction = 'in' ORDER BY trx_date, id")->fetchAll(PDO::FETCH_COLUMN) as $id) {
+            if (self::rule_match($pdo, $config, (int) $id, $open)) {
+                $n++;
+            }
+        }
+        return $n;
+    }
+
     /** @return ?array{note:string,proposal:array} */
     public static function rule_proposal(PDO $pdo, array $config, array $t, array $open, ?callable $aliasLookup = null): ?array
     {

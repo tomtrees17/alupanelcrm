@@ -403,3 +403,18 @@ ok('benchmark with the model: the line rules missed goes to the model, scored', 
 ok('benchmark: the hidden invoice number never reaches the model', !str_contains(json_encode($sent), '1302 - AMI - 10 - 26') && $h->query("SELECT ref_table FROM ai_calls ORDER BY id DESC LIMIT 1")->fetchColumn() === 'bank_book');
 Claude::$http = null;
 Claude::$sleep = null;
+
+// After the history import: lines already waiting are checked again against the new payer names.
+$h->exec("INSERT INTO bank_accounts (bank, last4, parser) VALUES ('BCA', '0000', 'bca')");
+$acc = (int) $h->lastInsertId();
+$h->prepare("INSERT INTO customer_payer_aliases (customer_id, payer_name, payer_key, source) VALUES (?, 'WATI SUSANTI', ?, 'history')")->execute([$hShop, Bank::payer_key('WATI SUSANTI')]);
+$h->exec("INSERT INTO bank_transactions (account_id, trx_date, amount, direction, description, counterparty_name, hash, tag, match_status, ai_status) VALUES
+          ({$acc}, '2026-10-07', 2750000, 'in', 'BI-FAST CR TRANSFER   DR 535 WATI SUSANTI', 'WATI SUSANTI', 'h1', 'transfer', 'unmatched', 'failed'),
+          ({$acc}, '2026-10-07', 123456, 'in', 'BI-FAST CR TRANSFER   DR 535 WATI SUSANTI', 'WATI SUSANTI', 'h2', 'transfer', 'unmatched', NULL),
+          ({$acc}, '2026-10-07', 2750000, 'out', 'TRSF E-BANKING DB', 'WATI SUSANTI', 'h3', 'transfer', 'na', NULL)");
+$calls0 = count($sent);
+ok('rematch: a waiting line from a now-known payer becomes a rule proposal, no model call', Bank::rematch($h, $cfg) === 1 && count($sent) === $calls0
+    && $h->query("SELECT match_status || '|' || match_note FROM bank_transactions WHERE hash = 'h1'")->fetchColumn() === 'rule|alias:WATI SUSANTI'
+    && $h->query("SELECT match_status FROM bank_transactions WHERE hash = 'h2'")->fetchColumn() === 'unmatched'
+    && $h->query("SELECT match_status FROM bank_transactions WHERE hash = 'h3'")->fetchColumn() === 'na');
+ok('rematch again: nothing more to do', Bank::rematch($h, $cfg) === 0);

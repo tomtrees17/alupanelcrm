@@ -92,3 +92,7 @@ if ($rep['unresolved']) {
     }
 }
 echo $apply ? "Stored {$rep['stored']} new lines in bank_book.\n" : "Dry run: nothing written. Add --apply to store.\n";
+if ($apply) {
+    // The new payer names apply to lines already waiting on the bank page too.
+    printf("Unmatched bank lines now matched by the rules (waiting for finance to confirm): %d\n", Bank::rematch($pdo, $config));
+}
