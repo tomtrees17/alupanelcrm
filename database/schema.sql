@@ -537,3 +537,42 @@ CREATE INDEX idx_tasks_customer  ON tasks(customer_id);
 CREATE INDEX idx_items_order     ON order_items(order_id);
 CREATE INDEX idx_stocktxn_prod   ON stock_txn(product_id);
 CREATE INDEX idx_invitems_inv    ON invoice_items(invoice_id);
+
+-- ── Historical sales: pre-platform orders imported from the old bookkeeping app (read-only; never touch stock / AR) ──
+CREATE TABLE sales_history (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_no        TEXT    NOT NULL UNIQUE,     -- old app's 单据编号, e.g. XSD202609010005
+    doc_date      TEXT    NOT NULL,            -- 单据日期 (ISO); yearly sales count history by this date
+    customer_name TEXT    NOT NULL,            -- as written in the old app
+    customer_id   INTEGER,                     -- matched platform customer, NULL = not matched / walk-in
+    salesperson   TEXT,                        -- as written in the old app
+    submitter     TEXT,                        -- matched users.name (same meaning as orders.submitter)
+    goods_amount  REAL    NOT NULL DEFAULT 0,  -- 折后金额
+    shipping      REAL    NOT NULL DEFAULT 0,  -- 运费
+    amount        REAL    NOT NULL DEFAULT 0,  -- 本单应收 (tax-inclusive total)
+    paid          REAL    NOT NULL DEFAULT 0,  -- 本单实收; old app booked everything as settled in cash
+    note          TEXT,
+    source        TEXT    NOT NULL DEFAULT 'legacy_excel',
+    batch         TEXT,                        -- import run label, for --purge-batch
+    imported_by   TEXT,
+    imported_at   TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_sales_history_date ON sales_history(doc_date);
+CREATE INDEX idx_sales_history_customer ON sales_history(customer_id);
+
+CREATE TABLE sales_history_items (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    history_id INTEGER NOT NULL REFERENCES sales_history(id) ON DELETE CASCADE,
+    line_no    INTEGER NOT NULL DEFAULT 1,
+    product_id INTEGER,                        -- matched products.id by sku + spec, NULL = not in catalogue
+    sku        TEXT,
+    color      TEXT,
+    spec       TEXT,
+    qty        REAL    NOT NULL DEFAULT 0,
+    unit       TEXT,
+    price      REAL    NOT NULL DEFAULT 0,     -- tax-inclusive unit price after discount
+    amount     REAL    NOT NULL DEFAULT 0,
+    raw_name   TEXT,                           -- 商品名称 exactly as exported
+    note       TEXT                            -- 样品 / 理赔 / 退换 etc.
+);
+CREATE INDEX idx_sales_history_items ON sales_history_items(history_id);

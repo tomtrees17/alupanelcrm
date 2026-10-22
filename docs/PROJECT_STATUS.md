@@ -254,6 +254,29 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 
 **测试**：`tests/pagination_test.php`；控制器渲染测试通过 `tests/support/run_controller.php` 子进程执行（控制器文件里声明了函数，同一进程不能 include 两次）。
 
+## 6zc. 历史销售导入 + 年度销售统计（2026-10-22）
+
+**背景**：平台的真实订单从 2026-08-04 开始；之前（2026-01-02 起，公司 2025 年尚未运营）的销售记在一个简单记账软件里（「销售单」导出 Excel：1,183 单 / 2,208 行，1–8 月共 Rp 69.7 亿）。用户要年度销售额能看整年，所以把旧数据作为**历史销售**导入，**只读、只用于统计**。
+
+**口径（用户 2026-10-22 决定）**：
+- 历史销售一律视为已收款（旧软件只记现金结清，没有赊销），**不进应收、不进库存、不进审批、不生成 DO/发票**。
+- 8 月两边重叠（旧软件记到 8/31，平台 8/4 起）——**8 月以平台为准**：导入只取 `doc_date ≤ 2026-08-03`（`--until`，默认值 `SalesHistory::DEFAULT_UNTIL`），后面 157 单跳过。实际导入 1,026 单 / 1,919 行 / Rp 6,322,337,921。
+- 年度统计 = 历史销售（按单据日期）+ 平台开票（按发票日期、作废除外，与看板「销售额」同口径）；张数 = 历史明细数量 + 出货口径张数。两边按月相加，永不重复。
+
+**数据**：`sales_history`（单据：原单号 doc_no 唯一、日期、原客户名 + 匹配到的 customer_id、原业务员名 + 匹配到的 submitter、折后金额/运费/应收/实收、批次）+ `sales_history_items`（行：sku/颜色/规格 + 匹配到的 product_id、数量、单价、金额、原品名、备注如 样品/理赔）。匹配规则在 `app/SalesHistory.php`：客户按名称/公司归一化（去 PT/CV/Toko、标点、大小写、多余空格，"A / B" 两半各试）；产品按 `sku + spec`，退一步按 `sku + 基础规格`（去掉 抗刮木纹/拉丝 等后缀）；品名 "825高光白…" 丢了 SJ 前缀自动补成 SJ8825；业务员大小写不敏感匹配 `users.name`，`--alias="Erpandi=erfandi"` 可手工映射；匹配不上的照原样保留（customer_id / product_id / submitter 为空），不自动建客户。
+
+**导入工具** `tools/import_sales_history.php`（CLI，默认预演）：
+```bash
+/www/server/php/82/bin/php tools/import_sales_history.php --file=/path/销售单.xlsx                  # 预演：看匹配报告
+/www/server/php/82/bin/php tools/import_sales_history.php --file=/path/销售单.xlsx --alias="Erpandi=erfandi" --apply
+/www/server/php/82/bin/php tools/import_sales_history.php --purge-batch=20261022-120000           # 撤销一次导入
+```
+.xlsx 由自带的零依赖读取器解析（ZipArchive + SimpleXML）。幂等：同 doc_no 已存在则跳过，可反复跑。导入后 `chown -R www:www data`。
+
+**页面**（财务模块权限 `finance`）：`finance.yearly` 年度统计（年份切换；四个数字卡；月表带历史/平台双色条；按业务员——需 `performance`，否则只看自己；按客户前 50，已关联的链接到客户页；导出 Excel 三段表）；`finance.history` 历史单据列表（年份 + 单号/客户/业务员/色号搜索，分页，明细行内展开）。入口：财务管理页头「年度统计」按钮、看板期间栏「年度统计」。
+
+**未做 / 后续**：未匹配客户不自动建档（线上要跑一次预演看报告，必要时先在客户管理里补建/改名再导入）；历史单无送货地址，客户区域地图不受益；历史购买暂未接入回访清单的"最近购买"（可作为后续：Insights 读 sales_history 作兜底）。
+
 ## 6zb. 人力一期收尾（2026-10-21，章程 v2.2「不给员工加负担」）
 
 - 列表页不做任何颜色提示：去掉完整度 < 80% 的黄标、员工列表 / 合同列表剩余天数不着色；新增/编辑表单不再显示完整度进度条（章程：不做进度条）。完整度数字只在详情页，纯文字。
@@ -617,7 +640,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
+**sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
 
 ## 10. 提交历史（main）
 
@@ -667,6 +690,7 @@ c6d14db Add append-only audit log across every write operation
 **安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **备份异地同步到 OSS**(见 6e) / **列表分页 + 搜索**(见 6o) / **客户分析·数据准备**(见 6p) / **AI 花费护栏**(见 6p) / **回访清单计算 + 跟进记录**(见 6q) / **回访清单页 + 客户分析看板 + 送货地图**(见 6r) / **客户分析权限**(见 6s) / **看板张数列 + 张数卡片**(见 6t) / **订单小数 + 发票 .docx + 尾差并入 VAT**(见 6u) / **表单过期友好提示**(见 6v) / **发票按 Coretax 口径**(见 6w) / **订单含税/不含税单价**(见 6x) / **自动化测试**(`tools/run_tests.php`，870 项)。
 
 **待办（按优先级）**：
+-1. **历史销售**（见 6zc）：线上先预演 `tools/import_sales_history.php --file=…` 看未匹配客户/业务员报告，定 `--alias` 后 `--apply`；再考虑把 sales_history 接进回访清单的最近购买。
 0. **客户分析板块**（任务书四部分，见 6p）：一、数据准备 ✅（6p）；二、三个清单 ✅（6q）；三、页面 ✅（6r）；四、权限 ✅ 待验收（6s）。宝塔计划任务 `tools/nightly.php` 每天 02:30 已加，`.env` 已配。四部分均已上线（2026-10-16）。**智能查库存已启用 Claude（2026-10-16；服务器 `config.local.php` 加了 `'ai' => ['driver' => 'claude']`），模型 `claude-opus-5-5`**——曾短暂用 `claude-opus-5`，比较后改回 5.5（更便宜且更新；用户不需要 Sonnet/Haiku 对比测试）。请求带 `fallbacks: "default"`；行业判断同为 `claude-opus-5-5`。剩余：70 个无负责人客户待在「数据整理」分配。**`.env` 里的 Anthropic 密钥曾在聊天中明文出现，用户决定继续使用——建议择机在 console.anthropic.com 轮换。** erpandi 已于 2026-10-16 合并到 erfandi（21 客户 / 31 订单，快照 `backups/pre_merge_erpandi_*`）。晨间 WhatsApp 提醒待 WhatsApp 启用后再做（6r）。
 1. ~~**关闭 SSH 密码认证**~~ —— **已完成**（2026-10-12，见 6f）。~~**备份异地同步**~~ —— **已完成并启用**（2026-10-13，阿里云 OSS，见 6e）；**系统安全补丁**（登录提示 72 个安全更新，26 个 Important，挑空闲时段 `dnf upgrade-minimal --security`）
 1b. **订单/客户按姓名而非账号关联**（erpandi/erfandi 现可在「数据整理」一键合并，见 6p；下单改账号下拉仍未做）—— 85/407 个订单的 `submitter` 对不上任何账号（如账号 `erfandi` 有 29 张发票录成 `erpandi`，他登录后看不到）；改用户姓名会让该销售的订单和客户从视图中消失。修法：下单改为账号下拉选择 + 名字变体合并工具

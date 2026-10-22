@@ -419,6 +419,12 @@ final class Database
             Hr::migrate_users($pdo);
         }
 
+        // Historical sales (pre-platform orders imported from the old bookkeeping app).
+        if (!class_exists('SalesHistory')) {
+            require_once __DIR__ . '/SalesHistory.php';
+        }
+        SalesHistory::ensure_schema($pdo);
+
         // login_attempts table (brute-force throttle, added later).
         $pdo->exec(
             'CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT, email TEXT, attempt_time INTEGER NOT NULL DEFAULT 0)'

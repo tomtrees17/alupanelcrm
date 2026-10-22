@@ -25,7 +25,7 @@ require __DIR__ . '/../../app/helpers.php';
 require __DIR__ . '/../../app/domain.php';
 require __DIR__ . '/../../app/Database.php';
 require __DIR__ . '/../../app/Csrf.php';
-foreach (['Notify', 'Claude', 'Ai', 'Dashboard', 'Export', 'Word', 'Docx', 'Enrich', 'CustomerData', 'Insights', 'Hr', 'HrContract', 'HrBpjs'] as $cls) {
+foreach (['Notify', 'Claude', 'Ai', 'Dashboard', 'Export', 'Word', 'Docx', 'Enrich', 'CustomerData', 'Insights', 'Hr', 'HrContract', 'HrBpjs', 'SalesHistory'] as $cls) {
     if (is_file(__DIR__ . "/../../app/{$cls}.php")) {
         require_once __DIR__ . "/../../app/{$cls}.php";
     }

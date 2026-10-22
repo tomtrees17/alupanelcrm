@@ -633,6 +633,16 @@ const I18N = [
         'pwd_force_title' => '请先修改默认密码', 'pwd_force_msg' => '为了账户安全，首次登录请设置一个新密码后再继续。',
         // print
         'print_invoice' => '发票 / INVOICE', 'print_do' => '送货单 / SURAT JALAN',
+        // ── Historical sales / yearly totals ──
+        'yr_title' => '年度销售统计', 'yr_sub' => '历史销售（导入）+ 平台开票，按月汇总', 'yr_month' => '月份',
+        'yr_history' => '历史销售', 'yr_live' => '平台销售', 'yr_total' => '合计', 'yr_docs' => '单据数',
+        'yr_by_person' => '按业务员', 'yr_by_customer' => '按客户（前 50）', 'yr_customer_more' => '还有 %d 个客户未列出，导出 Excel 可看全部',
+        'yr_hist_hint' => '历史销售来自旧记账软件导出（截至 %s），均视为已收款；此后以平台订单为准。',
+        'yr_no_hist' => '尚未导入历史销售数据。', 'yr_year' => '年份', 'yr_link_history' => '历史单据', 'yr_link_yearly' => '年度统计',
+        'hist_title' => '历史销售单据', 'hist_sub' => '平台上线前的销售记录（只读）', 'hist_search' => '搜索单号 / 客户 / 业务员 / 色号',
+        'hist_doc_no' => '原单号', 'hist_customer_raw' => '原客户名', 'hist_salesperson' => '业务员', 'hist_sheets' => '张数',
+        'hist_no_data' => '没有历史单据', 'hist_sum' => '当前筛选合计', 'hist_unlinked' => '未关联', 'hist_lines' => '%d 行',
+        'yr_all_years' => '全部年份',
     ],
     'id' => [
         'lang_name' => 'Indonesia', 'app_tagline' => 'Sistem Manajemen Bisnis ACP',
@@ -1245,6 +1255,16 @@ const I18N = [
         'pwd_err_mismatch' => 'Konfirmasi kata sandi tidak cocok.', 'pwd_err_same' => 'Kata sandi baru tidak boleh sama dengan yang lama.',
         'pwd_force_title' => 'Harap ubah kata sandi default', 'pwd_force_msg' => 'Demi keamanan, silakan atur kata sandi baru sebelum melanjutkan.',
         'print_invoice' => 'INVOICE', 'print_do' => 'SURAT JALAN',
+        // ── Historical sales / yearly totals ──
+        'yr_title' => 'Rekap Penjualan Tahunan', 'yr_sub' => 'Penjualan historis (impor) + invoice platform, per bulan', 'yr_month' => 'Bulan',
+        'yr_history' => 'Historis', 'yr_live' => 'Platform', 'yr_total' => 'Total', 'yr_docs' => 'Jml dokumen',
+        'yr_by_person' => 'Per sales', 'yr_by_customer' => 'Per pelanggan (50 teratas)', 'yr_customer_more' => '%d pelanggan lain tidak ditampilkan; ekspor Excel untuk semua',
+        'yr_hist_hint' => 'Penjualan historis diimpor dari aplikasi pembukuan lama (s.d. %s), semua dianggap lunas; setelahnya memakai order platform.',
+        'yr_no_hist' => 'Data penjualan historis belum diimpor.', 'yr_year' => 'Tahun', 'yr_link_history' => 'Dokumen historis', 'yr_link_yearly' => 'Rekap tahunan',
+        'hist_title' => 'Dokumen Penjualan Historis', 'hist_sub' => 'Catatan penjualan sebelum platform (hanya baca)', 'hist_search' => 'Cari no. dokumen / pelanggan / sales / kode warna',
+        'hist_doc_no' => 'No. asli', 'hist_customer_raw' => 'Nama pelanggan asli', 'hist_salesperson' => 'Sales', 'hist_sheets' => 'Lembar',
+        'hist_no_data' => 'Tidak ada dokumen historis', 'hist_sum' => 'Total filter ini', 'hist_unlinked' => 'Belum terhubung', 'hist_lines' => '%d baris',
+        'yr_all_years' => 'Semua tahun',
     ],
 ];
 

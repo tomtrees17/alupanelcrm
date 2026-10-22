@@ -72,6 +72,7 @@ app/
   Insights.php              回访清单 A/B/C 计算 + 跟进记录与屏蔽
   Hr.php                    人力：谁看什么（viewer/scope）、薪资加密、NIK/日期校验、字段级审计、用户→员工迁移
   HrContract.php            人力合同（HR-02）：编号、续签链/法定上限提醒、到期扫描与待办、生效同步档案
+  SalesHistory.php          历史销售（平台上线前的旧记账软件数据）：xlsx 读取、匹配客户/产品/业务员、导入、年度统计
   HrBpjs.php                人力 BPJS（HR-03）：两套记录、费率按月、金额计算（上限/JP/超额家属）、月度快照、离职联动
   Auth.php                  会话鉴权     Csrf.php  CSRF 令牌
   controllers/              dashboard customers insights pipeline tasks finance orders inventory
@@ -87,6 +88,7 @@ tools/
   enrich_customers.php      区域 / 行业推断（增量；--all / --dry-run）
   compute_insights.php      重建回访清单（--date 试算、--show 打印）
   clean_customer_data.php   一次性客户数据清洗（默认预演，--apply 先快照）
+  import_sales_history.php  导入旧记账软件「销售单」Excel 为历史销售（默认预演，--apply 写入，--purge-batch 撤销）
   run_tests.php             零依赖测试运行器（见 5.7）
 tests/                      测试用例 *_test.php（内存 SQLite，不碰运行时数据）
 data/                       运行时 SQLite + uploads/（gitignore，**在 web 根之外**）

@@ -328,6 +328,95 @@ switch ($action) {
         redirect('finance.show', ['id' => $invoice['id']]);
         break;
 
+    // ── Historical sales (pre-platform orders) + yearly totals ──────────────
+    case 'yearly':
+        $years = SalesHistory::years($pdo);
+        $year = (int) input('year', (string) $years[0]);
+        if (!in_array($year, $years, true)) {
+            $year = $years[0];
+        }
+        $perf = can_access('performance');
+        // Without 'performance' a user sees only their own figures, as on the dashboard.
+        $owner = $perf ? null : (string) ($auth->user()['name'] ?? '');
+        $data = SalesHistory::yearly($pdo, $year, $owner);
+        $cut = (string) $pdo->query('SELECT MAX(doc_date) FROM sales_history')->fetchColumn();
+        view('finance.yearly', ['yr' => $data, 'years' => $years, 'year' => $year, 'perf' => $perf, 'cutover' => $cut]);
+        break;
+
+    case 'yearly_export':
+        if (!can_export()) {
+            http_response_code(403);
+            flash(t('msg_no_export'), 'error');
+            redirect('finance.yearly');
+        }
+        $year = (int) input('year', date('Y'));
+        $perf = can_access('performance');
+        $data = SalesHistory::yearly($pdo, $year, $perf ? null : (string) ($auth->user()['name'] ?? ''));
+        $rows = [];
+        foreach ($data['months'] as $m => $v) {
+            $rows[] = [$m, $v['hist'], $v['live'], $v['hist'] + $v['live'], $v['hist_docs'] + $v['live_docs'], $v['hist_sheets'] + $v['live_sheets']];
+        }
+        $t = $data['total'];
+        $rows[] = [t('yr_total'), $t['hist'], $t['live'], $t['all'], $t['hist_docs'] + $t['live_docs'], $t['hist_sheets'] + $t['live_sheets']];
+        $rows[] = [];
+        $rows[] = [t('th_submitter'), t('yr_history'), t('yr_live'), t('yr_total'), t('yr_docs'), t('dash_sheets')];
+        foreach ($data['people'] as $p) {
+            $rows[] = [$p['name'], $p['hist'], $p['live'], $p['total'], $p['docs'], $p['sheets']];
+        }
+        $rows[] = [];
+        $rows[] = [t('th_customer'), t('yr_history'), t('yr_live'), t('yr_total'), t('yr_docs')];
+        foreach ($data['customers'] as $c) {
+            $rows[] = [$c['name'], $c['hist'], $c['live'], $c['total'], $c['docs']];
+        }
+        audit($pdo, 'finance', 'export', 'yearly', null, (string) $year, t('yr_title') . ' ' . $year);
+        send_spreadsheet('sales_yearly_' . $year, (string) $year, [t('yr_month'), t('yr_history'), t('yr_live'), t('yr_total'), t('yr_docs'), t('dash_sheets')], $rows);
+        break;
+
+    case 'history':
+        $q = trim((string) input('q', ''));
+        $year = trim((string) input('year', ''));
+        $cond = [];
+        $args = [];
+        if ($year !== '' && preg_match('/^\d{4}$/', $year)) {
+            $cond[] = 'substr(h.doc_date,1,4) = ?';
+            $args[] = $year;
+        }
+        if ($q !== '') {
+            $cond[] = '(h.doc_no LIKE ? OR h.customer_name LIKE ? OR h.salesperson LIKE ? OR h.submitter LIKE ?
+                        OR EXISTS (SELECT 1 FROM sales_history_items i WHERE i.history_id = h.id AND (i.sku LIKE ? OR i.raw_name LIKE ?)))';
+            array_push($args, "%$q%", "%$q%", "%$q%", "%$q%", "%$q%", "%$q%");
+        }
+        if (!can_access('performance')) {
+            $cond[] = 'h.submitter = ?';
+            $args[] = (string) ($auth->user()['name'] ?? '');
+        }
+        $where = $cond ? ' WHERE ' . implode(' AND ', $cond) : '';
+        $pg = paginate($pdo, 'SELECT COUNT(*) FROM sales_history h' . $where, $args);
+        $st = $pdo->prepare('SELECT h.*, c.name AS customer_now,
+                               (SELECT COUNT(*) FROM sales_history_items i WHERE i.history_id = h.id) AS lines,
+                               (SELECT SUM(qty) FROM sales_history_items i WHERE i.history_id = h.id) AS sheets
+                             FROM sales_history h LEFT JOIN customers c ON c.id = h.customer_id' . $where . '
+                             ORDER BY h.doc_date DESC, h.id DESC' . $pg['limit']);
+        $st->execute($args);
+        $docs = $st->fetchAll();
+        $items = [];
+        if ($docs) {
+            $ids = array_column($docs, 'id');
+            $in = implode(',', array_fill(0, count($ids), '?'));
+            $is = $pdo->prepare("SELECT * FROM sales_history_items WHERE history_id IN ($in) ORDER BY history_id, line_no");
+            $is->execute($ids);
+            foreach ($is as $it) {
+                $items[(int) $it['history_id']][] = $it;
+            }
+        }
+        $sum = $pdo->prepare('SELECT COALESCE(SUM(h.amount),0) FROM sales_history h' . $where);
+        $sum->execute($args);
+        view('finance.history', [
+            'docs' => $docs, 'items' => $items, 'q' => $q, 'year' => $year, 'pg' => $pg,
+            'years' => SalesHistory::years($pdo), 'sum' => (float) $sum->fetchColumn(),
+        ]);
+        break;
+
     default:
         http_response_code(404);
         echo 'Not found';

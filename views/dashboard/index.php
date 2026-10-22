@@ -69,6 +69,9 @@ $pct = fn(float $v) => $v <= 0 ? 0 : max(1.5, round($v / $axisMax * 100, 1));
         <?php if (!$period['current']): ?>
             <a class="btn btn-ghost btn-sm" href="<?= $link($p, date('Y-m-d')) ?>"><?= t('dash_back_now') ?></a>
         <?php endif; ?>
+        <?php if (can_access('finance')): ?>
+            <a class="btn btn-ghost btn-sm" href="<?= url('finance.yearly') ?>"><?= t('yr_link_yearly') ?></a>
+        <?php endif; ?>
     </div>
 </div>
 
