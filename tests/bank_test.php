@@ -83,6 +83,11 @@ $p = Bank::bca_payer('TRSF E-BANKING CR 0310/FTSCY/WS95031 8399700.00  sisa 4.jt
 ok('payer after a colloquial note', $p['payer'] === 'PT NUSA KREASI' && $p['note'] === 'sisa 4.jt');
 ok('payer after a double-spaced note', Bank::bca_payer('TRSF E-BANKING CR 0510/FTSCY/WS95051 26245000.00  PAYMENT INV 1320/AMI-CO/09/26  DEWI LESTARI  ')['payer'] === 'DEWI LESTARI');
 ok('note words are not names ("DP" is not part of the payer)', Bank::bca_payer('TRSF E-BANKING CR 0110/FTSCY/WS95271 500000.00  DP BUDI SANTOSO')['payer'] === 'BUDI SANTOSO');
+ok('workbook layout (copied from the PDF statement): no CR, single spaces, amount without separators', Bank::bca_payer('TRSF E-BANKING  0110/FTSCY/WS95031 465000000 DEWI LESTARI')['payer'] === 'DEWI LESTARI'
+    && Bank::bca_payer('TRSF E-BANKING  0110/FTSCY/WS95031 465000000 pelunasan inv BUDI SANTOSO')['payer'] === 'BUDI SANTOSO'
+    && Bank::bca_payer('TRSF E-BANKING CR 01/10 pembayaran LINA KUSUMA')['payer'] === 'LINA KUSUMA'
+    && Bank::bca_payer('BI-FAST  TRANSFER DR 535 YANTO SAPUTRA')['payer'] === 'YANTO SAPUTRA'
+    && Bank::bca_payer('SWITCHING CR TRF RUDI HARTONO 002 NEW BRI MOB')['payer'] === 'RUDI HARTONO');
 ok('BI-FAST / SWITCHING / CDM payers', Bank::bca_payer('BI-FAST CR TRANSFER   DR 535 LINA KUSUMA    ')['payer'] === 'LINA KUSUMA'
     && Bank::bca_payer('SWITCHING CR TRF YANTO SAPUTRA  002  NEW BRI MOB  ')['payer'] === 'YANTO SAPUTRA'
     && Bank::bca_payer('SETORAN VIA CDM 03/10  WSID:ZM131 SITI RAHAYU   ')['payer'] === 'SITI RAHAYU');
@@ -375,6 +380,12 @@ ok('history --apply: line kept, payer learned as a history alias', $app['stored'
     && $h->query("SELECT source FROM customer_payer_aliases WHERE payer_key = 'BUDI SANTOSO'")->fetchColumn() === 'history');
 $again = Bank::book_import($h, $book['rows'], true, 'test');
 ok('history re-run: nothing duplicated', $again['stored'] === 0 && $again['aliases_added'] === 0);
+$wb = Bank::book_rows([['Kode Transaksi', 'Tanggal Transaksi', 'CR', 'Petty Cash', 'Nomor Invoice'],
+    ['BCA-IN-2602-0001', 46083.0, 1000.0, 'x', ''],      // Excel turned a typed 03/02/2026 into 2 March: the code says February
+    ['BCA-IN-2601-0002', '13/01/26', 1000.0, 'x', ''],   // two-digit year
+    ['BCA-IN-2602-0003', '13/02/2026', 1000.0, 'x', ''],
+    ['BCA-IN-2601-0004', 46024.0, 1000.0, 'x', '']]);    // 2 January, already right
+ok('workbook dates: day / month swapped by Excel put back by the code month, two-digit years read', array_column($wb['rows'], 'date') === ['2026-02-03', '2026-01-13', '2026-02-13', '2026-01-02'] && $wb['errors'] === []);
 ok('workbook dates as Excel day numbers are read too', Bank::book_rows([['Kode Transaksi', 'Tanggal Transaksi', 'CR', 'Petty Cash', 'Nomor Invoice'], ['BCA-IN-2609-0001', 46297.0, 1000.0, 'x', '']])['rows'][0]['date'] === '2026-10-02');
 
 // A September line from a payer seen before, under a shop name nothing like theirs.

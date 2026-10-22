@@ -9,7 +9,7 @@ declare(strict_types=1);
  *
  *   php tools/import_bank_book.php --file=Point_2026.xlsx              # dry run: report only
  *   php tools/import_bank_book.php --file=Point_2026.xlsx --apply      # write
- *   php tools/import_bank_book.php --file=… --sheet="1. Mutasi Bank BCA" --apply
+ *   php tools/import_bank_book.php --file=… --sheet="1. Mutasi Bank BCA" --apply   (default: that sheet, else 「BCA STATEMENT」)
  *
  * Blind test (card acceptance: September, invoice numbers hidden):
  *   php tools/import_bank_book.php --benchmark=2026-09                 # rules only, free
@@ -67,8 +67,23 @@ $file = (string) ($opts['file'] ?? '');
 if ($file === '' || !is_file($file)) {
     exit("Usage: php tools/import_bank_book.php --file=Point_2026.xlsx [--apply]   |   --benchmark=YYYY-MM [--ai]\n");
 }
-$sheet = (string) ($opts['sheet'] ?? '1. Mutasi Bank BCA');
-$parsed = Bank::book_rows(SalesHistory::read_xlsx($file, $sheet));
+// The finance workbook calls the sheet 「1. Mutasi Bank BCA」, the bank-statement export 「BCA STATEMENT」.
+$sheet = null;
+$sheetRows = null;
+foreach (isset($opts['sheet']) ? [(string) $opts['sheet']] : ['1. Mutasi Bank BCA', 'BCA STATEMENT'] as $try) {
+    try {
+        $sheetRows = SalesHistory::read_xlsx($file, $try);
+        $sheet = $try;
+        break;
+    } catch (RuntimeException $e) {
+        // try the next name
+    }
+}
+if ($sheetRows === null) {
+    fwrite(STDERR, "No BCA sheet found in {$file}. Name it with --sheet=\"…\".\n");
+    exit(1);
+}
+$parsed = Bank::book_rows($sheetRows);
 foreach ($parsed['errors'] as $e) {
     echo "  ! {$e}\n";
 }

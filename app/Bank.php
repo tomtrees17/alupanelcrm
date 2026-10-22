@@ -304,7 +304,9 @@ final class Bank
                 return ['payer' => $p, 'note' => '', 'platform' => true];
             }
         }
-        if (preg_match('/^TRSF E-BANKING (?:CR|DB) \S+\s+[\d.,]+\s+(.*)$/', $d, $m)) {
+        // The finance workbook copies the PDF statement: no CR, single spaces, the amount
+        // without separators or missing ("TRSF E-BANKING 0101/FTSCY/WS95031 4650000 NAME").
+        if (preg_match('/^TRSF E-BANKING\s+(?:(?:CR|DB)\s+)?\S+\s+(?:[\d.,]+\s+)?(.*)$/', $d, $m)) {
             $tail = trim($m[1]);
             $parts = array_values(array_filter(preg_split('/\s{2,}/', $tail) ?: [], fn($x) => trim($x) !== ''));
             if (count($parts) >= 2) {
@@ -322,10 +324,10 @@ final class Bank
             }
             return ['payer' => implode(' ', $payer), 'note' => implode(' ', $tokens), 'platform' => false];
         }
-        if (preg_match('/^BI-FAST CR TRANSFER\s+DR\s+\d{3}\s+(.+)$/', $d, $m)) {
+        if (preg_match('/^BI-FAST\s+(?:CR\s+)?TRANSFER\s+DR\s+\d{3}\s+(.+)$/', $d, $m)) {
             return ['payer' => trim($m[1]), 'note' => '', 'platform' => false];
         }
-        if (preg_match('/^SWITCHING CR (?:TRF|TRANSFER)\s+(.+?)\s{2,}\d{3}\b/', $d, $m)) {
+        if (preg_match('/^SWITCHING CR (?:TRF|TRANSFER)\s+(.+?)\s+\d{3}\b/', $d, $m)) {
             return ['payer' => trim($m[1]), 'note' => '', 'platform' => false];
         }
         if (preg_match('/^SETORAN (?:VIA CDM|TUNAI)\b(.*)$/', $d, $m)) {
@@ -1182,6 +1184,12 @@ final class Bank
                 continue;
             }
             $date = self::sheet_date($get(['tanggal transaksi', 'tanggal']));
+            // Excel reads a typed "03/02/2026" (3 Feb) as 2 March when the day is ≤ 12.
+            // The code carries the true month (BCA-IN-2602-…), so swap day and month back.
+            $ym = '20' . substr($code, 7, 2) . '-' . substr($code, 9, 2);
+            if ($date !== null && substr($date, 0, 7) !== $ym && substr($date, 0, 5) . substr($date, 8, 2) === $ym) {
+                $date = $ym . '-' . substr($date, 5, 2);
+            }
             if ($date === null) {
                 $errors[] = "row " . ($n + 1) . " ({$code}): unreadable date";
                 continue;
@@ -1209,8 +1217,8 @@ final class Bank
         if (preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $s, $m)) {
             return "{$m[1]}-{$m[2]}-{$m[3]}";
         }
-        if (preg_match('#^(\d{1,2})/(\d{1,2})/(\d{4})#', $s, $m)) {
-            return sprintf('%s-%02d-%02d', $m[3], $m[2], $m[1]);
+        if (preg_match('#^(\d{1,2})/(\d{1,2})/(\d{4}|\d{2})\b#', $s, $m)) {
+            return sprintf('%s-%02d-%02d', strlen($m[3]) === 2 ? '20' . $m[3] : $m[3], $m[2], $m[1]);
         }
         return null;
     }
