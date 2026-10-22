@@ -175,6 +175,16 @@ switch ($action) {
         redirect('orders.index');
         break;
 
+    case 'print_co':
+        // Confirmation Order for the customer — replaces the Google-Sheet template.
+        $order = find_order($pdo, (int) input('id', 0));
+        $its = $pdo->prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY id');
+        $its->execute([$order['id']]);
+        $u = $pdo->prepare('SELECT name, title FROM users WHERE lower(name) = lower(?) LIMIT 1');
+        $u->execute([(string) $order['submitter']]);
+        view('print.co', ['order' => $order, 'items' => $its->fetchAll(), 'sales' => $u->fetch() ?: []], false);
+        break;
+
     // ── CO numbers (Google-Form register) ──────────────────────────────────
     case 'co_index':
         $q = trim((string) input('q', ''));

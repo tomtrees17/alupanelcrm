@@ -33,6 +33,7 @@ $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['ro
 <div class="page-head">
     <h1><?= t('order') ?> <?= e($order['order_no']) ?> <span class="order-status-badge <?= order_status_class($status) ?>"><?= e(order_status_label($status)) ?></span></h1>
     <div class="head-actions">
+        <a class="btn btn-ghost" href="<?= url('orders.print_co', ['id' => $order['id']]) ?>" target="_blank"><?= t('btn_print') ?> · CO</a>
         <?php if (!empty($deliveryId)): ?><a class="btn btn-ghost" href="<?= url('delivery.print', ['id' => $deliveryId]) ?>" target="_blank"><?= t('btn_print') ?> · DO</a><?php endif; ?>
         <?php if (!empty($invoice)): ?><a class="btn btn-ghost" href="<?= url('finance.print', ['id' => $invoice['id']]) ?>" target="_blank"><?= t('btn_print') ?> · Invoice</a><?php endif; ?>
         <?php if (order_editable($order)): ?>

@@ -443,7 +443,7 @@ chown -R www:www data
 4. **老订单挂号**：8/4 以来已录系统的订单（0001–0487）不改订单号（DO/发票已用），只填 `orders.co_no`。自动匹配 `tools/import_co_requests.php --link [--alias=erfandi=erpandi,...] [--apply]`：按电话（后 9 位）/ 公司或联系人名（归一化、容错 2 字）在订单日期前 10 天～后 3 天找登记，销售名只用于加分；候选唯一且分差够大才算「确定」（同一客户在窗口内领了多个号的，按日期就近配对、不算存疑——线上首轮 471 单：确定 340 / 存疑 113 / 无候选 18，存疑几乎全是常客多次领号，故加此规则），其余列出来由人工在订单详情页「挂接 CO 号」下拉处理（admin / 看全部订单的角色 / 财务；销售只能在自己的草稿上操作，草稿挂接会改订单号）。删除草稿会把号放回池子。
 5. **查询**：订单列表搜索含 co_no；订单详情显示「CO 号」（与订单号不同则注明"表单领的号"）；订单页头新增「CO 号登记」页（`orders.co_index`：统计卡 登记总数/未挂/最后发号/系统下一个号，搜索，未挂/已挂筛选，挂了的链接到订单）。
 
-**未做**：CO 文件（Confirmation Order 给客户的打印件）——等用户提供表单里链接的「Format Confirmation Order」模板后做，做完表单才能真正停用。表单销售名（Mr. Fang / Anton / Tania / Calvin / Deny）与系统账号的对应待用户确认，影响 --link 的 --alias。
+**CO 打印件**（2026-10-22 晚）：`orders.print_co`（订单详情页「打印 · CO」），`views/print/co.php`，按销售现用的 Confirmation Order 版式（样本：argani 1377）：抬头/公司/地址、No（co_no 优先）+ Jakarta 日期（印尼语月份大写）、客户信息、Type of Client、取货方式/送货地址、英文函、明细表（Material/Type/Code/Color/Size/Volume/Unit/Price/Total，首行 ALUSIGNPANEL PE-LDPE Core）、SUB TOTAL / ONGKIR / GRAND TOTAL；含税报价注明"Harga sudah termasuk PPN"，不含税报价列 DPP + PPN 12%（沿用 `invoice_amounts_coretax()`）；Notes 含付款条件（高亮）、30 天有效、H+2、BCA 账号（取 config banks 里名字含 BCA 的）；三栏签字（销售 = 订单 submitter 对应用户的姓名/职务、客户、config signer）。零中文（no_cjk）。不写审计（打印是读操作）。未做：.docx 导出（需要再做时照 Docx.php 的发票做法）。表单销售名（Mr. Fang / Anton / Tania / Calvin / Deny）与系统账号的对应待用户确认，影响 --link 的 --alias。
 
 ## 6zc. 历史销售导入 + 年度销售统计（2026-10-22）
 

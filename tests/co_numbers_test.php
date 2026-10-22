@@ -185,6 +185,12 @@ if (function_exists('exec') && is_file($harness)) {
     ok('show page displays the CO number as the form number', str_contains($html, '1377/AMI-CO/10/26') && str_contains($html, t('co_form_number')));
     [$html] = $run('co_index', $fin, ['q' => '1377']);
     ok('register page lists the number with its order', str_contains($html, '1377/AMI-CO/10/26') && str_contains($html, '0487/AMI-CO/10/26'));
+    $q()->exec("INSERT INTO order_items (order_id, sku, color, spec, size, qty, price) VALUES ($oldId, 'SJ8001', '纯白 / Pure White', '4.0*0.21', '1.220 x 2.440', 12, 150000)");
+    [$html] = $run('print_co', $fin, ['id' => $oldId]);
+    $sheet = substr($html, (int) strpos($html, '<div class="sheet'));
+    ok('CO print: number, customer, line and total', str_contains($sheet, '1377/AMI-CO/10/26') && str_contains($sheet, 'OLD ONE') && str_contains($sheet, 'SJ8001') && str_contains($sheet, '1.800.000'), substr($sheet, 0, 200));
+    ok('CO print carries no Chinese', !preg_match('/[\x{4e00}-\x{9fff}]/u', $sheet));
+    ok('CO print: signatures from config and sales', str_contains($sheet, 'RIDWAN') && str_contains($sheet, 'Finance Manager'));
     [$html] = $run('index', $fin, ['q' => '1377']);
     ok('order list finds an order by its CO number', str_contains($html, '0487/AMI-CO/10/26'));
     @unlink($db);
