@@ -223,6 +223,17 @@ final class CoNumbers
         return preg_replace('/[^\p{L}\p{N}]+/u', '', $s) ?? $s;
     }
 
+    /** Who a register entry is for: phone when given, else the company / client name. */
+    private static function ident(array $req): string
+    {
+        $p = self::phone_key($req['phone'] ?? null);
+        if ($p !== '') {
+            return 'p' . $p;
+        }
+        $n = self::name_key($req['company'] ?? null) ?: self::name_key($req['client_name'] ?? null);
+        return $n !== '' ? 'n' . $n : 'r' . (int) ($req['id'] ?? 0);
+    }
+
     private static function sales_key(?string $s): string
     {
         $s = mb_strtolower(trim((string) $s));
@@ -312,8 +323,13 @@ final class CoNumbers
             if (isset($usedReq[$rid]) || isset($usedOrder[$oid])) {
                 continue;
             }
-            // Ambiguous when the runner-up for this order is nearly as good.
-            $others = array_filter($scored[$oid], fn($c) => $c['req'] !== null && (int) $c['req']['id'] !== $rid && !isset($usedReq[(int) $c['req']['id']]));
+            // Ambiguous when the runner-up for this order is nearly as good AND is
+            // a different customer. A regular customer asks for a number per order,
+            // so several near-identical requests in the window are expected; they
+            // are paired off in date order and the pick is not in doubt.
+            $ident = self::ident($p['req']);
+            $others = array_filter($scored[$oid], fn($c) => $c['req'] !== null && (int) $c['req']['id'] !== $rid
+                && !isset($usedReq[(int) $c['req']['id']]) && self::ident($c['req']) !== $ident);
             $second = $others ? max(array_map(fn($c) => $c['score'], $others)) : 0;
             $sure = $p['score'] >= 4 && $p['score'] - $second >= 1.5;
             $entry = ['order' => $p['order'], 'req' => $p['req'], 'score' => round($p['score'], 2), 'second' => round((float) $second, 2)];

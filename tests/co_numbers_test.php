@@ -99,7 +99,26 @@ $m = $byNo($res['matched']);
 ok('phone + name match is sure', isset($m['0470/AMI-CO/10/26']) && $m['0470/AMI-CO/10/26']['req']['co_no'] === '1300/AMI-CO/10/26', json_encode(array_keys($m)));
 ok('phone match beats a spelling difference', isset($m['0472/AMI-CO/10/26']) && $m['0472/AMI-CO/10/26']['req']['co_no'] === '1303/AMI-CO/10/26');
 $a = $byNo($res['ambiguous']);
-ok('two near-identical requests for one customer are left for a human', isset($a['0471/AMI-CO/10/26']), json_encode(array_keys($a)));
+ok('two requests by the same customer: the one nearest in time is taken, no doubt raised', ($m['0471/AMI-CO/10/26']['req']['co_no'] ?? '') === '1302/AMI-CO/10/26', json_encode(array_keys($a)));
+// A regular customer: three orders, three requests days apart, same phone. Each
+// order pairs with the request nearest in time; none of them is "ambiguous".
+$ins->execute([1400, '1400/AMI-CO/10/26', '2026-10-10 09:00:00', 'Fera', 'Sasmita', 'Sasmita', '0812000000']);
+$ins->execute([1401, '1401/AMI-CO/10/26', '2026-10-13 09:00:00', 'Fera', 'Sasmita', 'Sasmita', '0812000000']);
+$ins->execute([1402, '1402/AMI-CO/10/26', '2026-10-16 09:00:00', 'Fera', 'Sasmita', 'Sasmita', '0812000000']);
+$oi->execute(['0480/AMI-CO/10/26', 'Sasmita', 'Sasmita', '0812000000', 'Fera', 'approved', '2026-10-10 12:00:00']);
+$oi->execute(['0481/AMI-CO/10/26', 'Sasmita', 'Sasmita', '0812000000', 'Fera', 'approved', '2026-10-13 12:00:00']);
+$oi->execute(['0482/AMI-CO/10/26', 'Sasmita', 'Sasmita', '0812000000', 'Fera', 'approved', '2026-10-16 12:00:00']);
+$res = CoNumbers::propose($pdo, '2026-08-04', ['erfandi' => 'erpandi']);
+$m = $byNo($res['matched']);
+ok('repeat customer: requests paired off in date order, all sure',
+    ($m['0480/AMI-CO/10/26']['req']['co_no'] ?? '') === '1400/AMI-CO/10/26' && ($m['0481/AMI-CO/10/26']['req']['co_no'] ?? '') === '1401/AMI-CO/10/26'
+    && ($m['0482/AMI-CO/10/26']['req']['co_no'] ?? '') === '1402/AMI-CO/10/26', json_encode(array_map(fn($e) => $e['req']['co_no'] ?? null, $m)));
+// Two different shops, similar names, both plausible → a human decides.
+$ins->execute([1410, '1410/AMI-CO/10/26', '2026-10-18 09:00:00', 'Ridwan', 'Argani Aluminium', 'Aris', '']);
+$ins->execute([1411, '1411/AMI-CO/10/26', '2026-10-18 10:00:00', 'Ridwan', 'Anugerah Aluminium', 'Aris', '']);
+$oi->execute(['0483/AMI-CO/10/26', 'Aris', 'Argani Alumunium', '', 'Ridwan', 'approved', '2026-10-18 12:00:00']);
+$res = CoNumbers::propose($pdo, '2026-08-04', ['erfandi' => 'erpandi']);
+ok('a look-alike shop name does not steal the match', ($byNo($res['matched'])['0483/AMI-CO/10/26']['req']['co_no'] ?? '') === '1410/AMI-CO/10/26');
 ok('no candidate → unmatched', count($res['unmatched']) === 1 && $res['unmatched'][0]['order']['order_no'] === '0473/AMI-CO/10/26');
 ok('orders before the window are not touched', !isset($m['0300/AMI-CO/07/26']) && !isset($a['0300/AMI-CO/07/26']));
 ok('nothing written by propose', (int) $pdo->query('SELECT COUNT(*) FROM co_requests WHERE order_id IS NOT NULL')->fetchColumn() === 0);
