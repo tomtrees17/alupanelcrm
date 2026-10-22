@@ -231,7 +231,9 @@ $geoReply = ['Pluit' => $gResp('Kota Jakarta Utara', -6.12, 106.79)];
 $aiReply = [$cSinar => ['distributor', 0.9], $cMaju => ['renovation', 0.4], $cNoOrders => ['other', 0.8]];
 
 $runCfg = ['insights' => $icfg + ['industry_ai' => true], 'geo' => ['driver' => 'google', 'key' => 'AIzaTEST'],
-    'ai' => ['key' => 'sk-test', 'max_tokens' => 4096, 'retries' => 1, 'daily_token_budget' => 100000]];
+    // The model comes from config ai.tasks (FA-AI-00), not from code.
+    'ai' => ['key' => 'sk-test', 'max_tokens' => 4096, 'retries' => 1, 'daily_token_budget' => 100000,
+             'tiers' => $cfgFull['ai']['tiers'], 'tasks' => $cfgFull['ai']['tasks'], 'prices' => $cfgFull['ai']['prices']]];
 $logLines = [];
 $sum = Enrich::run($pdo, $runCfg, [], function (string $l) use (&$logLines): void {
     $logLines[] = $l;

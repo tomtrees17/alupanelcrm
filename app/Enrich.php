@@ -18,8 +18,9 @@ declare(strict_types=1);
  * "Proyek" addresses, personal buyers of small quantities); Claude only for
  * customers no rule decides. A salesperson's manual choice is final.
  *
- * Raw HTTP on purpose (no Composer/vendor directory); Claude calls go through
- * Claude::send(), which owns the token cap and retry policy.
+ * Raw HTTP on purpose (no Composer/vendor directory). Model calls go through
+ * AiTask::run() as task 'industry' (prompt prompts/industry_v*.txt, schema
+ * check, ai_calls ledger), which sends via Claude::send() (token cap, retries).
  */
 final class Enrich
 {
@@ -451,71 +452,59 @@ final class Enrich
         ];
     }
 
-    public static function industry_prompt(): string
+    /** The current prompt (prompts/industry_v{n}.txt; ai.tasks.industry.prompt_version pins one). */
+    public static function industry_prompt(array $config = []): string
     {
-        return <<<TXT
-            You classify customers of an aluminium composite panel (ACP) seller in
-            Jakarta, Indonesia, by what kind of business they are. Each customer is
-            one JSON object: name, company, delivery addresses, what they bought
-            (ACP specs such as "4.0*0.21" or "3.0*0.06背涂"), how many sheets, how
-            many orders, and the client type the sales assistant picked on the
-            order form ("End User" is that form's default, so it says little).
-
-            Industries:
-            - contractor: building contractors / construction companies, project sites
-            - signage: advertising, reklame, signboards, printing, neon/acrylic shops
-            - aluminium_shop: aluminium & glass shops (toko aluminium / kaca) that fabricate windows, doors, partitions
-            - renovation: interior design / renovation / decoration companies
-            - end_owner: the building owner buying for their own house, shop or office
-            - distributor: resells ACP sheets to other businesses
-            - other: none of the above
-
-            Indonesian business names carry strong hints ("Toko", "Kaca", "Reklame",
-            "Interior", "PT ... Konstruksi"). A personal name with no company is
-            usually end_owner unless the volume suggests a trade buyer. Repeated
-            large orders of the same cheap spec suggest a trade buyer, not an owner.
-
-            Return one result per input id, every id exactly once. Confidence is
-            your honest probability that the industry is right; use below 0.7
-            whenever the evidence is thin. "reason" is a short Chinese phrase.
-            TXT;
+        return AiTask::prompt('industry', AiTask::task_config($config, 'industry')['prompt_version'])[0];
     }
 
-    /** The Messages API request body. Public so tests can assert its shape offline. */
-    public static function ai_request(array $config, array $batch): array
+    /**
+     * The task config with the legacy override applied: insights.industry_model
+     * (from before ai.tasks existed) still wins when a config.local.php sets it.
+     */
+    private static function task_cfg(array $config): array
+    {
+        if (!empty($config['insights']['industry_model'])) {
+            $config['ai']['tasks']['industry']['model'] = (string) $config['insights']['industry_model'];
+        }
+        return $config;
+    }
+
+    /** One JSON line per customer: the user message of an industry call. */
+    private static function ai_lines(array $batch): string
     {
         $lines = [];
         foreach ($batch as $row) {
             $lines[] = json_encode($row, JSON_UNESCAPED_UNICODE);
         }
-        return [
-            'model'      => (string) ($config['insights']['industry_model'] ?? 'claude-opus-5-5'),
-            'max_tokens' => 4096,     // ~20 short answers; Claude::send() clamps to ai.max_tokens anyway
-            'system'     => self::industry_prompt(),
-            'messages'   => [['role' => 'user', 'content' => implode("\n", $lines)]],
-            'output_config' => [
-                'effort' => 'low',
-                'format' => ['type' => 'json_schema', 'schema' => self::industry_schema()],
-            ],
-            // On a safety-classifier decline, retry server-side on the model
-            // Anthropic recommends rather than failing the whole batch.
-            'fallbacks' => 'default',
-        ];
+        return implode("\n", $lines);
+    }
+
+    /** The Messages API request body. Public so tests can assert its shape offline. */
+    public static function ai_request(array $config, array $batch): array
+    {
+        $config = self::task_cfg($config);
+        return AiTask::build_request($config, 'industry', self::industry_prompt($config), self::ai_lines($batch), self::industry_schema());
     }
 
     /**
-     * Classify one batch. Token cap, size guard and retries: Claude::send().
+     * Classify one batch through the task layer: budget, schema check (one
+     * re-ask on a malformed answer) and the ai_calls row all happen there.
      * @param array $batch list of ['id' => int, ...facts]
      * @return array{0:array<int,array{industry:string,confidence:float,reason:string}>,1:string,2:array}
      *   [results by customer id, error, usage]
      */
-    public static function ai_classify(array $config, array $batch): array
+    public static function ai_classify(PDO $pdo, array $config, array $batch): array
     {
-        [$json, $err, $usage] = Claude::send($config, self::ai_request($config, $batch), ['server-side-fallback-2026-07-01']);
-        if ($json === null) {
-            return [[], $err, $usage];
+        $res = AiTask::run($pdo, self::task_cfg($config), 'industry', [
+            'content' => self::ai_lines($batch),
+            'schema'  => self::industry_schema(),
+            'ref_table' => 'customers',   // a batch, so no ref_id: the per-record guard does not apply
+        ]);
+        if ($res['status'] !== 'ok') {
+            return [[], $res['error'] !== '' ? $res['error'] : $res['status'], $res['usage']];
         }
-        return [self::parse_ai($json, array_column($batch, 'id')), '', $usage];
+        return [self::parse_results((array) $res['data'], array_column($batch, 'id')), '', $res['usage']];
     }
 
     /**
@@ -525,7 +514,12 @@ final class Enrich
      */
     public static function parse_ai(array $response, array $askedIds): array
     {
-        $parsed = Claude::text_json($response);
+        return self::parse_results((array) Claude::text_json($response), $askedIds);
+    }
+
+    /** @return array<int,array{industry:string,confidence:float,reason:string}> */
+    private static function parse_results(array $parsed, array $askedIds): array
+    {
         $asked = array_flip(array_map('intval', $askedIds));
         $out = [];
         foreach ((array) ($parsed['results'] ?? []) as $r) {
@@ -658,15 +652,14 @@ final class Enrich
         if ($useAi && $needAi) {
             $min = (float) ($cfg['min_confidence'] ?? 0.7);
             $setAi = $pdo->prepare("UPDATE customers SET industry = ?, industry_source = 'ai', industry_confidence = ?, industry_pending = ?, industry_note = ?, enriched_at = datetime('now','localtime') WHERE id = ? AND COALESCE(industry_source, '') <> 'manual'");
-            $logAi = $pdo->prepare("INSERT INTO ai_queries (user_id, user_name, question, matched, ok, error, in_tokens, out_tokens) VALUES (NULL, 'enrich', ?, ?, ?, ?, ?, ?)");
             $failStreak = 0;
             $batches = array_chunk($needAi, max(1, (int) ($cfg['ai_batch'] ?? 20)));
             foreach ($batches as $i => $batch) {
                 // Guards against a run that keeps spending without progress:
-                // the shared daily budget, and three failed batches in a row.
+                // the shared budget (daily tokens, USD per day / month), and three failed batches in a row.
                 if (Claude::budget_left($pdo, $config) <= 0) {
                     $sum['ai_failed'] += array_sum(array_map('count', array_slice($batches, $i)));
-                    $log('  AI stopped: daily token budget (ai.daily_token_budget) used up; the rest waits for the next run.');
+                    $log('  AI stopped: AI budget used up (ai.daily_token_budget or a USD cap); the rest waits for the next run.');
                     break;
                 }
                 if ($failStreak >= 3) {
@@ -674,11 +667,10 @@ final class Enrich
                     $log('  AI stopped after 3 failed batches in a row; the rest waits for the next run.');
                     break;
                 }
-                [$res, $err, $usage] = self::ai_classify($config, $batch);
+                [$res, $err, $usage] = self::ai_classify($pdo, $config, $batch);
                 $failStreak = $err === '' ? 0 : $failStreak + 1;
                 $sum['ai_in'] += (int) ($usage['in'] ?? 0);
                 $sum['ai_out'] += (int) ($usage['out'] ?? 0);
-                $logAi->execute(['industry batch of ' . count($batch), implode(',', array_keys($res)), $err === '' ? 1 : 0, $err ?: null, (int) ($usage['in'] ?? 0), (int) ($usage['out'] ?? 0)]);
                 if ($err !== '') {
                     $sum['ai_failed'] += count($batch);
                     $log("  AI batch " . ($i + 1) . " failed: {$err}");

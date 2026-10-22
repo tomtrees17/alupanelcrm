@@ -26,6 +26,7 @@ require __DIR__ . '/../app/helpers.php';
 require __DIR__ . '/../app/domain.php';
 require __DIR__ . '/../app/Database.php';
 require __DIR__ . '/../app/Claude.php';
+require __DIR__ . '/../app/AiTask.php';
 require __DIR__ . '/../app/Enrich.php';
 $GLOBALS['config'] = $config;
 
@@ -43,7 +44,7 @@ $opt = [
 $t0 = microtime(true);
 echo ($opt['dry'] ? '[dry run] ' : '') . 'Enriching customers' . ($opt['all'] ? ' (full re-run)' : '') . "\n";
 echo '  geocoding: ' . (Enrich::geo_enabled($config) ? 'Google' : 'off — address text only (set geo.key)') . "\n";
-echo '  industry AI: ' . (Enrich::ai_enabled($config) ? (string) $config['insights']['industry_model'] : 'off — rules only (set ai.key)') . "\n";
+echo '  industry AI: ' . (Enrich::ai_enabled($config) ? (string) ($config['insights']['industry_model'] ?? AiTask::model($config, 'industry')) : 'off — rules only (set ai.key)') . "\n";
 
 $s = Enrich::run($pdo, $config, $opt, function (string $line): void {
     echo $line . "\n";

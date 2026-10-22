@@ -13,7 +13,13 @@ declare(strict_types=1);
  *     refusals and truncated answers are never retried: repeating them would
  *     spend the same tokens for the same failure;
  *   - a daily token budget across all features and users (ai.daily_token_budget),
- *     which callers check with budget_left() before each call.
+ *     which callers check with budget_left() before each call. budget_left()
+ *     also answers 0 once a USD cap (AiTask, ai.daily_usd_budget /
+ *     ai.monthly_usd_budget) is reached, so every feature stops together.
+ *
+ * Features call the model through AiTask::run() (prompt files, schema check,
+ * the ai_calls ledger); the inventory assistant still calls send() directly
+ * and logs to ai_queries.
  *
  * Raw HTTP on purpose: no Composer/vendor directory in this project.
  */
@@ -47,12 +53,12 @@ final class Claude
 
     /**
      * Send one request.
-     * @return array{0:?array,1:string,2:array{in:int,cached:int,out:int},3:int}
+     * @return array{0:?array,1:string,2:array{in:int,cached:int,write:int,out:int},3:int}
      *   [decoded response, error ('' on success), usage, attempts made]
      */
     public static function send(array $config, array $body, array $betas = []): array
     {
-        $none = ['in' => 0, 'cached' => 0, 'out' => 0];
+        $none = ['in' => 0, 'cached' => 0, 'write' => 0, 'out' => 0];
         $key = trim((string) ($config['ai']['key'] ?? ''));
         if ($key === '') {
             return [null, 'ai.key is not configured', $none, 0];
@@ -101,6 +107,7 @@ final class Claude
         $usage = [
             'in'     => (int) ($json['usage']['input_tokens'] ?? 0),
             'cached' => (int) ($json['usage']['cache_read_input_tokens'] ?? 0),
+            'write'  => (int) ($json['usage']['cache_creation_input_tokens'] ?? 0),
             'out'    => (int) ($json['usage']['output_tokens'] ?? 0),
         ];
         $stop = (string) ($json['stop_reason'] ?? '');
@@ -125,18 +132,30 @@ final class Claude
         return null;
     }
 
-    /** Tokens spent today across every AI feature (ai_queries is the ledger). */
+    /**
+     * Tokens spent today across every AI feature: ai_calls (AiTask) plus
+     * ai_queries (the inventory assistant, and Enrich rows from before AiTask).
+     */
     public static function used_today(PDO $pdo): int
     {
-        return (int) $pdo->query(
+        $used = (int) $pdo->query(
             "SELECT COALESCE(SUM(COALESCE(in_tokens,0) + COALESCE(out_tokens,0)), 0) FROM ai_queries
               WHERE created_at >= date('now','localtime')"
         )->fetchColumn();
+        if ($pdo->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ai_calls'")->fetchColumn()) {
+            $used += (int) $pdo->query(
+                "SELECT COALESCE(SUM(input_tokens + output_tokens), 0) FROM ai_calls WHERE created_at >= date('now','localtime')"
+            )->fetchColumn();
+        }
+        return $used;
     }
 
-    /** Tokens left in today's budget; 0 budget = unlimited (PHP_INT_MAX). */
+    /** Tokens left in today's budget; 0 budget = unlimited (PHP_INT_MAX). 0 as well once a USD cap is reached. */
     public static function budget_left(PDO $pdo, array $config): int
     {
+        if (AiTask::budget_guard($pdo, $config) !== '') {
+            return 0;
+        }
         $budget = self::limits($config)['daily_token_budget'];
         return $budget === 0 ? PHP_INT_MAX : max(0, $budget - self::used_today($pdo));
     }

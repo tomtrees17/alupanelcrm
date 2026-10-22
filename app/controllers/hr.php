@@ -114,7 +114,7 @@ switch ($action) {
             redirect('dashboard.index');
         }
         [$w, $a] = Hr::scope_sql($viewer);
-        $types = implode(',', array_map(fn($x) => "'{$x}'", Hr::TODO_TYPES));
+        $types = implode(',', array_map(fn($x) => "'{$x}'", array_merge(Hr::TODO_TYPES, $auth->isAdmin() ? Hr::BOSS_TODO_TYPES : [])));
         $st = $pdo->prepare("SELECT t.*, e.full_name, e.employee_no FROM hr_todos t LEFT JOIN employees e ON e.id = t.employee_id
                               WHERE t.status = 'open' AND t.type IN ({$types}) AND (t.employee_id IS NULL OR {$w}) ORDER BY t.due_date IS NULL, t.due_date, t.id");
         $st->execute($a);
@@ -123,12 +123,21 @@ switch ($action) {
 
     case 'todo_done':
         Csrf::verify();
-        $requireEdit();
         $id = (int) input('id', 0);
         $note = trim((string) input('note', ''));
         $st = $pdo->prepare("SELECT * FROM hr_todos WHERE id = ? AND status = 'open'");
         $st->execute([$id]);
         $todo = $st->fetch();
+        // HR handles HR todos; the boss's own todos are the boss's alone.
+        if ($todo && in_array($todo['type'], Hr::BOSS_TODO_TYPES, true)) {
+            if (!$auth->isAdmin()) {
+                http_response_code(403);
+                flash(t('hr_msg_read_only'), 'error');
+                redirect('hr.index');
+            }
+        } else {
+            $requireEdit();
+        }
         if ($todo) {
             $pdo->prepare("UPDATE hr_todos SET status = 'done', handled_by = ?, handled_at = datetime('now','localtime'), handled_note = ? WHERE id = ?")
                 ->execute([$operator, $note, $id]);

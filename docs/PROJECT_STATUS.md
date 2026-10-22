@@ -254,6 +254,52 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 
 **测试**：`tests/pagination_test.php`；控制器渲染测试通过 `tests/support/run_controller.php` 子进程执行（控制器文件里声明了函数，同一进程不能 include 两次）。
 
+## 6zd. 财务 AI · FA-AI-00 AI 调用层（2026-10-22）
+
+按 docs/任务卡-财务AI.md v2 开发（只做了 00，01 起待用户看过再继续）。代码：`app/AiTask.php`、`app/controllers/ai.php`、`views/ai/usage.php`、`prompts/`，测试 `tests/ai_task_test.php`（含迁移测试和真实控制器渲染）。
+
+- **分层**：`Claude::send()` 仍是唯一 HTTP 出口（token 上限、瞬时错误重试）；其上新增任务层 `AiTask::run($pdo, $config, $task, ['content', 'schema', 'ref_table', 'ref_id', 'check'])`。卡上建议的文件名 `app/Ai.php` 已被库存助手占用，所以叫 `AiTask`。**新 AI 功能一律走 `AiTask::run()`**，不要直接调 `Claude::send()`。
+- **配置**（`config.php` 的 `ai`）：
+  - `tasks[任务] = tier 或 model, effort, max_tokens, prompt_version?, max_input_chars?`；
+  - `tiers`：cheap = claude-haiku-5-5，standard = claude-opus-5-5；
+  - `prices`：美元 / 百万 token，按 2026-10 的官方价（Opus 5.5 $4 / $20，缓存读 $0.20；Sonnet 5.5 $2 / $10；Haiku 5.5 $0.10 / $0.50）。没列出的模型按 `default`（最贵档）计，宁可多算；
+  - `daily_usd_budget = 5`、`monthly_usd_budget = 50`：用户 2026-10-22 定，月上限与 Console workspace 一致；
+  - `per_record_daily_calls = 2`。
+- **提示词**：放在 `prompts/{task}_v{n}.txt`，默认用最大版本号；`prompt_version` 可钉住旧版，用于回退。改提示词就新建 v(n+1)，旧版保留。`ai_calls.prompt_version` 记录每次用的哪一版。
+- **校验与重试**：要求结构化 JSON 输出（`output_config.format`），返回后再做两层检查：一是按 schema 校验（`AiTask::validate()`，零依赖，覆盖我们用到的 JSON Schema 子集）；二是任务自定义规则 `check`。
+  - 不合格就重问 1 次，仍不合格记 `invalid`（即"AI 未处理"），由调用方转人工。不会循环。
+  - 接口错误（HTTP 错误 / 拒答 / 被截断）不重问，因为 `Claude::send()` 已对瞬时错误做过有限重试。
+- **预算**：调用前先问 `Claude::budget_left()`。它现在同时看两样，任一用完就返回 0：
+  1. 每日 token：ai_queries + ai_calls 两张表合计；
+  2. 美元日 / 月上限（`AiTask::budget_guard()`）：ai_calls.cost_usd，加上库存助手 ai_queries 的 token 按 `ai.model` 单价折算。
+
+  超了之后，所有 AI 功能一起停（库存助手、行业推断，以及以后的对账 / 报销 / 进项），记 `over_budget`，并给老板一条待办。过了当天 / 当月自动恢复，旧待办由系统关闭。
+- **防重复**：同一任务、同一记录（ref_table + ref_id）24 小时内最多实际调用 2 次，第 3 次记 `repeat_skipped`，不发送。批量任务没有 ref_id，不受此限（例如行业推断一次 20 个客户）。
+- **台账 `ai_calls`**：
+  - 一行 = 一次任务调用。校验失败重问的那次也算在同一行里：tokens 和费用合计，attempts = 2；
+  - 状态：ok / invalid / api_error / over_budget / repeat_skipped；
+  - `model` 记实际作答的模型（发生 server-side fallback 时可能不同），费用按它的单价算；
+  - **新建表，而不是扩展 ai_queries**（卡上二选一）：ai_queries 的 question / matched 是库存助手专用（question 不可为空），而且它兼做库存助手每人每日的限流。库存助手保持原样写 ai_queries，两张表都计入预算。
+- **建议与采纳 `ai_suggestions`**：
+  - `AiTask::suggest()` 存 AI 建议（JSON + 置信度 + ai_call_id）；
+  - `AiTask::confirm()` 存人确认的最终值，按顶层字段逐个比较（数字容差 0.005）。全部一致记 ai_accepted = 1，否则记下 changed_fields。每条建议只能确认一次；
+  - 卡上写 01 / 02 / 03 的业务表各带 `ai_*` 字段。打算改为各表存一个 `ai_suggestion_id` 指向这里，到 FA-AI-01 时再确认。
+- **图片**：`AiTask::image_block()` 把长边压到 ≤ 1568px（GD 缩放，JPEG 质量 85，按 EXIF 转正，透明底补白），小图原样发送。图片的 base64 远大于默认的 60000 字符请求上限，所以单个任务可以用 `max_input_chars` 放宽。
+  - **PDF「只发需要的页」未做**：零依赖下没法可靠拆 PDF 页。留到 FA-AI-03 拿到真实 Faktur 样本后再定：整份发 / 服务器装 qpdf / 先转成图片。
+- **行业推断迁移**：`Enrich::ai_classify($pdo, …)` 改走 `AiTask::run('industry')`。
+  - 提示词原文搬到 `prompts/industry_v1.txt`，逐字节相同（测试锁了 md5）；请求体与迁移前完全一致（已 diff 过）；
+  - 模型改由 `ai.tasks.industry`（standard 档）给出；旧的 `insights.industry_model` 如果在 config.local.php 里设了，仍然优先；
+  - 不再往 ai_queries 写 'enrich' 行；
+  - 行为上只有一处不同：返回不合 schema 时现在会重问一次，以前是整批直接算失败。
+- **超预算待办**（用户 2026-10-22 定：放人力待办中心）：
+  - `hr_todos.type = 'ai_budget'`，employee_id 为空；ref 为 `day:YYYY-MM-DD` 或 `month:YYYY-MM`，每天 / 每月最多一条。employee_id 为 NULL 时 UNIQUE 不生效，所以先查重再插入；
+  - `Hr::BOSS_TODO_TYPES`：只有老板（admin）在人力首页看得到、能点「已处理」（审计 hr / handle）；HR 看不到，不违反收尾卡「HR 待办只四类」。
+- **「AI 使用情况」页** `ai.usage`，只读：
+  - 入口：财务管理页头按钮，老板的超预算待办里也有链接；
+  - 权限：新视图权限 `ai_usage`（权限矩阵新列），默认只给 finance_manager，老板始终可见（用户 2026-10-22 定）。一次性迁移 `app_meta.perm_ai_usage_v1`，之后管理员的调整不会被覆盖；
+  - 内容：今日 / 本月费用与上限；本月按任务列出调用次数（按状态拆开）、tokens、费用、平均耗时、采纳率、改动最多的字段；库存助手单独一栏（数据来自 ai_queries）；月份可切换。
+- **上线**：`git pull`，再打开一次网站，`ensureSchema()` 会建好两张表并授权，不需要改 `.env`。服务器 `config.local.php` 里的 `'ai' => ['driver' => 'claude']` 与新配置用 `array_replace_recursive` 合并，互不影响。
+
 ## 6zc. 历史销售导入 + 年度销售统计（2026-10-22）
 
 **背景**：平台的真实订单从 2026-08-04 开始；之前（2026-01-02 起，公司 2025 年尚未运营）的销售记在一个简单记账软件里（「销售单」导出 Excel：1,183 单 / 2,208 行，1–8 月共 Rp 69.7 亿）。用户要年度销售额能看整年，所以把旧数据作为**历史销售**导入，**只读、只用于统计**。
@@ -619,8 +665,10 @@ app/
   helpers.php               视图辅助：e/url/redirect/idr/num/各label与tr_*翻译
   i18n.php                  中印双语字典 + t() + current_lang()
   Export.php                无依赖 Excel 导出（.xlsx via ZipArchive，CSV 兜底）
+  Claude.php / AiTask.php   AI：唯一 HTTP 出口 / 任务调用层（模型按任务配置、prompt 版本、schema 校验、美元预算、ai_calls 台账，见 6zd）
   Auth.php / Csrf.php
-  controllers/              dashboard customers pipeline tasks finance orders inventory approvals audit delivery users roles account auth lang
+  controllers/              dashboard customers pipeline tasks finance orders inventory approvals audit delivery users roles account auth lang hr ai
+prompts/                    AI 提示词 {task}_v{n}.txt（改提示词即升版本，旧版保留，见 6zd）
 views/                      按模块分目录 + layout.php + print/ + errors/（account/password.php 改密页）
 database/schema.sql         表结构
 database/seed_products.sql  269 个产品（由 tools/gen_products.php 从原型抽取）
@@ -640,7 +688,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-**sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
+**ai_calls(AI 调用台账：任务/模型/prompt 版本/tokens/费用/耗时/状态，见 6zd)**, **ai_suggestions(AI 建议与人工确认、采纳率)**, hr_todos(+type ai_budget：老板专属、无员工), **sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
 
 ## 10. 提交历史（main）
 
@@ -690,6 +738,7 @@ c6d14db Add append-only audit log across every write operation
 **安全/运维**：已完成——cookie 加固 / 强制改密 / 登录限速 / 审批职责分离 / **数据备份**(`tools/backup_db.php` 见 6e) / 修复财务逾期判定写死日期(`finance.php` 现用 `date('Y-m-d')`) / **响应式移动端布局 + PWA** / **仓库转 private + 服务器改走 SSH remote**(见 6f) / **服务器安全审计**(无入侵迹象，见 6f) / **审计日志**(见 6g) / **收款冲销**(见 6h) / **WhatsApp 通知**(见 6i) / **AI 智能查库存**(见 6j) / **控制器提示语全部 i18n 化**(55 条，原先印尼员工每天看到中文) / **备份异地同步到 OSS**(见 6e) / **列表分页 + 搜索**(见 6o) / **客户分析·数据准备**(见 6p) / **AI 花费护栏**(见 6p) / **回访清单计算 + 跟进记录**(见 6q) / **回访清单页 + 客户分析看板 + 送货地图**(见 6r) / **客户分析权限**(见 6s) / **看板张数列 + 张数卡片**(见 6t) / **订单小数 + 发票 .docx + 尾差并入 VAT**(见 6u) / **表单过期友好提示**(见 6v) / **发票按 Coretax 口径**(见 6w) / **订单含税/不含税单价**(见 6x) / **自动化测试**(`tools/run_tests.php`，870 项)。
 
 **待办（按优先级）**：
+-2. **财务 AI**（docs/任务卡-财务AI.md v2，顺序 00 → 01 → TAX-01 → 02 → 03）：**FA-AI-00 ✅**（见 6zd，待用户看过再开 01）。下一张 FA-AI-01 银行流水对账。遗留给后续卡的：PDF 只发需要的页（FA-AI-03 时定方案）；01 的业务表用 `ai_suggestion_id` 关联 ai_suggestions（01 时确认）。已知低危：① 超预算待办的日期 ref 用 PHP `date()`，花费窗口用 SQLite `localtime`；若 PHP 时区与服务器系统时区不一致，在午夜前后待办日期可能差一天（只影响待办标题，不影响拦截）。② `ai.prices` 是 2026-10 的官方价，Anthropic 调价时要手工改；Haiku 5.5 的缓存读价 $0.01 是按输入价的 10% 推定的。③ 库存助手仍记在 ai_queries（没进 ai_calls），使用情况页单列；以后可以迁到任务层。
 -1. **历史销售**（见 6zc）：线上先预演 `tools/import_sales_history.php --file=…` 看未匹配客户/业务员报告，定 `--alias` 后 `--apply`；再考虑把 sales_history 接进回访清单的最近购买。
 0. **客户分析板块**（任务书四部分，见 6p）：一、数据准备 ✅（6p）；二、三个清单 ✅（6q）；三、页面 ✅（6r）；四、权限 ✅ 待验收（6s）。宝塔计划任务 `tools/nightly.php` 每天 02:30 已加，`.env` 已配。四部分均已上线（2026-10-16）。**智能查库存已启用 Claude（2026-10-16；服务器 `config.local.php` 加了 `'ai' => ['driver' => 'claude']`），模型 `claude-opus-5-5`**——曾短暂用 `claude-opus-5`，比较后改回 5.5（更便宜且更新；用户不需要 Sonnet/Haiku 对比测试）。请求带 `fallbacks: "default"`；行业判断同为 `claude-opus-5-5`。剩余：70 个无负责人客户待在「数据整理」分配。**`.env` 里的 Anthropic 密钥曾在聊天中明文出现，用户决定继续使用——建议择机在 console.anthropic.com 轮换。** erpandi 已于 2026-10-16 合并到 erfandi（21 客户 / 31 订单，快照 `backups/pre_merge_erpandi_*`）。晨间 WhatsApp 提醒待 WhatsApp 启用后再做（6r）。
 1. ~~**关闭 SSH 密码认证**~~ —— **已完成**（2026-10-12，见 6f）。~~**备份异地同步**~~ —— **已完成并启用**（2026-10-13，阿里云 OSS，见 6e）；**系统安全补丁**（登录提示 72 个安全更新，26 个 Important，挑空闲时段 `dnf upgrade-minimal --security`）

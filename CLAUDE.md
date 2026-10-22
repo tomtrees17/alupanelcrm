@@ -67,6 +67,7 @@ app/
   i18n.php                  中印双语字典 + t() + current_lang()
   Export.php                Excel 导出   Docx.php  发票 .docx   Word.php  送货单 .doc
   Claude.php                Anthropic API 唯一出口（token 上限 / 重试 / 每日预算）
+  AiTask.php                AI 任务调用层（FA-AI-00）：模型按任务配置、prompt 版本、schema 校验、美元日/月预算、ai_calls 台账、建议采纳统计
   Enrich.php                客户区域 / 行业推断（地址文本 + Google 地理编码 + 规则 + Claude）
   CustomerData.php          客户数据清洗（销售名合并、电话、负责人建议）
   Insights.php              回访清单 A/B/C 计算 + 跟进记录与屏蔽
@@ -76,9 +77,10 @@ app/
   HrBpjs.php                人力 BPJS（HR-03）：两套记录、费率按月、金额计算（上限/JP/超额家属）、月度快照、离职联动
   Auth.php                  会话鉴权     Csrf.php  CSRF 令牌
   controllers/              dashboard customers insights pipeline tasks finance orders inventory
-                            approvals audit delivery users roles account auth lang hr
+                            approvals audit delivery users roles account auth lang hr ai
 
 views/                      按模块分目录 + layout.php + print/ + word/ + errors/
+prompts/                    AI 提示词 {task}_v{n}.txt（改提示词即新建下一版，旧版保留）
 database/schema.sql         表结构
 database/seed_products.sql  269 个产品（由 tools/gen_products.php 从原型抽取，一次性）
 tools/
@@ -145,7 +147,7 @@ php -S localhost:8000 -t public
 
 **API 密钥放项目根目录的 `.env`**（git 忽略、在 web 根 `public/` 之外，模板 `.env.example`：`ANTHROPIC_API_KEY` / `GOOGLE_MAPS_API_KEY` / 可选 OSS、WA），由 `config.php` 末尾读入；其它服务器专属覆盖仍可放 `config.local.php`（也被 git 忽略，最后合并）。**绝不能写进 `config.php`**：它在 git 里，写进去要么被提交到 GitHub，要么在服务器上改了当晚就被 reset 掉。测试守着「`config.php` 凭据字段为空」和「`.env` 已被 gitignore」。
 
-**所有 AI 调用必须经过 `Claude::send()`**（`app/Claude.php`）：单次输出 token 硬上限 `ai.max_tokens`、请求体大小上限、只对瞬时错误（网络/429/5xx）有限次退避重试、全公司每日 token 预算 `ai.daily_token_budget`（调用前查 `Claude::budget_left()`，用量记在 `ai_queries`）。不要另写直连 Anthropic 的 curl。
+**所有 AI 调用必须经过 `Claude::send()`**（`app/Claude.php`）：单次输出 token 硬上限 `ai.max_tokens`、请求体大小上限、只对瞬时错误（网络/429/5xx）有限次退避重试、全公司每日 token 预算 `ai.daily_token_budget`（调用前查 `Claude::budget_left()`）。不要另写直连 Anthropic 的 curl。**新功能走任务层 `AiTask::run()`**（`app/AiTask.php`，FA-AI-00）：在 `config.php` 的 `ai.tasks` 里配模型，提示词放 `prompts/{task}_v{n}.txt`，传 JSON schema；它负责美元日/月上限（`budget_left()` 同样会拦）、同一记录 24h 最多 2 次、校验不合格重问 1 次后转人工，并记 `ai_calls` 台账。AI 只给建议，确认走 `AiTask::suggest()` / `confirm()`。
 
 **服务器环境要点**（宝塔面板）：站点 `/www/wwwroot/www.alupanel.cc`，PHP 8.2（`pdo_sqlite`/`sqlite3` 已启用），**网站运行目录必须设为 `/public`**，`data/` 需 `www` 用户可写。宝塔 PHP CLI 路径随版本变（`ls /www/server/php/` 查实际版本号），当前为 `/www/server/php/82/bin/php`。
 

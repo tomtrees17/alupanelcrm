@@ -30,6 +30,11 @@ final class Hr
      * a resignation. Anything else (probation end, …) stays as data, no todo.
      */
     public const TODO_TYPES = ['contract_expiring', 'contract_expired', 'bpjs_overdue', 'bpjs_stop'];
+    /**
+     * Platform todos for the boss alone, not tied to an employee (FA-AI-00: the
+     * AI budget was used up). HR never sees them; the boss may mark them done.
+     */
+    public const BOSS_TODO_TYPES = ['ai_budget'];
 
     /** Fields HR fills on the basic-info form (no effective date needed). */
     public const BASIC_FIELDS = [

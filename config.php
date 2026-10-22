@@ -77,6 +77,32 @@ $config = [
         'max_input_chars'    => 60000,       // requests larger than this are not sent
         'retries'            => 2,           // transient failures only (network / 429 / 5xx), with backoff
         'daily_token_budget' => 300000,      // all features + users per day; 0 = unlimited
+
+        // ── Task layer (app/AiTask.php, FA-AI-00) ──
+        // USD caps across every AI feature (inventory assistant included). Reached →
+        // all AI calls are skipped until the day / month turns, features fall back
+        // to manual, and the boss gets a todo. Kept under the Console workspace cap.
+        'daily_usd_budget'       => 5.0,      // 0 = no cap
+        'monthly_usd_budget'     => 50.0,     // 0 = no cap
+        'per_record_daily_calls' => 2,        // same task on the same record within 24 h (bug guard)
+        // Model tiers; each task picks a tier (or names a 'model'), never hard-coded.
+        'tiers' => [
+            'cheap'    => 'claude-haiku-5-5',
+            'standard' => 'claude-opus-5-5',
+        ],
+        // Per task: tier|model, effort, max_tokens, optional prompt_version
+        // (default: newest prompts/{task}_v{n}.txt), optional max_input_chars.
+        'tasks' => [
+            'industry' => ['tier' => 'standard', 'effort' => 'low', 'max_tokens' => 4096],   // 客户行业推断 (Enrich)
+        ],
+        // USD per million tokens (Anthropic list price, checked 2026-10). A model not
+        // listed is priced as 'default' — the dearest tier, so the caps never under-count.
+        'prices' => [
+            'claude-opus-5-5'   => ['in' => 4.00, 'out' => 20.00, 'cache_read' => 0.20, 'cache_write' => 5.00],
+            'claude-sonnet-5-5' => ['in' => 2.00, 'out' => 10.00, 'cache_read' => 0.20, 'cache_write' => 2.50],
+            'claude-haiku-5-5'  => ['in' => 0.10, 'out' => 0.50, 'cache_read' => 0.01, 'cache_write' => 0.125],
+            'default'           => ['in' => 10.00, 'out' => 50.00, 'cache_read' => 1.00, 'cache_write' => 12.50],
+        ],
     ],
 
     // ── Geocoding (tools/enrich_customers.php: order address → lat/lng + kota) ──
@@ -91,8 +117,7 @@ $config = [
     'insights' => [
         // Industry classification for customers no rule matches. Uses ai.key;
         // off automatically while that key is empty.
-        'industry_ai'    => true,
-        'industry_model' => 'claude-opus-5-5',
+        'industry_ai'    => true,         // model: ai.tasks.industry
         'min_confidence' => 0.7,      // below this the result is marked 待确认
         'ai_batch'       => 20,       // customers per model call
         'end_owner_max_qty' => 20,    // "personal name, no company, small orders" ⇒ 终端业主

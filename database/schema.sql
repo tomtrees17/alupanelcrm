@@ -319,6 +319,49 @@ CREATE TABLE ai_queries (
 );
 CREATE INDEX idx_ai_user_day ON ai_queries(user_id, created_at);
 
+-- ── AI task layer (FA-AI-00, app/AiTask.php): one row per task call, every feature but the inventory assistant ──
+CREATE TABLE ai_calls (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_type          TEXT NOT NULL,              -- ai.tasks key: industry | …
+    ref_table          TEXT,                       -- the record the call is about (per-record 24 h guard)
+    ref_id             INTEGER,
+    model              TEXT,                       -- the model that answered (a server-side fallback may differ)
+    prompt_version     INTEGER,                    -- prompts/{task}_v{n}.txt
+    input_tokens       INTEGER NOT NULL DEFAULT 0,
+    cached_tokens      INTEGER NOT NULL DEFAULT 0, -- cache reads
+    cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens      INTEGER NOT NULL DEFAULT 0,
+    cost_usd           REAL    NOT NULL DEFAULT 0, -- at config ai.prices
+    latency_ms         INTEGER NOT NULL DEFAULT 0,
+    attempts           INTEGER NOT NULL DEFAULT 0, -- 2 = the answer failed the schema once and was asked again
+    status             TEXT    NOT NULL,           -- ok | invalid | api_error | over_budget | repeat_skipped
+    error              TEXT,
+    user_id            INTEGER,
+    user_name          TEXT,
+    created_at         TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_ai_calls_day ON ai_calls(created_at);
+CREATE INDEX idx_ai_calls_ref ON ai_calls(task_type, ref_table, ref_id, created_at);
+
+-- What the model suggested for a record, and what a person finally confirmed (adoption rate, most-edited fields)
+CREATE TABLE ai_suggestions (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    ai_call_id     INTEGER REFERENCES ai_calls(id),
+    task_type      TEXT NOT NULL,
+    ref_table      TEXT NOT NULL,
+    ref_id         INTEGER NOT NULL,
+    ai_suggestion  TEXT NOT NULL,                  -- JSON
+    ai_confidence  TEXT,                           -- high|medium|low or 0–1
+    final_value    TEXT,                           -- JSON, as confirmed
+    changed_fields TEXT,                           -- comma-separated top-level keys the person changed
+    confirmed_by   TEXT,
+    confirmed_at   TEXT,
+    ai_accepted    INTEGER,                        -- 1 = taken as suggested
+    created_at     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_ai_sugg_ref ON ai_suggestions(ref_table, ref_id);
+CREATE INDEX idx_ai_sugg_task ON ai_suggestions(task_type, created_at);
+
 -- ── Audit trail (who changed what, append-only) ──
 CREATE TABLE audit_log (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -432,7 +475,7 @@ CREATE TABLE employee_changes (
 );
 CREATE TABLE hr_todos (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    type        TEXT NOT NULL,                       -- contract_end|bpjs_stop|account_off|… (see i18n hrtodo_*)
+    type        TEXT NOT NULL,                       -- contract_expiring|…|ai_budget (boss only, no employee) (see i18n hrtodo_*)
     employee_id INTEGER REFERENCES employees(id),
     ref         TEXT NOT NULL DEFAULT '',            -- e.g. contract id, so one todo per thing
     due_date    TEXT,

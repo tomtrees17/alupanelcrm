@@ -279,7 +279,7 @@ function controllable_modules(): array
 /** Non-route view permissions (dashboard widgets, export, etc.), configurable per role. */
 function view_permissions(): array
 {
-    return ['performance', 'export', 'insights_all', 'hr_all'];   // 全员销售业绩 / 导出 Excel / 全部客户分析 / 人力档案看全部（不含薪资）
+    return ['performance', 'export', 'insights_all', 'hr_all', 'ai_usage'];   // 全员销售业绩 / 导出 Excel / 全部客户分析 / 人力档案看全部（不含薪资）/ AI 使用情况
 }
 
 /** All permission keys shown in the 权限设置 matrix. */
@@ -293,7 +293,7 @@ function default_permissions(): array
 {
     return [
         'manager'         => ['hr', 'hr_all', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'export'],
-        'finance_manager' => ['hr', 'customers', 'insights', 'finance', 'orders', 'inventory', 'approvals', 'performance'],
+        'finance_manager' => ['hr', 'customers', 'insights', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'ai_usage'],
         'ops_supervisor'  => ['hr', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals', 'performance'],
         'supervisor'      => ['hr', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
         'sales'           => ['hr', 'customers', 'insights', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
