@@ -692,39 +692,39 @@ config.php                  应用与公司配置
 
 ## 10. 提交历史（main）
 
-最近 30 条（共 96 条，含本条文档提交；完整历史用 `git log --oneline`）：
+最近 30 条（共 120 条，含本条文档提交；完整历史用 `git log --oneline`）：
 
 ```
+15ff01c Finance AI: FA-AI-00 task layer with USD budgets, call ledger and usage page
+84327a3 Docs: finance AI task card v2, charter v2.4, de-identified bank/tax fixtures
+3b3e287 Finance: import pre-platform sales as read-only history, yearly sales report
+9238c20 HR: a resignation also terminates the active contract
+248a9c8 HR wrap-up 1–3 (charter v2.2: no extra burden on staff)
+98d2828 HR-03: BPJS Kesehatan and Ketenagakerjaan
+5a7575f HR-02: employment contracts (PKWT / PKWTT)
+9f2bc60 HR-01 additions: link an employee to a CRM account; undo a resignation
+f41dbdb HR-00 + HR-01: 人力 / SDM menu, todo home and employee records
+dd12a19 Docs: platform charter and HR task cards; development rules in CLAUDE.md
+44b1c76 Orders: enter unit prices tax-inclusive or pre-tax; pre-tax quotes print as typed on the invoice
+94c237c Invoice: new invoices calculated like Coretax (2 decimals, truncated; Total Invoice vs Total Amount)
+b30193b Expired form token sends the user back with a message instead of a dead-end page
+e366971 Invoice: fold the rounding difference into the VAT line, as finance's spreadsheet does
+13a19a6 Invoice: hide the Pembulatan line on printed and Word invoices (configurable)
+c78f9b4 Finance: decimal amounts on order/payment forms; invoice Word export as a real .docx with the logo
+d67c3a6 Dashboard: count sheets on the shipping basis, like sales
+860fbff Dashboard: total sheets tile with period-over-period change
+0abad03 Dashboard: sheets sold per salesperson in the ranking
+09ba775 Untrack business documents accidentally committed; ignore office files in the repo root
+07aeee3 AI: inventory assistant on Claude Opus 5.5
+340c5e6 AI: server-side fallback for inventory questions on refusal
+4930c75 Docs: Fera owns the Shopee customers
+865ef57 Docs: refresh commit history
 716899a Insights: sales get call lists without customer management; per-customer checks on every list action
 a6a90c5 Docs: refresh commit history
 b40fe6f Insights: call-list pages for sales, manager view with activity, distribution, delivery map and data quality
 4d46f39 Docs: refresh commit history
 4e9339e Customers: nightly call lists (due / at risk / worth visiting) and follow-up records
 f65e35d Docs: first production run of customer enrichment
-a7c8526 Enrich: never geocode courier notes in the delivery-address box
-54a0a60 Docs: refresh commit history
-8821ea4 Customers: infer region and industry from orders, data cleanup tools, AI spending guards
-aecd3ad Docs: refresh commit history
-88f0e2e Paginate and search the order, invoice, customer, delivery and approval lists
-329274a Offsite: trim pasted credentials; record OSS backups as live
-73ac833 Offsite: default to the Jakarta bucket alupanel-backup-crm
-d849274 Offsite backups to Alibaba Cloud OSS
-48f9c65 Docs: SSH is key-only now; record keys, rollback and next priorities
-a9a9f28 Invoice totals equal the quoted amount, with the gap shown as Pembulatan
-8248bef Dashboard: tighter desktop layout
-facccd6 Dashboard: day / week / month view of sales and collections
-0ff2df1 Invoice screen: show the unit price with its decimals
-ad4c845 Finance: say why an invoice cannot be voided instead of erroring on click
-3f1a3c6 Finance: void an invoice instead of deleting it
-bf58e5e Cleanup tool: scope by date and recover stock stranded by deleted orders
-00cadd1 Clean up test data without stranding invoices
-630de17 Natural-language stock lookup for sales on their phones
-320969e WhatsApp notifications for the approval chain
-f307130 Translate the 55 operation messages staff see every day
-5f556b3 Finance: reverse a mis-registered payment instead of leaving it stuck
-116840d Deploy chmod no longer flips the exec bit on tracked files in data/
-6aedf8a Test the audit viewer template: rendering, pagination, escaping, i18n
-c6d14db Add append-only audit log across every write operation
 ```
 
 ## 11. 用户偏好
