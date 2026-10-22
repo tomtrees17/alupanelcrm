@@ -822,9 +822,12 @@ config.php                  应用与公司配置
 
 ## 10. 提交历史（main）
 
-最近 30 条（共 122 条，含本条文档提交；完整历史用 `git log --oneline`）：
+最近 30 条（共 125 条，含本条文档提交；完整历史用 `git log --oneline`）：
 
 ```
+90cdbc8 Finance AI: FA-TAX-01 Coretax output-tax import file and buyer tax data
+edea8d2 samples_test: remove two real buyer rows and author names from the Coretax fixture
+746e07d Docs: refresh commit history
 ec365de Finance AI: FA-AI-01 bank statement import and collection matching
 ff50f0e Docs: refresh commit history
 15ff01c Finance AI: FA-AI-00 task layer with USD budgets, call ledger and usage page
@@ -852,9 +855,6 @@ d67c3a6 Dashboard: count sheets on the shipping basis, like sales
 4930c75 Docs: Fera owns the Shopee customers
 865ef57 Docs: refresh commit history
 716899a Insights: sales get call lists without customer management; per-customer checks on every list action
-a6a90c5 Docs: refresh commit history
-b40fe6f Insights: call-list pages for sales, manager view with activity, distribution, delivery map and data quality
-4d46f39 Docs: refresh commit history
 ```
 
 ## 11. 用户偏好
