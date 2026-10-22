@@ -826,10 +826,12 @@ config.php                  应用与公司配置
 
 ## 10. 提交历史（main）
 
-最近 30 条（共 130 条，含本条文档提交；完整历史用 `git log --oneline`）：
+最近 30 条（共 132 条，含本条文档提交；完整历史用 `git log --oneline`）：
 
 ```
 xxxxxxx Docs: refresh commit history
+20fb934 Bank: after the history import, run the rules again over waiting lines
+9ed92a6 Docs: refresh commit history
 d3f3425 AI: requests the API refused without using tokens no longer count toward the per-record limit
 19ff910 Docs: refresh commit history
 63a97aa AI: keep schema limits the API rejects out of requests; retry failed bank matches
@@ -857,8 +859,6 @@ e366971 Invoice: fold the rounding difference into the VAT line, as finance's sp
 13a19a6 Invoice: hide the Pembulatan line on printed and Word invoices (configurable)
 c78f9b4 Finance: decimal amounts on order/payment forms; invoice Word export as a real .docx with the logo
 d67c3a6 Dashboard: count sheets on the shipping basis, like sales
-860fbff Dashboard: total sheets tile with period-over-period change
-0abad03 Dashboard: sheets sold per salesperson in the ranking
 ```
 
 ## 11. 用户偏好
