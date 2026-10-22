@@ -224,7 +224,15 @@ if (function_exists('exec') && is_file($harness)) {
     $fin = ['id' => 7, 'name' => 'Fin', 'role' => 'finance_manager'];
     $page = $run('index', $fin, ['from' => '2026-10-01', 'to' => '2026-10-31']);
     ok('Faktur page renders, invoice classed FAKTUR, no notices', str_contains($page, 'data-invoice="9001 - AMI - INV - 10 - 26" data-class="FAKTUR"') && !str_contains($page, 'PHP:'), mb_substr($page, -400));
-    ok('Faktur page: the missing company NPWP is shown and generating is disabled', str_contains($page, t('fk_err_seller')) && str_contains($page, 'disabled>' . t('fk_btn_generate')));
+    ok('Faktur page: company NPWP configured, nothing blocks, generating is enabled', !str_contains($page, t('fk_err_seller')) && str_contains($page, '<button class="btn btn-primary" type="submit">' . t('fk_btn_generate')));
+    $gp = $run('generate', $fin, [], ['from' => '2026-10-01', 'to' => '2026-10-31']);
+    $gchk = new PDO('sqlite:' . $db);
+    $gid = (int) $gchk->query("SELECT id FROM faktur_exports WHERE kind = 'faktur'")->fetchColumn();
+    $gfile = $store . '/' . $gchk->query("SELECT stored FROM faktur_exports WHERE id = {$gid}")->fetchColumn();
+    ok('generate from the page: file kept with the company NPWP and NITKU', str_contains($gp, sprintf(t('fk_msg_generated'), 1, 1)) && is_file($gfile)
+        && SalesHistory::read_xlsx($gfile, 'Faktur')[0][2] === Faktur::npwp16((string) $cfgFull['company_npwp'])
+        && SalesHistory::read_xlsx($gfile, 'Faktur')[2][9] === Faktur::npwp16((string) $cfgFull['company_npwp']) . '000000');
+    $gchk = null;
     $run('classify', $fin, [], ['id' => $hi, 'class' => 'GUNGGUNG', 'from' => '2026-10-01', 'to' => '2026-10-31']);
     $chk = new PDO('sqlite:' . $db);
     ok('override the class from the page (audited)', $chk->query("SELECT faktur_class FROM invoices WHERE id = {$hi}")->fetchColumn() === 'GUNGGUNG'
@@ -236,7 +244,7 @@ if (function_exists('exec') && is_file($harness)) {
     ok('customer tax page renders', !str_contains($run('customer', $fin, ['id' => $hc]), 'PHP:'));
     $g = $run('gunggung', $fin, [], ['from' => '2026-10-01', 'to' => '2026-10-31']);
     $eid = (int) $chk->query("SELECT id FROM faktur_exports WHERE kind = 'gunggung'")->fetchColumn();
-    ok('Digunggung from the page: file kept, export audited', $eid > 0 && (int) $chk->query("SELECT COUNT(*) FROM audit_log WHERE module = 'tax' AND action = 'export'")->fetchColumn() === 1);
+    ok('Digunggung from the page: file kept, export audited', $eid > 0 && (int) $chk->query("SELECT COUNT(*) FROM audit_log WHERE module = 'tax' AND action = 'export' AND detail LIKE '%Digunggung%'")->fetchColumn() === 1);
     $denied = $run('index', ['id' => 3, 'name' => 'Rina', 'role' => 'sales']);
     ok('no finance module → no Faktur page', str_contains($denied, t('msg_no_module')) && !str_contains($denied, t('fk_sub')));
     $chk = null;

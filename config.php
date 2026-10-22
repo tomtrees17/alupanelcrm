@@ -32,7 +32,7 @@ $config = [
     'company_logo'  => 'ALUSIGNPANEL',   // text logo; or drop a file at public/assets/img/logo.png
     // Seller tax ids for the Coretax Faktur import file (FA-TAX-01). Not secret (printed on
     // tax invoices); NPWP 16 digits, NITKU 22 digits (empty = NPWP + 000000, head office).
-    'company_npwp'  => '',
+    'company_npwp'  => '1000000000213431',
     'company_nitku' => '',
     'signer_name'   => 'MUTIARA FARIANDA',
     'signer_title'  => 'Finance Manager',
