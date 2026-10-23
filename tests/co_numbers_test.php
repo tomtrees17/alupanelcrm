@@ -196,6 +196,16 @@ if (function_exists('exec') && is_file($harness)) {
     ok('CO print: number, customer, line and total', str_contains($sheet, '1377/AMI-CO/10/26') && str_contains($sheet, 'OLD ONE') && str_contains($sheet, 'SJ8001') && str_contains($sheet, '1.800.000'), substr($sheet, 0, 200));
     ok('CO print carries no Chinese', !preg_match('/[\x{4e00}-\x{9fff}]/u', $sheet));
     ok('CO print: signatures from config and sales', str_contains($sheet, 'RIDWAN') && str_contains($sheet, 'Finance Manager'));
+    // Reserve a number before the order exists (what the Google Form did); the next
+    // automatic number skips past it, and the reserved one is offered on the order form.
+    $before = CoNumbers::max_seq($q());
+    [, $fl] = $run('co_reserve', $sales, [], ['company' => 'Nego Corp', 'client_name' => 'Budi', 'phone' => '0811']);
+    $res = $q()->query("SELECT * FROM co_requests WHERE company = 'Nego Corp'")->fetch();
+    ok('reserve: next number handed out, source platform, sales = self', $res && (int) $res['seq'] === $before + 1 && $res['source'] === 'platform' && $res['sales_name'] === 'Ridwan' && $res['order_id'] === null, json_encode([$res, $fl]));
+    [$html] = $run('create', $sales);
+    ok('reserved number offered on the order form; automatic number is one higher', str_contains($html, $res['co_no']) && str_contains($html, sprintf('%04d/AMI-CO/', $before + 2)));
+    [, $fl] = $run('co_reserve', $sales, [], ['company' => '', 'client_name' => '']);
+    ok('reserve needs a company or a contact', ($fl[0]['type'] ?? '') === 'error');
     [$html] = $run('index', $fin, ['q' => '1377']);
     ok('order list finds an order by its CO number', str_contains($html, '0487/AMI-CO/10/26'));
     @unlink($db);

@@ -206,7 +206,23 @@ switch ($action) {
         $st = $pdo->prepare('SELECT r.*, o.order_no, o.status AS order_status' . $base . ' ORDER BY r.seq DESC' . $pg['limit']);
         $st->execute($args);
         $stats = $pdo->query('SELECT COUNT(*) total, SUM(order_id IS NULL) open, MAX(seq) max_seq, MAX(issued_at) last_issued FROM co_requests')->fetch() ?: [];
-        view('orders.co_index', ['rows' => $st->fetchAll(), 'q' => $q, 'only' => $only, 'pg' => $pg, 'stats' => $stats, 'nextNo' => next_order_no($pdo)]);
+        view('orders.co_index', ['rows' => $st->fetchAll(), 'q' => $q, 'only' => $only, 'pg' => $pg, 'stats' => $stats, 'nextNo' => next_order_no($pdo),
+                                 'canPickSales' => !sees_only_own(), 'salesStaff' => order_sales_list($pdo)]);
+        break;
+
+    case 'co_reserve':
+        Csrf::verify();
+        $company = trim((string) input('company', ''));
+        $client = trim((string) input('client_name', ''));
+        if ($company === '' && $client === '') {
+            flash(t('msg_co_reserve_req'), 'error');
+            redirect('orders.co_index');
+        }
+        $sales = sees_only_own() ? own_name() : (trim((string) input('sales_name', '')) ?: own_name());
+        $r = CoNumbers::reserve($pdo, $sales, $company, $client, trim((string) input('phone', '')), own_name());
+        audit($pdo, 'orders', 'create', 'co_request', $r['seq'], $r['co_no'], sprintf('领号: %s / %s (%s)', $company, $client, $sales));
+        flash(sprintf(t('msg_co_reserved'), $r['co_no']));
+        redirect('orders.co_index', ['q' => $r['co_no']]);
         break;
 
     case 'link_co':

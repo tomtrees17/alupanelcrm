@@ -160,6 +160,21 @@ final class CoNumbers
         return $st->fetchAll();
     }
 
+    /**
+     * Hand out the next number before the order exists — what the Google Form
+     * did. The entry sits in the register until an order takes it (order form
+     * dropdown / link box), and next_order_no() skips past it meanwhile.
+     */
+    public static function reserve(PDO $pdo, string $sales, string $company, string $client, string $phone, string $by): array
+    {
+        $seq = self::max_seq($pdo) + 1;
+        $coNo = self::format($seq, date('m'), date('y'));
+        $pdo->prepare("INSERT INTO co_requests (seq, co_no, issued_at, sales_name, company, client_name, phone, source, batch, link_note)
+                        VALUES (?, ?, datetime('now','localtime'), ?, ?, ?, ?, 'platform', NULL, ?)")
+            ->execute([$seq, $coNo, $sales !== '' ? $sales : null, $company !== '' ? $company : null, $client !== '' ? $client : null, $phone !== '' ? $phone : null, 'reserved by ' . $by]);
+        return ['seq' => $seq, 'co_no' => $coNo];
+    }
+
     public static function find(PDO $pdo, string $coNo): ?array
     {
         $st = $pdo->prepare('SELECT * FROM co_requests WHERE co_no = ?');

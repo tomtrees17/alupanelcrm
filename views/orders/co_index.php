@@ -14,6 +14,23 @@
     <div class="stat-card c1"><div class="stat-label"><?= t('co_stat_next') ?></div><div class="stat-value c1" style="font-size:18px"><?= e($nextNo) ?></div></div>
 </div>
 
+<div class="card" style="margin-bottom:12px">
+    <div class="card-header"><span class="card-title"><?= t('co_reserve_title') ?></span><span class="muted small"><?= t('co_reserve_sub') ?></span></div>
+    <form method="post" action="<?= url('orders.co_reserve') ?>" class="card-body" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <?= Csrf::field() ?>
+        <?php if (!empty($canPickSales)): ?>
+        <div class="form-group" style="margin:0;min-width:140px"><label class="form-label"><?= t('th_sales_name') ?></label>
+            <input class="form-input" name="sales_name" list="co-sales" autocomplete="off" value="<?= e(own_name()) ?>">
+            <datalist id="co-sales"><?php foreach (($salesStaff ?? []) as $sn): ?><option value="<?= e($sn) ?>"></option><?php endforeach; ?></datalist>
+        </div>
+        <?php endif; ?>
+        <div class="form-group" style="margin:0;min-width:200px"><label class="form-label"><?= t('th_company') ?></label><input class="form-input" name="company"></div>
+        <div class="form-group" style="margin:0;min-width:160px"><label class="form-label"><?= t('th_client') ?></label><input class="form-input" name="client_name"></div>
+        <div class="form-group" style="margin:0;min-width:140px"><label class="form-label"><?= t('th_phone') ?></label><input class="form-input" name="phone"></div>
+        <button class="btn btn-primary" type="submit"><?= t('co_reserve_btn') ?> <?= e($nextNo) ?></button>
+    </form>
+</div>
+
 <form class="searchbar" method="get" action="index.php">
     <input type="hidden" name="r" value="orders.co_index">
     <?php if ($only !== ''): ?><input type="hidden" name="only" value="<?= e($only) ?>"><?php endif; ?>
