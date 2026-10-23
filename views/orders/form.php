@@ -25,6 +25,19 @@ $basis = ($order['price_basis'] ?? 'incl') === 'excl' ? 'excl' : 'incl';
     <a class="btn btn-ghost" href="<?= url($isEdit ? 'orders.show' : 'orders.index', $isEdit ? ['id' => $order['id']] : []) ?>"><?= t('btn_back') ?></a>
 </div>
 
+<?php if (!$isEdit): ?>
+<div class="card" id="parse-card" style="margin-bottom:12px">
+    <div class="card-header"><span class="card-title"><?= t('parse_title') ?></span><span class="muted small"><?= t('parse_sub') ?></span></div>
+    <div class="card-body">
+        <textarea class="form-textarea" id="parse-text" rows="6" placeholder="<?= e(t('parse_ph')) ?>"></textarea>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
+            <button type="button" class="btn btn-primary" id="parse-btn"><?= t('parse_btn') ?></button>
+            <span class="muted small" id="parse-status"></span>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <form method="post" action="<?= url($isEdit ? 'orders.update' : 'orders.store') ?>" id="order-form">
     <?= Csrf::field() ?>
     <?php if ($isEdit): ?><input type="hidden" name="id" value="<?= (int) $order['id'] ?>"><?php endif; ?>
@@ -325,4 +338,82 @@ document.getElementById('order-form').addEventListener('submit', e => {
 });
 
 if (EXISTING.length) { EXISTING.forEach(it => addRow(it)); } else { addRow(); }
+
+// ── 粘贴识别: fill the form from the pasted sales message ──
+(function () {
+    const btn = document.getElementById('parse-btn');
+    if (!btn) return;
+    const txt = document.getElementById('parse-text');
+    const status = document.getElementById('parse-status');
+    const L = <?= json_encode(['busy' => t('parse_busy'), 'done' => t('parse_done'), 'newc' => t('parse_new_cust'), 'unm' => t('parse_item_unmatched'), 'fail' => t('parse_fail')], JSON_UNESCAPED_UNICODE) ?>;
+    const form = document.getElementById('order-form');
+    const mark = (el, on) => { if (el) el.classList.toggle('ai-check', !!on); };
+    const setVal = (name, v, unsure) => {
+        const el = form.querySelector(`[name="${name}"]`);
+        if (!el) return;
+        if (el.tagName === 'SELECT') {
+            if (v !== '' && [...el.options].some(o => o.value === v || o.text === v)) el.value = v;
+        } else if (v !== '' && v !== null && v !== undefined) {
+            el.value = v;
+        }
+        // Yellow = look at this: the model was unsure, or a field the order cannot do without is still empty.
+        const must = ['delivery_date', 'payment_term', 'delivery_service'];
+        mark(el, unsure || ((v === '' || v === null) && must.includes(name)));
+    };
+    btn.addEventListener('click', async () => {
+        const text = txt.value.trim();
+        if (!text) { txt.focus(); return; }
+        btn.disabled = true; status.textContent = L.busy;
+        try {
+            const fd = new FormData();
+            fd.append('_csrf', form.querySelector('[name="_csrf"]').value);
+            fd.append('text', text);
+            const res = await fetch(<?= json_encode(url('orders.parse')) ?>, { method: 'POST', body: fd, credentials: 'same-origin' });
+            const r = await res.json();
+            if (!r.ok) { status.textContent = L.fail + (r.error || ''); return; }
+            const d = r.data;
+            const unsure = new Set(d.uncertain || []);
+            form.querySelectorAll('.ai-check').forEach(el => el.classList.remove('ai-check'));
+            const sales = form.querySelector('[name="submitter"]');
+            if (sales && d.sales_name) { sales.value = d.sales_name; mark(sales, unsure.has('sales_name')); }
+            const cn = document.getElementById('customer-name');
+            cn.value = d.customer_name || '';
+            document.getElementById('customer-id').value = d.customer_id || 0;
+            mark(cn, !d.customer_name || d.new_customer);
+            setVal('company', d.company, unsure.has('company'));
+            setVal('phone', d.phone, unsure.has('phone'));
+            setVal('address', d.address, unsure.has('address'));
+            setVal('delivery_address', d.delivery_address, unsure.has('delivery_address'));
+            setVal('delivery_service', d.delivery_service, unsure.has('delivery_service'));
+            setVal('delivery_date', d.delivery_date, unsure.has('delivery_date'));
+            setVal('payment_term', d.payment_term, unsure.has('payment_term'));
+            if (d.payment_term === 'custom') setVal('custom_days', d.custom_days, false);
+            setVal('note', d.note, false);
+            document.querySelectorAll('#items-table tbody .item-row').forEach(r => r.remove());
+            (d.items || []).forEach((it, i) => {
+                if (it.matched) {
+                    addRow({ product_id: it.product_id, sku: it.sku, color: it.color, spec: it.spec, size: it.size, qty: it.qty, price: it.price, price_excl: null });
+                } else {
+                    addRow();
+                    const row = document.querySelector('#items-table tbody').lastElementChild;
+                    row.querySelector('.product-search').value = (it.sku + ' ' + it.spec).trim() || it.raw;
+                    row.querySelector('.qty').value = it.qty || 1;
+                    if (it.price) { row.querySelector('.price').value = it.price; syncRow(row, 'incl'); }
+                    row.querySelector('.product-search').title = L.unm;
+                }
+                const row = document.querySelector('#items-table tbody').lastElementChild;
+                mark(row.querySelector('.product-search'), !it.matched || unsure.has('items.' + i) || unsure.has('items.' + i + '.spec'));
+            });
+            if (!(d.items || []).length) addRow();
+            recalc();
+            status.textContent = L.done + (d.new_customer ? ' · ' + L.newc : '');
+            const first = form.querySelector('.ai-check');
+            if (first) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        } catch (e) {
+            status.textContent = L.fail + e;
+        } finally {
+            btn.disabled = false;
+        }
+    });
+})();
 </script>

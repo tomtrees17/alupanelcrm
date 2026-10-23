@@ -99,6 +99,7 @@ $config = [
         'tasks' => [
             'industry' => ['tier' => 'standard', 'effort' => 'low', 'max_tokens' => 4096],   // 客户行业推断 (Enrich)
             'bank_match' => ['tier' => 'standard', 'effort' => 'medium', 'max_tokens' => 4096],   // 银行进账 ↔ 发票 (FA-AI-01)
+            'order_parse' => ['tier' => 'standard', 'effort' => 'low', 'max_tokens' => 4096, 'max_input_chars' => 60000],   // 粘贴识别下单消息 (OrderParse)
         ],
         // USD per million tokens (Anthropic list price, checked 2026-10). A model not
         // listed is priced as 'default' — the dearest tier, so the caps never under-count.

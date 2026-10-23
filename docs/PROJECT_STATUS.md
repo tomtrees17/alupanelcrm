@@ -430,6 +430,15 @@ chown -R www:www data
   - 权限：新视图权限 `ai_usage`（权限矩阵新列），默认只给 finance_manager，老板始终可见（用户 2026-10-22 定）。一次性迁移 `app_meta.perm_ai_usage_v1`，之后管理员的调整不会被覆盖；
   - 内容：今日 / 本月费用与上限；本月按任务列出调用次数（按状态拆开）、tokens、费用、平均耗时、采纳率、改动最多的字段；库存助手单独一栏（数据来自 ai_queries）；月份可切换。
 - **上线**：`git pull`，再打开一次网站，`ensureSchema()` 会建好两张表并授权，不需要改 `.env`。服务器 `config.local.php` 里的 `'ai' => ['driver' => 'claude']` 与新配置用 `array_replace_recursive` 合并，互不影响。
+## 6zh. 粘贴识别下单（2026-10-23，用户要求：销售助理入职，主要工作是把销售发来的文字录成订单）
+
+章程第六节第 8 条「WhatsApp 聊天记录 → 成单草稿」的实现，**不接 WhatsApp**（用户决定：复制粘贴就够）。
+
+- 新建订单页顶部「粘贴识别」框：贴销售消息 → `orders.parse`（POST，CSRF，JSON）→ `OrderParse::parse()` → `AiTask::run('order_parse')`（`config.php ai.tasks.order_parse`，standard tier，`prompts/order_parse_v1.txt`，schema 见 `OrderParse::schema()`）→ `OrderParse::resolve()` 把模型答案对到平台数据：客户按名/公司归一化匹配现有客户（匹配上则补电话/公司、负责销售默认 owner；匹配不上标"新客户"，保存时沿用表单原有的自动建档）；销售名去 Bp/Pak 等敬称后对 users；产品按 SKU + 规格对 products（"3mm x 0.04" → "3.0*0.04"，唯一前缀即匹配；多个候选或无 SKU → 行留给助理在下拉里选）；没写单价取价目表价。
+- 前端只填表、不保存：黄色（`.ai-check`）标出模型不确定的字段、未匹配的产品行、新客户，以及空着的送货日期/付款条件/配送方式；最后由助理核对并点保存。销售角色调用时负责人强制为本人。
+- 真实样本 3 条（Tania/Denny、Karno Utomo、Ridwan/Arif CV Kita Murah）写进提示词的"How the salespeople write"。**模型实际识别效果未在本机验证（无 API 密钥）**，上线后用这 3 条跑一遍；不准的地方改 `prompts/order_parse_v2.txt`。
+- AI 关闭（无密钥）时按钮提示"AI 未配置"；调用计入 ai_calls / 预算；每条约 5–8k 输入 token（含 85 行目录）。
+
 ## 6zg. CO 号统一：Google 表单发号登记 + 一条流水号（2026-10-22）
 
 **背景**：平台上线前销售用 Google 表单「Request CO Number」领号（后面的 Sheet 是登记本，格式 `NNNN/AMI-CO/MM/YY`，2026-02-09 起从 0001 发到 10/22 的 1378）。平台 8 月上线时自己从 0001 重新起号（取库里最大号 +1），到 10/22 发到 0487，而销售**两边都在用**：表单领的号做 CO 给客户，系统另发一个号跟着 DO 和发票。结果：同一个号两边是不同客户，客户手里的 CO 号在系统里搜不到。
@@ -841,7 +850,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-**faktur_exports（生成的 Coretax / Digunggung 文件，见 6zf）**, customers(+tax_npwp/tax_nik/tax_name/tax_address/tax_nitku/tax_email 买方税务资料), invoices(+faktur_class 分类覆盖), **bank_accounts / bank_imports / bank_transactions / payment_allocations / customer_payer_aliases / bank_book（银行流水与回款对账，见 6ze）**, payments(+noncash 结案差额行), **ai_calls(AI 调用台账：任务/模型/prompt 版本/tokens/费用/耗时/状态，见 6zd)**, **ai_suggestions(AI 建议与人工确认、采纳率)**, hr_todos(+type ai_budget：老板专属、无员工), **sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, **co_requests(Google 表单 CO 号登记，见 6zg)**, orders(+co_no 客户看到的 CO 号), users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
+**faktur_exports（生成的 Coretax / Digunggung 文件，见 6zf）**, customers(+tax_npwp/tax_nik/tax_name/tax_address/tax_nitku/tax_email 买方税务资料), invoices(+faktur_class 分类覆盖), **bank_accounts / bank_imports / bank_transactions / payment_allocations / customer_payer_aliases / bank_book（银行流水与回款对账，见 6ze）**, payments(+noncash 结案差额行), **ai_calls(AI 调用台账：任务/模型/prompt 版本/tokens/费用/耗时/状态，见 6zd)**, **ai_suggestions(AI 建议与人工确认、采纳率)**, hr_todos(+type ai_budget：老板专属、无员工), **sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, **co_requests(Google 表单 CO 号登记，见 6zg)**, ai_calls(+task order_parse 粘贴识别, 见 6zh), orders(+co_no 客户看到的 CO 号), users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
 
 ## 10. 提交历史（main）
 

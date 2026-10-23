@@ -38,6 +38,7 @@ require __DIR__ . '/../app/HrContract.php';
 require __DIR__ . '/../app/HrBpjs.php';
 require __DIR__ . '/../app/SalesHistory.php';
 require __DIR__ . '/../app/CoNumbers.php';
+require __DIR__ . '/../app/OrderParse.php';
 
 $_SESSION = [];
 $_SERVER['REMOTE_ADDR'] = '203.0.113.9';

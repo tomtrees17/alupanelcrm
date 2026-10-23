@@ -76,6 +76,7 @@ app/
   Hr.php                    人力：谁看什么（viewer/scope）、薪资加密、NIK/日期校验、字段级审计、用户→员工迁移
   HrContract.php            人力合同（HR-02）：编号、续签链/法定上限提醒、到期扫描与待办、生效同步档案
   SalesHistory.php          历史销售（平台上线前的旧记账软件数据）：xlsx 读取、匹配客户/产品/业务员、导入、年度统计
+  OrderParse.php            粘贴识别：销售消息 → 订单表单字段（AiTask order_parse + 对客户/产品/销售的匹配；只填表不保存）
   CoNumbers.php             CO 号：Google 表单登记导入、一条流水号（max(orders, 登记)+1）、领号/挂接、老订单自动匹配
   HrBpjs.php                人力 BPJS（HR-03）：两套记录、费率按月、金额计算（上限/JP/超额家属）、月度快照、离职联动
   Auth.php                  会话鉴权     Csrf.php  CSRF 令牌

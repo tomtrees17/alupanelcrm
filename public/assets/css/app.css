@@ -489,3 +489,6 @@ th.center, td.center { text-align: center; }
   .main { overflow: visible; }
   body, .app { height: auto; }
 }
+
+/* 粘贴识别: fields the assistant should look at before saving */
+.ai-check { background: #fef9c3 !important; border-color: #eab308 !important; }

@@ -175,6 +175,21 @@ switch ($action) {
         redirect('orders.index');
         break;
 
+    case 'parse':
+        // 粘贴识别: the pasted sales message → form fields (JSON). Saves nothing.
+        Csrf::verify();
+        header('Content-Type: application/json; charset=utf-8');
+        if (!AiTask::enabled($config)) {
+            echo json_encode(['ok' => false, 'error' => t('parse_ai_off')], JSON_UNESCAPED_UNICODE);
+            break;
+        }
+        $r = OrderParse::parse($pdo, $config, (string) input('text', ''));
+        if ($r['ok'] && sees_only_own()) {
+            $r['data']['sales_name'] = own_name();   // a salesperson can only key in their own orders
+        }
+        echo json_encode($r, JSON_UNESCAPED_UNICODE);
+        break;
+
     case 'print_co':
         // Confirmation Order for the customer — replaces the Google-Sheet template.
         $order = find_order($pdo, (int) input('id', 0));
