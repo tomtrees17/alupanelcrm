@@ -86,14 +86,15 @@ $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['ro
         <?php if (!empty($canLinkCo) && (empty($order['co_no']) || $order['co_no'] !== $order['order_no'])): ?>
             <form method="post" action="<?= url('orders.link_co') ?>" class="co-link" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0">
                 <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $order['id'] ?>">
-                <select class="form-select" name="co_no" style="max-width:420px">
-                    <option value=""><?= empty($order['co_no']) ? t('co_choose') : t('co_unlink') ?></option>
+                <input class="form-input" name="co_no" list="co-list" autocomplete="off" style="max-width:420px"
+                       value="<?= e((string) ($order['co_no'] ?? '')) ?>" placeholder="<?= t('co_type_ph') ?>">
+                <datalist id="co-list">
                     <?php foreach (($coAvailable ?? []) as $r): ?>
-                        <option value="<?= e($r['co_no']) ?>"<?= ($order['co_no'] ?? '') === $r['co_no'] ? ' selected' : '' ?>><?= e($r['co_no']) ?> · <?= e($r['sales_name']) ?> · <?= e($r['company'] ?: $r['client_name']) ?> · <?= e(substr((string) $r['issued_at'], 0, 10)) ?></option>
+                        <option value="<?= e($r['co_no']) ?>"><?= e($r['sales_name']) ?> · <?= e($r['company'] ?: $r['client_name']) ?> · <?= e(substr((string) $r['issued_at'], 0, 10)) ?></option>
                     <?php endforeach; ?>
-                </select>
+                </datalist>
                 <button class="btn btn-ghost btn-sm" type="submit"><?= t('co_link_btn') ?></button>
-                <span class="muted small"><?= order_editable($order) ? t('co_link_hint_draft') : t('co_link_hint') ?></span>
+                <span class="muted small"><?= order_editable($order) ? t('co_link_hint_draft') : t('co_link_hint') ?><?php if (!empty($order['co_no'])): ?> · <?= t('co_clear_hint') ?><?php endif; ?></span>
             </form>
         <?php endif; ?>
         <div class="notes"><strong><?= t('delivery_addr') ?>：</strong><?= e($order['delivery_address']) ?: e($order['address']) ?><?= $order['note'] ? '<br><strong>' . t('th_note') . '：</strong>' . e($order['note']) : '' ?></div>

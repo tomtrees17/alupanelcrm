@@ -863,6 +863,7 @@ const I18N = [
         'co_stat_total' => '登记总数', 'co_stat_open' => '未挂订单', 'co_stat_last' => '最后发号', 'co_stat_next' => '系统下一个号',
         'co_only_open' => '未挂订单', 'co_only_linked' => '已挂订单', 'co_search' => '搜索 CO 号 / 销售 / 客户 / 电话 / 订单号',
         'th_co_no' => 'CO 号', 'th_issued_at' => '领号时间', 'th_sales_name' => '销售', 'th_client' => '联系人', 'co_no_rows' => '没有登记记录', 'co_not_imported' => '尚未导入表单登记（tools/import_co_requests.php）',
+        'co_type_ph' => '输入 CO 号（如 1203 或 1203/AMI-CO/09/26）或从列表选', 'co_clear_hint' => '清空后确定 = 解除',
         'msg_co_linked' => 'CO 号已挂接。', 'msg_co_unlinked' => 'CO 号已解除。', 'msg_co_taken' => '这个 CO 号已被另一张订单使用。', 'msg_co_not_found' => '登记里没有这个 CO 号。', 'msg_co_no_perm' => '无权挂接 CO 号。',
     ],
     'id' => [
@@ -1706,6 +1707,7 @@ const I18N = [
         'co_stat_total' => 'Total terdaftar', 'co_stat_open' => 'Belum terhubung', 'co_stat_last' => 'Nomor terakhir', 'co_stat_next' => 'Nomor berikutnya',
         'co_only_open' => 'Belum terhubung', 'co_only_linked' => 'Sudah terhubung', 'co_search' => 'Cari No. CO / sales / pelanggan / telepon / no. pesanan',
         'th_co_no' => 'No. CO', 'th_issued_at' => 'Waktu minta', 'th_sales_name' => 'Sales', 'th_client' => 'Kontak', 'co_no_rows' => 'Tidak ada data', 'co_not_imported' => 'Daftar formulir belum diimpor (tools/import_co_requests.php)',
+        'co_type_ph' => 'Ketik No. CO (mis. 1203 atau 1203/AMI-CO/09/26) atau pilih dari daftar', 'co_clear_hint' => 'kosongkan lalu Simpan = lepas',
         'msg_co_linked' => 'No. CO terhubung.', 'msg_co_unlinked' => 'No. CO dilepas.', 'msg_co_taken' => 'No. CO ini sudah dipakai pesanan lain.', 'msg_co_not_found' => 'No. CO tidak ada di daftar.', 'msg_co_no_perm' => 'Tidak berhak menghubungkan No. CO.',
     ],
 ];

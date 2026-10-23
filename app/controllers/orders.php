@@ -217,6 +217,12 @@ switch ($action) {
             redirect('orders.show', ['id' => $order['id']]);
         }
         $coNo = trim((string) input('co_no', ''));
+        if ($coNo !== '' && preg_match('/^\d{1,5}$/', $coNo)) {
+            // Typing just the sequence is enough — the register knows the full number.
+            $seqRow = $pdo->prepare('SELECT co_no FROM co_requests WHERE seq = ?');
+            $seqRow->execute([(int) $coNo]);
+            $coNo = (string) ($seqRow->fetchColumn() ?: $coNo);
+        }
         try {
             if ($coNo === '') {
                 $before = (string) ($order['co_no'] ?? '');

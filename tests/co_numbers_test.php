@@ -181,6 +181,11 @@ if (function_exists('exec') && is_file($harness)) {
     [, $fl] = $run('link_co', $fin, [], ['id' => $oldId, 'co_no' => '1377/AMI-CO/10/26']);
     $o = $q()->query("SELECT order_no, co_no FROM orders WHERE id = $oldId")->fetch();
     ok('finance links an old shipped order without renaming it', $o['order_no'] === '0487/AMI-CO/10/26' && $o['co_no'] === '1377/AMI-CO/10/26', json_encode([$o, $fl]));
+    $q()->exec("INSERT INTO co_requests (seq, co_no, issued_at, sales_name, company) VALUES (0300, '0300/AMI-CO/04/26', '2026-04-01 10:00:00', 'Ridwan', 'Old One')");
+    [, $fl] = $run('link_co', $fin, [], ['id' => $oldId, 'co_no' => '300']);
+    ok('an old number typed as a bare sequence is found in the register', $q()->query("SELECT co_no FROM orders WHERE id = $oldId")->fetchColumn() === '0300/AMI-CO/04/26', json_encode($fl));
+    [, $fl] = $run('link_co', $fin, [], ['id' => $oldId, 'co_no' => '1377/AMI-CO/10/26']);
+    ok('...and can be switched back to the full number', $q()->query("SELECT co_no FROM orders WHERE id = $oldId")->fetchColumn() === '1377/AMI-CO/10/26' && $q()->query('SELECT order_id FROM co_requests WHERE seq = 300')->fetchColumn() === null);
     [$html] = $run('show', $fin, ['id' => $oldId]);
     ok('show page displays the CO number as the form number', str_contains($html, '1377/AMI-CO/10/26') && str_contains($html, t('co_form_number')));
     [$html] = $run('co_index', $fin, ['q' => '1377']);

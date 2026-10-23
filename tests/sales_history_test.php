@@ -121,7 +121,7 @@ ok('created customer tagged 成交, PT name copied to company, owner Ridwan', $n
 $rep = SalesHistory::sync_customers($pdo, true);
 ok('second run is a no-op', $rep['create'] === [] && $rep['tagged'] === 0 && $rep['owned'] === 0 && $rep['contacted'] === 0, json_encode($rep));
 $GLOBALS['config'] = ($GLOBALS['config'] ?? []) + ['insights' => []];
-$ins = Insights::compute($pdo, $GLOBALS['config'], '2026-10-22');
+$ins = Insights::compute($pdo, $GLOBALS['config'], date('Y-m-d'));   // the platform order is dated today
 $row = $pdo->query('SELECT last_order_date, purchase_days FROM customer_insights WHERE customer_id = 1')->fetch();
 ok('call lists count history + platform purchases', $row && (int) $row['purchase_days'] === 2, json_encode($row));
 $row = $pdo->query('SELECT last_order_date, last_order_id, last_items FROM customer_insights WHERE customer_id = 2')->fetch();
