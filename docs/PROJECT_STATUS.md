@@ -81,7 +81,9 @@ php -S localhost:8000 -t public
 
 ## 6b. 角色与访问控制（重点）
 
-**角色**（`all_roles()`，共 9 个）：admin、manager(经理)、finance_manager(财务经理)、ops_supervisor(运营主管)、supervisor(主管)、sales(销售员)、warehouse(仓库/库存管理员)、hr(人力资源)、clerk(文员)。i18n 含中印双语标签。
+**角色**（`all_roles()`，共 12 个）：admin、manager(经理)、finance_manager(财务经理)、ops_supervisor(运营主管)、supervisor(主管)、sales(销售员)、warehouse(仓库/库存管理员)、hr(人力资源)、clerk(文员)。i18n 含中印双语标签。
+
+**新增角色（2026-10-24，用户要求）**：finance_assistant(财务助理)、sales_assistant(销售助理)、sales_manager(销售经理)。默认权限由 `roles_v3` 一次性写入（之后以「权限设置」为准）：销售助理 = 客户 / 客户分析 / 漏斗 / 任务 / 订单 / 库存 / 审批 / 人力 / 拜访 + 导入群聊（能看全部订单与客户，替销售录单）；财务助理 = 财务 / 订单 / 客户 / 任务 / 审批 / 人力（无 AI 使用情况、无全员业绩）；销售经理 = 客户分析看全部 / 拜访看全部 + 导入 / 全员业绩 / 导出 / 订单 / 库存等，无财务。**订单审批**：销售经理与主管同级，「待主管审批」两人任一审即可（`order_action_roles()`），通知同时发给两种角色；经理、仓库环节不变。
 
 **① 模块级权限**（`role_permissions` 表 + `can_access($module)`）
 - bootstrap 载入 `$GLOBALS['permissions']`；前端控制器(`public/index.php`)拦截越权模块、导航按权限隐藏。

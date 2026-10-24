@@ -250,6 +250,25 @@ function order_action_role(string $status): ?string
     ][$status] ?? null;
 }
 
+/**
+ * Every role that may act on that stage: the sales manager approves at the
+ * supervisor level, either of them is enough (owner decision 2026-10-24).
+ */
+function order_action_roles(string $status): array
+{
+    $main = order_action_role($status);
+    if ($main === null) {
+        return [];
+    }
+    return $status === 'pending_sup' ? [$main, 'sales_manager'] : [$main];
+}
+
+/** "主管 / 销售经理" — who an order is waiting for. */
+function order_stage_label(string $status): string
+{
+    return implode(' / ', array_map('role_label', order_action_roles($status)));
+}
+
 function invoice_status_label(string $s): string
 {
     return ['paid' => t('inv_paid'), 'partial' => t('inv_partial'), 'pending' => t('inv_pending'), 'overdue' => t('inv_overdue')][$s] ?? $s;
@@ -262,7 +281,7 @@ function invoice_status_class(string $s): string
 
 function all_roles(): array
 {
-    return ['admin', 'manager', 'finance_manager', 'ops_supervisor', 'supervisor', 'sales', 'warehouse', 'hr', 'clerk'];
+    return ['admin', 'manager', 'finance_manager', 'finance_assistant', 'sales_manager', 'ops_supervisor', 'supervisor', 'sales', 'sales_assistant', 'warehouse', 'hr', 'clerk'];
 }
 
 function role_label(string $r): string
@@ -294,9 +313,12 @@ function default_permissions(): array
     return [
         'manager'         => ['hr', 'visits', 'visits_all', 'visits_import', 'hr_all', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'export'],
         'finance_manager' => ['hr', 'visits', 'customers', 'insights', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'ai_usage'],
+        'finance_assistant' => ['hr', 'customers', 'finance', 'orders', 'tasks', 'approvals'],
+        'sales_manager'   => ['hr', 'visits', 'visits_all', 'visits_import', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals', 'performance', 'export'],
         'ops_supervisor'  => ['hr', 'visits', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals', 'performance'],
         'supervisor'      => ['hr', 'visits', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
         'sales'           => ['hr', 'visits', 'customers', 'insights', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
+        'sales_assistant' => ['hr', 'visits', 'visits_import', 'customers', 'insights', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
         'warehouse'       => ['hr', 'visits', 'orders', 'inventory', 'approvals'],
         'hr'              => ['hr', 'visits', 'customers', 'insights', 'tasks', 'approvals'],
         'clerk'           => ['hr', 'visits', 'customers', 'insights', 'tasks', 'orders', 'approvals'],

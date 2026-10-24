@@ -508,6 +508,18 @@ final class Database
             $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_ai_usage_v1', '1')");
         }
 
+        // Roles added 2026-10-24 (财务助理 / 销售助理 / 销售经理): seed their default
+        // permissions once; afterwards the 权限设置 page owns them.
+        if (!$pdo->query("SELECT 1 FROM app_meta WHERE k = 'roles_v3'")->fetchColumn()) {
+            $defaults = default_permissions();
+            foreach (['finance_assistant', 'sales_assistant', 'sales_manager'] as $role) {
+                foreach ($defaults[$role] ?? [] as $mod) {
+                    $pdo->prepare('INSERT OR IGNORE INTO role_permissions (role, module) VALUES (?, ?)')->execute([$role, $mod]);
+                }
+            }
+            $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('roles_v3', '1')");
+        }
+
         // login_attempts table (brute-force throttle, added later).
         $pdo->exec(
             'CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT, email TEXT, attempt_time INTEGER NOT NULL DEFAULT 0)'
@@ -824,7 +836,7 @@ final class Database
 
         self::seedPermissions($pdo);
         $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (k TEXT PRIMARY KEY, v TEXT)');
-        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1'), ('pwd_policy_v1', '1'), ('perm_approvals', '1'), ('perm_insights', '1'), ('perm_insights_v2', '1'), ('perm_hr_v1', '1'), ('perm_ai_usage_v1', '1'), ('visits_v1', '1')");
+        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1'), ('pwd_policy_v1', '1'), ('perm_approvals', '1'), ('perm_insights', '1'), ('perm_insights_v2', '1'), ('perm_hr_v1', '1'), ('perm_ai_usage_v1', '1'), ('visits_v1', '1'), ('roles_v3', '1')");
 
         $pdo->commit();
     }

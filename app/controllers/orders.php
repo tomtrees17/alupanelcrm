@@ -527,8 +527,7 @@ function can_act(Auth $auth, array $order): bool
     if ($auth->isAdmin()) {
         return true;
     }
-    $need = order_action_role($order['status']);
-    return $need !== null && ($auth->user()['role'] ?? '') === $need;
+    return in_array($auth->user()['role'] ?? '', order_action_roles((string) $order['status']), true);
 }
 
 function approve_order(PDO $pdo, Auth $auth, array $order, string $note): void

@@ -28,7 +28,7 @@ $stateOf = function (string $key) use ($status, $activeMap, $rejStage, $order) {
     if (($activeMap[$status] ?? null) === $key) return 'active';
     return !empty($order["{$key}_date"]) ? 'approved' : 'pending';
 };
-$canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['role'] ?? ''));
+$canAct = $auth->isAdmin() || in_array($auth->user()['role'] ?? '', order_action_roles($status), true);
 ?>
 <div class="page-head">
     <h1><?= t('order') ?> <?= e($order['order_no']) ?> <span class="order-status-badge <?= order_status_class($status) ?>"><?= e(order_status_label($status)) ?></span></h1>
@@ -138,7 +138,7 @@ $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['ro
 
 <?php if ($canAct && in_array($status, ['pending_sup', 'pending_mgr', 'pending_wh'], true)): ?>
     <div class="card"><div class="card-body">
-        <span class="card-title"><?= e(role_label(order_action_role($status) ?? '')) ?> · <?= t('approval_by') ?></span>
+        <span class="card-title"><?= e(order_stage_label($status)) ?> · <?= t('approval_by') ?></span>
         <form method="post" style="margin-top:10px">
             <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $order['id'] ?>">
             <div class="form-group"><label class="form-label"><?= t('approval_opinions') ?></label><textarea class="form-textarea" name="note"></textarea></div>
@@ -149,7 +149,7 @@ $canAct = $auth->isAdmin() || (order_action_role($status) === ($auth->user()['ro
         </form>
     </div></div>
 <?php elseif (in_array($status, ['pending_sup', 'pending_mgr', 'pending_wh'], true)): ?>
-    <div class="card"><div class="card-body muted"><?= t('wait_for') ?> <strong><?= e(role_label(order_action_role($status) ?? '')) ?></strong><?= t('no_permission_stage') ?></div></div>
+    <div class="card"><div class="card-body muted"><?= t('wait_for') ?> <strong><?= e(order_stage_label($status)) ?></strong><?= t('no_permission_stage') ?></div></div>
 <?php endif; ?>
 
 <?php if ($auth->isAdmin() || order_editable($order)): ?>

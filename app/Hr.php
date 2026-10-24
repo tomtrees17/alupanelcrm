@@ -297,6 +297,7 @@ final class Hr
         $deptByRole = [
             'sales' => 'sales', 'supervisor' => 'finance', 'finance_manager' => 'finance', 'warehouse' => 'warehouse',
             'clerk' => 'office', 'hr' => 'office', 'manager' => 'management', 'ops_supervisor' => 'management',
+            'sales_manager' => 'sales', 'sales_assistant' => 'sales', 'finance_assistant' => 'finance',
         ];
         $n = 0;
         $users = $pdo->query("SELECT id, name, role FROM users WHERE role <> 'admin' AND employee_id IS NULL ORDER BY id")->fetchAll();

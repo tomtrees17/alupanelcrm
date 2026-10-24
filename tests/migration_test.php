@@ -74,7 +74,7 @@ $pdo->exec("INSERT INTO role_permissions (role, module) VALUES ('manager','order
 // instead of the audit_log upgrade.
 $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES
     ('perm_performance','1'),('perm_roles_v2','1'),('perm_export','1'),
-    ('perm_approvals','1'),('pwd_policy_v1','1')");
+    ('perm_approvals','1'),('pwd_policy_v1','1'),('roles_v3','1')");
 
 $has = fn(string $t): bool => (bool) $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='{$t}'")->fetchColumn();
 ok('starts without audit_log (old DB simulated)', !$has('audit_log'));

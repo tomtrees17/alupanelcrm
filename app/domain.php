@@ -386,25 +386,23 @@ function notify_role(PDO $pdo, string $role, string $event, string $msgKey, arra
 
 /**
  * An order moved to a stage that someone must act on: tell that role.
- * Mirrors order_action_role() so the notification and the permission can never
+ * Mirrors order_action_roles() so the notification and the permission can never
  * point at different people.
  */
 function notify_order_stage(PDO $pdo, array $order, string $status): void
 {
-    $role = order_action_role($status);
-    if ($role === null) {
-        return;
+    foreach (order_action_roles($status) as $role) {
+        notify_role(
+            $pdo,
+            $role,
+            'order_' . $status,
+            'wa_order_pending',
+            [(string) $order['order_no'], (string) $order['customer_name']],
+            'order',
+            (int) $order['id'],
+            (string) $order['order_no']
+        );
     }
-    notify_role(
-        $pdo,
-        $role,
-        'order_' . $status,
-        'wa_order_pending',
-        [(string) $order['order_no'], (string) $order['customer_name']],
-        'order',
-        (int) $order['id'],
-        (string) $order['order_no']
-    );
 }
 
 /** People who need to know what happened to an order they are responsible for:

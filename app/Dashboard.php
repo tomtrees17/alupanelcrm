@@ -332,7 +332,7 @@ final class Dashboard
         // Same stage → role map the approval permission uses.
         $myStages = array_values(array_filter(
             ['pending_sup', 'pending_mgr', 'pending_wh'],
-            fn($s) => order_action_role($s) === $role
+            fn($s) => in_array($role, order_action_roles($s), true)
         ));
         $toApprove = $myStages
             ? $q('status IN (' . implode(',', array_fill(0, count($myStages), '?')) . ')', $myStages, false)
