@@ -436,6 +436,12 @@ th.center, td.center { text-align: center; }
 .hr-subhead { margin: 18px 0 8px; font-size: 14px; }
 .inline-form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
 
+/* ─ 客户 / Pelanggan group tabs (layout) ─ */
+.group-tabs { display: flex; gap: 4px; overflow-x: auto; margin: -4px 0 16px; border-bottom: 1px solid var(--border); }
+.group-tab { padding: 10px 14px; white-space: nowrap; color: var(--text3); font-size: 14px; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; text-decoration: none; }
+.group-tab:hover { color: inherit; }
+.group-tab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+
 /* ─ 拜访 / Kunjungan (HR-04): thumb-sized on the phone ─ */
 .vis-big { display: block; width: 100%; text-align: center; padding: 14px; font-size: 16px; margin: 6px 0 14px; }
 .vis-form { max-width: 560px; }

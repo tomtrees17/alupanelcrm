@@ -8,6 +8,9 @@ $user = $auth->user();
 $module = explode('.', $cur)[0];
 $active = fn(string $p) => str_starts_with($cur, $p) ? ' active' : '';
 $lang = current_lang();
+// 客户 / Pelanggan: one entry, tabs over customers / call lists / visits / prospects / analysis.
+$custTabs = customer_tabs();
+$custTab = customer_tab_of($cur);
 
 // Brand logo image (png overrides the committed svg); falls back to the text mark.
 $logoFile = null;
@@ -66,10 +69,8 @@ $sub   = $pageSub ?? (I18N[$lang]['sub_' . $module] ?? '');
         <nav class="nav">
             <div class="nav-label"><?= t('nav_main') ?></div>
             <a class="nav-item<?= $active('dashboard') ?>" href="<?= url('dashboard.index') ?>"><span class="nav-icon">⬡</span> <?= t('nav_dashboard') ?></a>
-            <?php if (can_access('customers')): ?><a class="nav-item<?= $active('customers') ?>" href="<?= url('customers.index') ?>"><span class="nav-icon">◎</span> <?= t('nav_customers') ?></a><?php endif; ?>
-            <?php if (can_access('insights')): ?><a class="nav-item<?= $active('insights') ?>" href="<?= url('insights.index') ?>"><span class="nav-icon">↻</span> <?= t('nav_insights') ?></a><?php endif; ?>
+            <?php if ($custTabs): ?><a class="nav-item<?= $custTab !== null ? ' active' : '' ?>" href="<?= url((string) customer_home_route($custTabs)) ?>"><span class="nav-icon">◎</span> <?= t('nav_customer_group') ?></a><?php endif; ?>
             <?php if (can_access('hr')): ?><a class="nav-item<?= $active('hr') ?>" href="<?= url('hr.index') ?>"><span class="nav-icon">☺</span> <?= t('nav_hr') ?></a><?php endif; ?>
-            <?php if (can_access('visits') && class_exists('Visits') && (Visits::sees_all() || can_access('visits_import') || Visits::can_record(Visits::employee_of($GLOBALS['pdo'], $auth->user())))): ?><a class="nav-item<?= $active('visits') ?>" href="<?= url('visits.index') ?>"><span class="nav-icon">⌖</span> <?= t('nav_visits') ?></a><?php endif; ?>
             <?php if (can_access('pipeline')): ?><a class="nav-item<?= $active('pipeline') ?>" href="<?= url('pipeline.index') ?>"><span class="nav-icon">⟋</span> <?= t('nav_pipeline') ?></a><?php endif; ?>
             <?php if (can_access('tasks')): ?><a class="nav-item<?= $active('tasks') ?>" href="<?= url('tasks.index') ?>"><span class="nav-icon">◻</span> <?= t('nav_tasks') ?><?php if ($pendingTasks): ?><span class="nav-badge"><?= $pendingTasks ?></span><?php endif; ?></a><?php endif; ?>
             <?php if (can_access('finance')): ?><a class="nav-item<?= $active('finance') ?>" href="<?= url('finance.index') ?>"><span class="nav-icon">◈</span> <?= t('nav_finance') ?></a><?php endif; ?>
@@ -112,6 +113,11 @@ $sub   = $pageSub ?? (I18N[$lang]['sub_' . $module] ?? '');
             <?php foreach (flash() as $f): ?>
                 <div class="alert alert-<?= e($f['type']) ?>"><?= e($f['message']) ?></div>
             <?php endforeach; ?>
+            <?php if ($custTab !== null && count($custTabs) > 1): ?>
+                <nav class="group-tabs" aria-label="<?= e(t('nav_customer_group')) ?>">
+                    <?php foreach ($custTabs as $ct): ?><a class="group-tab<?= $ct['key'] === $custTab ? ' active' : '' ?>" href="<?= url($ct['route']) ?>"><?= e($ct['label']) ?></a><?php endforeach; ?>
+                </nav>
+            <?php endif; ?>
             <?= $content ?>
         </div>
     </main>

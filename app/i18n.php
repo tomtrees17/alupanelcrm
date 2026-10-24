@@ -572,6 +572,7 @@ const I18N = [
         'hrdoc_bpjs_kes' => 'BPJS Kesehatan 卡',
         'hrdoc_bpjs_tk' => 'BPJS Ketenagakerjaan 卡',
         'audit_act_export' => '导出',
+        'nav_customer_group' => '客户', 'tab_customer_list' => '客户列表', 'tab_prospects' => '潜客', 'tab_analysis' => '分析',
         // HR-04 visits
         'nav_visits' => '拜访',
         'nav_visits_all' => '拜访：看全部',
@@ -1565,6 +1566,7 @@ const I18N = [
         'hrdoc_bpjs_kes' => 'Kartu BPJS Kesehatan',
         'hrdoc_bpjs_tk' => 'Kartu BPJS Ketenagakerjaan',
         'audit_act_export' => 'Ekspor',
+        'nav_customer_group' => 'Pelanggan', 'tab_customer_list' => 'Daftar Pelanggan', 'tab_prospects' => 'Calon Pelanggan', 'tab_analysis' => 'Analisis',
         // HR-04 visits
         'nav_visits' => 'Kunjungan',
         'nav_visits_all' => 'Kunjungan: lihat semua',

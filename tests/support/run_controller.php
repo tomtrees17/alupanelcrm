@@ -9,7 +9,7 @@ declare(strict_types=1);
  *
  *   php run_controller.php <db-file> <controller> <action> <json-get> <json-user> [<json-post> [<json-session>]]
  *
- * Env: TEST_HTTP_REFERER / TEST_HTTP_HOST, TEST_HR_KEY, TEST_HR_UPLOAD_ROOT, TEST_FILES (JSON for $_FILES),
+ * Env: TEST_HTTP_REFERER / TEST_HTTP_HOST / TEST_HTTP_USER_AGENT, TEST_HR_KEY, TEST_HR_UPLOAD_ROOT, TEST_FILES (JSON for $_FILES),
  *      TEST_FAKTUR_STORE (where generated Faktur files go).
  *
  * With <json-post> the request is a POST carrying a valid CSRF token. Flash
@@ -54,7 +54,7 @@ if (isset($argv[6]) && $argv[6] !== '') {
     $_SERVER['REQUEST_METHOD'] = 'POST';
     $_POST = (array) json_decode($argv[6], true) + ['_csrf' => Csrf::token()];
 }
-foreach (['HTTP_REFERER', 'HTTP_HOST'] as $k) {
+foreach (['HTTP_REFERER', 'HTTP_HOST', 'HTTP_USER_AGENT'] as $k) {
     if (getenv('TEST_' . $k) !== false) {
         $_SERVER[$k] = (string) getenv('TEST_' . $k);
     }

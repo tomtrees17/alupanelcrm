@@ -337,6 +337,65 @@ function insights_sees_all(): bool
     return $auth !== null && ($auth->isAdmin() || can_access('insights_all'));
 }
 
+/** A phone or tablet browser (for the 客户 entry's default tab). */
+function is_mobile_ua(): bool
+{
+    return (bool) preg_match('/Mobi|Android|iPhone|iPad|iPod/i', (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+}
+
+/**
+ * The 客户 / Pelanggan group (2026-10-24): one top-level entry, tabs over the
+ * existing routes. Each tab shows on the permission its pages already check;
+ * routes and checks are unchanged.
+ * @return list<array{key:string,route:string,label:string}>
+ */
+function customer_tabs(): array
+{
+    $auth = $GLOBALS['auth'] ?? null;
+    if ($auth === null || !$auth->check()) {
+        return [];
+    }
+    $visits = false;
+    $prospects = false;
+    if (class_exists('Visits') && can_access('visits')) {
+        $visits = Visits::sees_all() || can_access('visits_import') || Visits::can_record(Visits::employee_of($GLOBALS['pdo'], $auth->user()));
+        $prospects = Visits::sees_all();
+    }
+    $tabs = [
+        ['key' => 'list', 'route' => 'customers.index', 'label' => t('tab_customer_list'), 'show' => can_access('customers')],
+        ['key' => 'insights', 'route' => 'insights.index', 'label' => t('nav_insights'), 'show' => can_access('insights')],
+        ['key' => 'visits', 'route' => 'visits.index', 'label' => t('nav_visits'), 'show' => $visits],
+        ['key' => 'prospects', 'route' => 'visits.prospects', 'label' => t('tab_prospects'), 'show' => $prospects],
+        ['key' => 'analysis', 'route' => 'insights.admin', 'label' => t('tab_analysis'), 'show' => can_access('insights') && insights_sees_all()],
+    ];
+    return array_values(array_map(fn($t) => array_diff_key($t, ['show' => 1]), array_filter($tabs, fn($t) => $t['show'])));
+}
+
+/** Which tab a route belongs to. */
+function customer_tab_of(string $route): ?string
+{
+    $module = explode('.', $route)[0];
+    return match (true) {
+        $module === 'customers' => 'list',
+        $route === 'insights.admin' => 'analysis',
+        $module === 'insights' => 'insights',
+        in_array($route, ['visits.prospects', 'visits.assign'], true) => 'prospects',
+        $module === 'visits' => 'visits',
+        default => null,
+    };
+}
+
+/** Where the 客户 entry opens: a salesperson on the phone lands on 拜访, everyone else on the first tab they have. */
+function customer_home_route(array $tabs): ?string
+{
+    $keys = array_column($tabs, 'route', 'key');
+    $auth = $GLOBALS['auth'] ?? null;
+    if (isset($keys['visits']) && is_mobile_ua() && $auth && class_exists('Visits') && Visits::can_record(Visits::employee_of($GLOBALS['pdo'], $auth->user()))) {
+        return $keys['visits'];
+    }
+    return $tabs[0]['route'] ?? null;
+}
+
 /** May the current user act on this customer from the call lists? (record-level check) */
 function insights_can_touch(array $customer): bool
 {
