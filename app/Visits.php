@@ -5,8 +5,9 @@ declare(strict_types=1);
  * HR-04 拜访记录 / Catatan Kunjungan (docs/任务卡-拜访签到.md v2): the weekly
  * Excel 回收表 moved to the phone, same fields. Decisions taken with the owner
  * (2026-10-24):
- *   - outcomes are the four of the Excel and the Petunjuk: Berminat / Sudah
- *     Penawaran / Tidak Butuh / Tidak Terhubung (not the card's list).
+ *   - outcomes are the four of the Excel and the Petunjuk (Berminat / Sudah
+ *     Penawaran / Tidak Butuh / Tidak Terhubung) plus Order (owner, v3); old
+ *     group messages without a result are 'unknown'.
  *   - the weekly report is computed live (no generation, no todo); its export
  *     has exactly the columns of the Daftar Calon Pelanggan sheet, one visit
  *     per row, plus a summary sheet.
@@ -24,7 +25,9 @@ declare(strict_types=1);
  */
 final class Visits
 {
-    public const OUTCOMES = ['berminat' => 'Berminat', 'penawaran' => 'Sudah Penawaran', 'tidak_butuh' => 'Tidak Butuh', 'tidak_terhubung' => 'Tidak Terhubung'];
+    public const OUTCOMES = ['berminat' => 'Berminat', 'penawaran' => 'Sudah Penawaran', 'order' => 'Order', 'tidak_butuh' => 'Tidak Butuh', 'tidak_terhubung' => 'Tidak Terhubung'];
+    /** Old-format group messages carry no result (v3): stored as unknown, never offered in the form. */
+    public const UNKNOWN = 'unknown';
     public const TARGETS = ['customer', 'prospect', 'new'];
     public const FAR_METERS = 1000;
     public const BACKDATE_DAYS = 7;
@@ -127,6 +130,11 @@ final class Visits
             && strtotime((string) $visit['created_at']) + self::EDIT_HOURS * 3600 > ($now ?? time());
     }
 
+    public static function outcome_label(string $o): string
+    {
+        return self::OUTCOMES[$o] ?? ($o === self::UNKNOWN ? 'Tidak diketahui' : $o);
+    }
+
     public static function target_name(array $v): string
     {
         return (string) ($v['customer_name'] ?? $v['prospect_name'] ?? $v['new_customer_name'] ?? '');
@@ -160,7 +168,7 @@ final class Visits
             return null;
         }
         $kind = $v['outcome'] === 'tidak_butuh' ? 'no_need' : 'followup';
-        $note = trim('Kunjungan ' . $v['visit_no'] . ' · ' . self::OUTCOMES[$v['outcome']] . ' · ' . self::catatan($v), ' ·');
+        $note = trim('Kunjungan ' . $v['visit_no'] . ' · ' . self::outcome_label((string) $v['outcome']) . ' · ' . self::catatan($v), ' ·');
         $at = substr((string) $v['visited_at'], 0, 19);
         if (!empty($v['followup_id'])) {
             $pdo->prepare('UPDATE customer_followups SET kind = ?, note = ?, created_at = ? WHERE id = ?')->execute([$kind, $note, $at, $v['followup_id']]);
@@ -287,7 +295,7 @@ final class Visits
             $lat,
             $lng,
             (string) $v['sales'],
-            self::OUTCOMES[$v['outcome']] ?? (string) $v['outcome'],
+            $v['outcome'] === self::UNKNOWN ? '' : self::outcome_label((string) $v['outcome']),
             Hr::dmy(substr((string) $v['visited_at'], 0, 10)),
             self::catatan($v),
         ];
@@ -302,7 +310,7 @@ final class Visits
         $by = [];
         foreach ($visits as $v) {
             $k = (string) $v['sales'];
-            $by[$k] ??= ['sales' => $k, 'total' => 0, 'counts' => array_fill_keys(array_keys(self::OUTCOMES), 0), 'new' => [], 'eid' => (int) $v['employee_id']];
+            $by[$k] ??= ['sales' => $k, 'total' => 0, 'counts' => array_fill_keys([...array_keys(self::OUTCOMES), self::UNKNOWN], 0), 'new' => [], 'eid' => (int) $v['employee_id']];
             $by[$k]['total']++;
             $by[$k]['counts'][$v['outcome']] = ($by[$k]['counts'][$v['outcome']] ?? 0) + 1;
             if ($v['target_type'] === 'new') {
@@ -318,7 +326,7 @@ final class Visits
         $rows = [];
         foreach ($summary as $s) {
             $row = [$s['sales'], $s['total']];
-            foreach (array_keys(self::OUTCOMES) as $o) {
+            foreach ([...array_keys(self::OUTCOMES), self::UNKNOWN] as $o) {
                 $row[] = $s['counts'][$o];
                 $row[] = $s['total'] ? round(100 * $s['counts'][$o] / $s['total'], 1) : 0;
             }
@@ -331,7 +339,7 @@ final class Visits
     public static function summary_headers(): array
     {
         $h = ['Sales', 'Kunjungan'];
-        foreach (self::OUTCOMES as $label) {
+        foreach ([...array_values(self::OUTCOMES), self::outcome_label(self::UNKNOWN)] as $label) {
             $h[] = $label;
             $h[] = $label . ' %';
         }
@@ -363,7 +371,7 @@ final class Visits
      * Filled 回收表 columns (Hasil / Tanggal / Catatan) are counted, not imported.
      * @return array{rows:int,new:int,updated:int,skipped:int,customers:int,unknown_pic:array,filled_results:int,regions:array,categories:array,missing_columns:array}
      */
-    public static function import_prospects(PDO $pdo, array $rows, bool $apply, string $source, string $operator): array
+    public static function import_prospects(PDO $pdo, array $rows, bool $apply, string $source, string $operator, array $picAliases = []): array
     {
         $res = ['rows' => 0, 'new' => 0, 'updated' => 0, 'skipped' => 0, 'customers' => 0, 'unknown_pic' => [], 'filled_results' => 0, 'regions' => [], 'categories' => [], 'missing_columns' => []];
         $head = array_map(fn($h) => mb_strtolower(trim((string) $h)), (array) array_shift($rows));
@@ -420,6 +428,7 @@ final class Visits
             $isCustomer = in_array(mb_strtolower(trim((string) $get($r, 'is_customer'))), ['ya', 'yes', 'y', '1', 'sudah'], true) ? 1 : 0;
             $res['customers'] += $isCustomer;
             $pic = trim((string) $get($r, 'pic'));
+            $pic = $picAliases[mb_strtolower($pic)] ?? $pic;   // --alias "Excel name=employee name"
             $assigned = null;
             if ($pic !== '') {
                 $assigned = $staff[mb_strtolower($pic)] ?? null;

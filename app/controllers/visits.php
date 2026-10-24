@@ -164,7 +164,7 @@ switch ($action) {
         Visits::refresh_prospect($pdo, $prospectId);
         $pdo->commit();
         audit($pdo, 'visits', 'create', 'visits', $vid, $v['visit_no'],
-            sprintf('visits: %s · %s · %s', $v['visit_no'], $v['new_customer_name'] ?? ($type . ' #' . $targetId), Visits::OUTCOMES[$outcome]));
+            sprintf('visits: %s · %s · %s', $v['visit_no'], $v['new_customer_name'] ?? ($type . ' #' . $targetId), Visits::outcome_label($outcome)));
         flash(sprintf(t('vis_msg_saved'), $v['visit_no']));
         redirect('visits.index');
         break;
@@ -274,7 +274,7 @@ switch ($action) {
             }
             $order[(int) $v['employee_id']] ??= ['name' => (string) $v['sales'], 'i' => count($order)];
             $points[] = ['lat' => (float) $v['lat'], 'lng' => (float) $v['lng'], 'sales' => (string) $v['sales'], 'color' => $order[(int) $v['employee_id']]['i'],
-                         'label' => Visits::target_name($v) . ' · ' . (Visits::OUTCOMES[$v['outcome']] ?? '') . ' · ' . Hr::dmy(substr((string) $v['visited_at'], 0, 10)), 'far' => $v['distance_flag'] === 'far'];
+                         'label' => Visits::target_name($v) . ' · ' . Visits::outcome_label((string) $v['outcome']) . ' · ' . Hr::dmy(substr((string) $v['visited_at'], 0, 10)), 'far' => $v['distance_flag'] === 'far'];
         }
         $zoom = $area === 'jabodetabek' ? 10 : 11;
         view('visits.map', ['pageTitle' => t('vis_map'), 'pageSub' => $week, 'week' => $week, 'area' => $area, 'areas' => array_keys($boxes),
