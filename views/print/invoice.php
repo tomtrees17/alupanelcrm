@@ -23,7 +23,7 @@ foreach (['logo-print.png', 'logo-print.svg', 'logo-print.jpg'] as $cand) {
 <head>
     <meta charset="UTF-8">
     <title>Invoice <?= e($invoice['invoice_no']) ?></title>
-    <link rel="stylesheet" href="assets/css/print.css">
+    <link rel="stylesheet" href="assets/css/print.css?v=<?= (int) @filemtime(__DIR__ . '/../../public/assets/css/print.css') ?>">
 </head>
 <body>
 <div class="toolbar">

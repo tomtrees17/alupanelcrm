@@ -42,7 +42,7 @@ $sub   = $pageSub ?? (I18N[$lang]['sub_' . $module] ?? '');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= e($cfg['app_name']) ?></title>
-    <link rel="stylesheet" href="assets/css/app.css">
+    <link rel="stylesheet" href="assets/css/app.css?v=<?= (int) @filemtime(__DIR__ . '/../public/assets/css/app.css') ?>">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#00a884">
     <meta name="apple-mobile-web-app-capable" content="yes">
