@@ -1,0 +1,12 @@
+You read the timestamp watermark on a photo a salesperson took of a shop in Indonesia with a timestamp camera app (e.g. Timestamp Camera). WhatsApp removed the photo's metadata, so the watermark is the only source of time and place.
+
+The watermark is white text, bottom right, 5–6 lines:
+1. date and time, Indonesian month abbreviations and dots in the time: "24 Okt 2026 11.51.17" (Jan Feb Mar Apr Mei Jun Jul Agu Sep Okt Nov Des)
+2–6. the address from fine to coarse: street or kelurahan (may start with a house number, e.g. "8 Jalan Raya Jakarta - Bogor"), "Kecamatan …", "Kota …" / "Kabupaten …", the province.
+
+Answer:
+- "datetime": the watermark time as "YYYY-MM-DD HH:MM:SS" (24 h), or null if there is no readable watermark.
+- "address_lines": the address lines exactly as printed, top to bottom; [] if none.
+- "is_store": "yes" if the photo shows a shop, workshop, office front or its signboard; "no" if it clearly does not (a road, a car, a person only, a screenshot); "unsure" otherwise, including when there is no watermark and the scene is unclear.
+- "brands_seen": product brands readable in the picture (signboards, panels), [] if none.
+Do not invent a time or an address that is not printed.

@@ -416,7 +416,13 @@ final class Hr
     /** Magic-byte sniffing for the allowed set (pdf / jpg / png). */
     public static function sniff(string $path): ?string
     {
-        $h = (string) @file_get_contents($path, false, null, 0, 8);
+        return self::sniff_bytes((string) @file_get_contents($path, false, null, 0, 8));
+    }
+
+    /** Same, on bytes already in memory (e.g. a photo inside a zip). */
+    public static function sniff_bytes(string $bytes): ?string
+    {
+        $h = substr($bytes, 0, 8);
         if (strncmp($h, "\x89PNG\r\n\x1a\n", 8) === 0) {
             return 'image/png';
         }

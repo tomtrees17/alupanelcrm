@@ -411,11 +411,37 @@ final class Database
             last_visit_at TEXT, last_outcome TEXT, visit_count INTEGER NOT NULL DEFAULT 0, source TEXT, source_key TEXT UNIQUE,
             created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), updated_by TEXT, updated_at TEXT)");
         $pdo->exec("CREATE TABLE IF NOT EXISTS visits (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, visit_no TEXT UNIQUE, employee_id INTEGER NOT NULL, visited_at TEXT NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, visit_no TEXT UNIQUE, employee_id INTEGER, visited_at TEXT NOT NULL,
             target_type TEXT NOT NULL, customer_id INTEGER, prospect_id INTEGER, new_customer_name TEXT, outcome TEXT NOT NULL,
-            note TEXT, current_supplier TEXT, current_price TEXT, photo_path TEXT, photo_name TEXT, photo_mime TEXT,
+            note TEXT, current_supplier TEXT, current_price TEXT, photo_path TEXT, photo_name TEXT, photo_mime TEXT, photos TEXT,
             lat REAL, lng REAL, accuracy REAL, distance_m INTEGER, distance_flag TEXT NOT NULL DEFAULT 'none', followup_id INTEGER,
+            source TEXT NOT NULL DEFAULT 'manual', wa_sender TEXT, wa_message_ts TEXT, wa_hash TEXT UNIQUE, wa_import_id INTEGER, caption TEXT,
+            store_name_raw TEXT, store_type TEXT, pic_name TEXT, needs TEXT, status_lama_baru TEXT, system_lama_baru TEXT,
+            address_text TEXT, watermark_at TEXT, late_flag INTEGER NOT NULL DEFAULT 0, photo_is_store TEXT,
+            competitor_brand TEXT, competitor_price INTEGER, format_ok INTEGER NOT NULL DEFAULT 0, template_text INTEGER NOT NULL DEFAULT 0,
+            match_status TEXT, match_score REAL, match_candidates TEXT,
+            ai_parse TEXT, ai_outcome_guess TEXT, ai_photo TEXT, ai_match TEXT, ai_parse_status TEXT, ai_photo_status TEXT, ai_match_status TEXT,
             created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), updated_by TEXT, updated_at TEXT)");
+        if (!in_array('store_type', array_column($pdo->query('PRAGMA table_info(prospects)')->fetchAll(), 'name'), true)) {
+            $pdo->exec('ALTER TABLE prospects ADD COLUMN store_type TEXT');
+        }
+        $pdo->exec("CREATE TABLE IF NOT EXISTS employee_wa_ids (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL, wa_key TEXT NOT NULL UNIQUE, wa_display TEXT,
+            created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS customer_name_aliases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, prospect_id INTEGER, alias TEXT NOT NULL, alias_key TEXT NOT NULL UNIQUE,
+            source TEXT NOT NULL, confirmed_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS wa_imports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, file_name TEXT, file_hash TEXT, messages INTEGER NOT NULL DEFAULT 0,
+            visits_found INTEGER NOT NULL DEFAULT 0, visits_new INTEGER NOT NULL DEFAULT 0, photos_added INTEGER NOT NULL DEFAULT 0,
+            ignored INTEGER NOT NULL DEFAULT 0, unmapped TEXT, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS visit_digests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, week TEXT NOT NULL, text_zh TEXT, text_id TEXT, ai_call_id INTEGER,
+            created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))");
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_match ON visits(match_status)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_sender ON visits(wa_sender)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_digests_week ON visit_digests(week, id)');
+
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_emp ON visits(employee_id, visited_at)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_day ON visits(visited_at)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_prospect ON visits(prospect_id)');
@@ -429,7 +455,7 @@ final class Database
                     $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role, module) VALUES (?, 'visits')")->execute([$role]);
                 }
             }
-            $pdo->exec("INSERT OR IGNORE INTO role_permissions (role, module) VALUES ('manager', 'visits_all')");
+            $pdo->exec("INSERT OR IGNORE INTO role_permissions (role, module) VALUES ('manager', 'visits_all'), ('manager', 'visits_import')");
             $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('visits_v1', '1')");
         }
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_emp_attach ON employee_attachments(employee_id)');

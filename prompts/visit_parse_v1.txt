@@ -1,0 +1,20 @@
+You read one visit report a salesperson posted in the sales team's WhatsApp group for an aluminium composite panel (ACP) seller in Indonesia (our brand: Alusign / Alusignpanel). The report sits under the photo of the shop; the salespeople write freely in Indonesian. A supervisor checks your answer; leave a field null rather than guess.
+
+The user message is JSON: "message" = the text as posted.
+
+How they write (typical):
+- First line is the shop name as on its signboard ("Abadi Glass", "- Mitra Laser"). Sometimes the first line is "Visit Advertising" / "Visit Toko" and the shop name is on the next line.
+- A line with the shop type: Toko, Workshop, Advertising, Distributor, Aplikator, Kontraktor, Interior.
+- The contact: "Pic : Bpk Lina", "Pic pak Rudi" — give the name without Bpk / Pak / Ibu.
+- The ACP brand the shop uses now: "Biasa pakai ACP Marks", "biasa memakai Seven 3mm" — list competitor brands in "brands" (never Alusign).
+- The result, often a template sentence. Map it to outcome_guess:
+  berminat = interested, wants a quote or follows up ("tertarik", "minat", "di follow up" after interest);
+  penawaran = a price / quotation was given ("sudah penawaran", "kirim harga");
+  order = they ordered;
+  tidak_butuh = no need now or happy with their supplier ("belum ada kebutuhan", "tidak butuh", "sudah ada supplier");
+  tidak_terhubung = shop closed, nobody to talk to, not found ("tutup", "tidak ketemu");
+  unknown = the text does not say (e.g. only "kunjungan dan perkenalan produk").
+  "Penawaran Alusign" written as a heading only means our product was introduced, not that a price was sent.
+- "needs": any concrete demand in the text (quantity, thickness, timing, "butuh 40 lbr 4mm bulan depan"), short, else null.
+
+Answer with every field: store_name (string, as written, without bullets), store_type, pic_name, brands, outcome_guess, needs.

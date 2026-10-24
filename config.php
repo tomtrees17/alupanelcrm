@@ -100,6 +100,11 @@ $config = [
             'industry' => ['tier' => 'standard', 'effort' => 'low', 'max_tokens' => 4096],   // 客户行业推断 (Enrich)
             'bank_match' => ['tier' => 'standard', 'effort' => 'medium', 'max_tokens' => 4096],   // 银行进账 ↔ 发票 (FA-AI-01)
             'order_parse' => ['tier' => 'standard', 'effort' => 'low', 'max_tokens' => 4096, 'max_input_chars' => 60000],   // 粘贴识别下单消息 (OrderParse)
+            // HR-04 v3 拜访群聊 (VisitImport): free text, watermark photo, store matching, weekly digest
+            'visit_parse'         => ['tier' => 'cheap', 'effort' => 'low', 'max_tokens' => 1024],
+            'visit_photo_read'    => ['tier' => 'cheap', 'effort' => 'low', 'max_tokens' => 1024, 'max_input_chars' => 4000000],
+            'visit_match'         => ['tier' => 'cheap', 'effort' => 'low', 'max_tokens' => 1024],
+            'visit_weekly_digest' => ['tier' => 'standard', 'effort' => 'low', 'max_tokens' => 2048],
         ],
         // USD per million tokens (Anthropic list price, checked 2026-10). A model not
         // listed is priced as 'default' — the dearest tier, so the caps never under-count.
@@ -109,6 +114,25 @@ $config = [
             'claude-haiku-5-5'  => ['in' => 0.10, 'out' => 0.50, 'cache_read' => 0.01, 'cache_write' => 0.125],
             'default'           => ['in' => 10.00, 'out' => 50.00, 'cache_read' => 1.00, 'cache_write' => 12.50],
         ],
+    ],
+
+    // ── 拜访群聊导入 (HR-04 v3, app/VisitImport.php) ──
+    'visits' => [
+        // Competitor ACP brands read from the free text (whole words, case-insensitive). Add what the group writes.
+        'competitor_brands' => ['Seven', 'Marks', 'Tajima', 'Alcopan', 'Toin', 'Alumax', 'Alpolic', 'Goodsense', 'Reynobond', 'Alcobond', 'Polybond', 'Alucobond', 'Superbond', 'Kingbond'],
+        'own_brands'        => ['Alusign', 'Alusignpanel', 'Alupanel'],   // never a competitor
+        'store_types'       => ['Toko', 'Workshop', 'Advertising', 'Distributor', 'Aplikator', 'Kontraktor', 'Interior'],
+        // The repeated sentences of the old free-text reports (quality: "模板话占比"). Regex, case-insensitive.
+        'template_patterns' => [
+            'tertarik dengan alusign,?\s*sdh berikan katalog dan sample',
+            'kunjungan dan perkenalan produk alusign',
+            'menawarkan acp alusignpanel,?\s*untuk sementara belum ada kebutuhan',
+            'perkenalan acp alusign memberikan katalog dan sampel',
+        ],
+        'match_auto'  => 0.95,   // unique candidate at or above → attached without asking
+        'match_min'   => 0.60,   // below → no candidate: a new store, into the prospect pool
+        'late_hours'  => 2,      // watermark vs message time beyond this → 补发, the watermark wins
+        'ai_per_run'  => 15,     // visits per AI pass (import or button), keeps a request short
     ],
 
     // ── Coretax Faktur import template (FA-TAX-01, app/Faktur.php) ──

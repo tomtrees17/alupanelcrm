@@ -588,12 +588,13 @@ CREATE TABLE prospects (
     priority      REAL,                          -- Skor Prioritas
     phone TEXT, rating REAL, reviews INTEGER,
     is_customer   INTEGER NOT NULL DEFAULT 0,    -- Sudah Pelanggan = Ya: kept, never offered as a prospect
+    store_type    TEXT,                          -- from a visit (Toko / Workshop / Advertising …), v3
     address TEXT, lat REAL, lng REAL,
     assigned_to   INTEGER REFERENCES employees(id),
     assigned_at TEXT, assigned_by TEXT,
     last_visit_at TEXT, last_outcome TEXT,
     visit_count   INTEGER NOT NULL DEFAULT 0,
-    source        TEXT,                          -- import file
+    source        TEXT,                          -- import file | visit (a new store met on a visit)
     source_key    TEXT UNIQUE,                   -- sha1(name | lat,lng): re-imports update, never duplicate
     created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     updated_by TEXT, updated_at TEXT
@@ -601,27 +602,87 @@ CREATE TABLE prospects (
 CREATE TABLE visits (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     visit_no          TEXT UNIQUE,               -- KV-YYMM-NNNN
-    employee_id       INTEGER NOT NULL REFERENCES employees(id),
-    visited_at        TEXT NOT NULL,             -- the visit day (back-fill ≤ 7 days) + saving time
+    employee_id       INTEGER REFERENCES employees(id),   -- NULL until the WhatsApp sender is mapped (employee_wa_ids)
+    visited_at        TEXT NOT NULL,             -- message time (or the watermark's when sent > 2 h later); form: day + saving time
     target_type       TEXT NOT NULL,             -- customer|prospect|new
     customer_id       INTEGER REFERENCES customers(id),
     prospect_id       INTEGER REFERENCES prospects(id),
     new_customer_name TEXT,
-    outcome           TEXT NOT NULL,             -- berminat|penawaran|tidak_butuh|tidak_terhubung
+    outcome           TEXT NOT NULL,             -- berminat|penawaran|order|tidak_butuh|tidak_terhubung|unknown
     note TEXT, current_supplier TEXT, current_price TEXT,
-    photo_path TEXT, photo_name TEXT, photo_mime TEXT,  -- optional, data/visits/{employee_id}/
-    lat REAL, lng REAL, accuracy REAL,           -- only if the browser already allowed location
+    photo_path TEXT, photo_name TEXT, photo_mime TEXT,  -- main photo; form: data/visits/{employee_id}/, import: data/visits/{yyyymm}/
+    photos            TEXT,                      -- JSON list of all stored photos (import); NULL entries = left out of the export
+    lat REAL, lng REAL, accuracy REAL,           -- form: phone (if already allowed); import: geocoded watermark address
     distance_m        INTEGER,
     distance_flag     TEXT NOT NULL DEFAULT 'none',  -- ok|far|none
     followup_id       INTEGER,                   -- the customer_followups row this visit wrote
+    -- HR-04 v3: WhatsApp group import
+    source            TEXT NOT NULL DEFAULT 'manual',  -- manual|wa_import
+    wa_sender TEXT, wa_message_ts TEXT,
+    wa_hash           TEXT UNIQUE,               -- sha1(sender | time | caption): re-imports skip, a media import only adds photos
+    wa_import_id      INTEGER,
+    caption           TEXT,                      -- the message as sent
+    store_name_raw    TEXT,                      -- the store as written (Toko: line / first line / AI)
+    store_type TEXT, pic_name TEXT, needs TEXT,
+    status_lama_baru  TEXT,                      -- lama|baru as the salesperson wrote it (four-line format)
+    system_lama_baru  TEXT,                      -- lama|baru from the match (customer = lama); a mismatch is only shown
+    address_text      TEXT,                      -- watermark address lines
+    watermark_at      TEXT,
+    late_flag         INTEGER NOT NULL DEFAULT 0,  -- 补发 (watermark > 2 h before the message, or a date line)
+    photo_is_store    TEXT,                      -- yes|no|unsure (watermark read)
+    competitor_brand TEXT, competitor_price INTEGER,
+    format_ok         INTEGER NOT NULL DEFAULT 0,  -- the four-line report format
+    template_text     INTEGER NOT NULL DEFAULT 0,  -- an old template sentence (quality only)
+    match_status      TEXT,                      -- auto|pending|confirmed|new|manual (import); NULL = form
+    match_score REAL, match_candidates TEXT,     -- JSON top candidates for the confirmation queue
+    ai_parse TEXT, ai_outcome_guess TEXT, ai_photo TEXT, ai_match TEXT,   -- JSON answers (suggestions only)
+    ai_parse_status TEXT, ai_photo_status TEXT, ai_match_status TEXT,     -- ok|failed|skipped; NULL = not tried
     created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     updated_by TEXT, updated_at TEXT
+);
+CREATE TABLE employee_wa_ids (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL REFERENCES employees(id),
+    wa_key      TEXT NOT NULL UNIQUE,            -- WaChat::sender_key(): phone digits or folded name
+    wa_display  TEXT,                            -- as the export wrote it
+    created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE customer_name_aliases (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id  INTEGER REFERENCES customers(id),
+    prospect_id  INTEGER REFERENCES prospects(id),
+    alias        TEXT NOT NULL,                  -- the store name as the group writes it
+    alias_key    TEXT NOT NULL UNIQUE,           -- VisitImport::name_key()
+    source       TEXT NOT NULL,                  -- confirm (supervisor) | manual
+    confirmed_by TEXT,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE wa_imports (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_name TEXT, file_hash TEXT,
+    messages     INTEGER NOT NULL DEFAULT 0,
+    visits_found INTEGER NOT NULL DEFAULT 0,     -- visit candidates in the file
+    visits_new   INTEGER NOT NULL DEFAULT 0,
+    photos_added INTEGER NOT NULL DEFAULT 0,
+    ignored      INTEGER NOT NULL DEFAULT 0,
+    unmapped     TEXT,                           -- JSON senders not yet mapped to an employee
+    created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE visit_digests (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    week        TEXT NOT NULL,                   -- YYYY-Www
+    text_zh TEXT, text_id TEXT,
+    ai_call_id  INTEGER,
+    created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX idx_emp_attach ON employee_attachments(employee_id);
 CREATE INDEX idx_visits_emp ON visits(employee_id, visited_at);
 CREATE INDEX idx_visits_day ON visits(visited_at);
 CREATE INDEX idx_visits_prospect ON visits(prospect_id);
 CREATE INDEX idx_prospects_assigned ON prospects(assigned_to);
+CREATE INDEX idx_visits_match ON visits(match_status);
+CREATE INDEX idx_visits_sender ON visits(wa_sender);
+CREATE INDEX idx_digests_week ON visit_digests(week, id);
 CREATE INDEX idx_bpjs_deps ON bpjs_kesehatan_dependents(employee_id);
 CREATE INDEX idx_contracts_emp ON employment_contracts(employee_id, status);
 CREATE INDEX idx_contracts_end ON employment_contracts(status, end_date);

@@ -79,9 +79,12 @@ app/
   OrderParse.php            粘贴识别：销售消息 → 订单表单字段（AiTask order_parse + 对客户/产品/销售的匹配；只填表不保存）
   CoNumbers.php             CO 号：Google 表单登记导入、一条流水号（max(orders, 登记)+1）、领号/挂接、老订单自动匹配
   HrBpjs.php                人力 BPJS（HR-03）：两套记录、费率按月、金额计算（上限/JP/超额家属）、月度快照、离职联动
+  Visits.php                拜访记录（HR-04）：编号 KV-YYMM-NNNN、距离、客户跟进联动、搜索、周报（回收表列）、潜客导入
+  WaChat.php                WhatsApp 群聊导出解析（iPhone / 网页导出工具 / Android 格式，拜访 = 带说明文字的照片）
+  VisitImport.php           群聊 → 拜访：规则解析（四行 / 自由文本）、店名匹配与别名、AI（visit_parse / photo_read / match / weekly_digest）、分析
   Auth.php                  会话鉴权     Csrf.php  CSRF 令牌
   controllers/              dashboard customers insights pipeline tasks finance orders inventory
-                            approvals audit delivery users roles account auth lang hr ai bank tax
+                            approvals audit delivery users roles account auth lang hr ai bank tax visits
 
 views/                      按模块分目录 + layout.php + print/ + word/ + errors/
 prompts/                    AI 提示词 {task}_v{n}.txt（改提示词即新建下一版，旧版保留）

@@ -430,6 +430,19 @@ chown -R www:www data
   - 权限：新视图权限 `ai_usage`（权限矩阵新列），默认只给 finance_manager，老板始终可见（用户 2026-10-22 定）。一次性迁移 `app_meta.perm_ai_usage_v1`，之后管理员的调整不会被覆盖；
   - 内容：今日 / 本月费用与上限；本月按任务列出调用次数（按状态拆开）、tokens、费用、平均耗时、采纳率、改动最多的字段；库存助手单独一栏（数据来自 ai_queries）；月份可切换。
 - **上线**：`git pull`，再打开一次网站，`ensureSchema()` 会建好两张表并授权，不需要改 `.env`。服务器 `config.local.php` 里的 `'ai' => ['driver' => 'claude']` 与新配置用 `array_replace_recursive` 合并，互不影响。
+## 6zi. 拜访记录 HR-04（v2 表单 + v3 WhatsApp 群日报导入，2026-10-24）
+
+按 docs/任务卡-拜访签到.md v3 与 docs/规则-销售日报.md。代码：`app/Visits.php`、`app/WaChat.php`、`app/VisitImport.php`、`app/controllers/visits.php`、`views/visits/`、`tools/import_prospects.php`、`prompts/visit_*_v1.txt`；测试 `tests/visits_test.php`（v2）、`tests/visit_import_test.php`（v3，样本 `samples_test/wa_chat_sample/`）。
+
+- **用户决定**（2026-10-24）：结果 = Excel/Petunjuk 的四个 + **Order**（群里短词 Minat/Penawaran/Order/Tidak/Tutup 映射）；旧格式无结果存 `unknown`。周一到周日、周报随时现算不发待办、导出列 = 《Daftar Calon Pelanggan》回收表（去掉「Cek Data」系统列）一次拜访一行 + 汇总页（加 Baru、新增潜客）。拜访老客户 = 一次跟进（Tidak Butuh = 不需要，隐藏 30 天）。偏远 > 1 km；手机补录最多 7 天；编号 KV-YYMM-NNNN；潜客由管理层在潜客页批量分配（或 Excel 的 Sales PIC 列）；「Sudah Pelanggan」导入但不进潜客选择；销售只看自己的，老板 + `visits_all`（默认总经理）看全部。
+- **v3 主路径**：销售习惯不变，销售助理每天把当天群聊（WhatsApp 网页版导出工具，按日期、含媒体，格式同 iPhone）上传；也可传 txt 后再传含媒体 zip，按「发送者 + 时间 + 说明文字」哈希去重，含媒体时只补图。导入结果只显示新增 / 补图 / 未识别发送者。
+- 解析：一次拜访 = 带说明文字的照片，同发送者同一分钟的无字照片并入；照片与文字分两条发（2 分钟内）合并。四行格式规则解析（含首行日期 = 补发）；自由文本规则取店名（首行 / "Visit X" 下一行）、店类型、PIC、竞品品牌（config `visits.competitor_brands`）与价格，再跑 `visit_parse`（便宜档）补全并给 `outcome_guess`（主管一键采纳，结果仍是 unknown 直到采纳）。
+- 店名匹配：别名表 `customer_name_aliases` 直接命中 → 客户名 / 公司名 / 潜客名 / 银行付款人名相似度；唯一 ≥ 0.95 自动挂，≥ 0.60 进「待确认」（AI 开启时 `visit_match` 给建议），无候选 = 新店进潜客池（`prospects.source = visit`，带店类型）。主管一键确认后写别名，同名的其它待确认一起归位，下次自动命中。
+- 照片：存 `data/visits/{yyyymm}/`，原 zip 不保留（解压到临时目录，导入后删）。`visit_photo_read` 读水印（时间、地址行、是否店面）→ 地址走现有 Geocoding → 坐标与距离；水印比发送时间早 > 2 小时 = 补发，以水印时间为准。
+- 发送者 ↔ 员工：`employee_wa_ids`（手机号按数字归一，名字折叠大小写）；未映射的消息先存（employee_id 空），映射后自动补上。导入与映射权限 `visits_import`（默认只给 manager；销售助理的角色需在「权限设置」勾上），映射 HR 也能做。
+- 输出：日视图（每人 Lama/Baru、结果分布、地图；店名缺 / 非店面 / 待确认淡色）、周报（+ AI 周评按钮，`visit_weekly_digest` 中印双语，存 `visit_digests`）、待确认、客户维度（历史、本月 ≥3 次、A 类 ≥60 天无人拜访）、竞品板（默认只看 Tidak Butuh）、质量（只给老板：模板话、无结果、非店面、补发、四行格式占比）、地图、潜客分配。手机表单降为「补录 / Tambah manual」；销售可在 24 小时内改导入记录的结果、备注和被对上的客户。
+- AI 全走 `AiTask::run()`，只建议；发给模型的不含手机号（未映射发送者在周评里写「Pengirim belum dikenali」）。AI 关闭时导入照常，候选留给主管，水印不读。每次导入后处理一批（`visits.ai_per_run` 15），其余在导入页 / 待确认页点「继续处理」。
+
 ## 6zh. 粘贴识别下单（2026-10-23，用户要求：销售助理入职，主要工作是把销售发来的文字录成订单）
 
 章程第六节第 8 条「WhatsApp 聊天记录 → 成单草稿」的实现，**不接 WhatsApp**（用户决定：复制粘贴就够）。

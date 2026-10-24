@@ -46,6 +46,8 @@ require __DIR__ . '/Hr.php';
 require __DIR__ . '/HrContract.php';
 require __DIR__ . '/HrBpjs.php';
 require __DIR__ . '/Visits.php';
+require __DIR__ . '/WaChat.php';
+require __DIR__ . '/VisitImport.php';
 require __DIR__ . '/SalesHistory.php';
 require __DIR__ . '/CoNumbers.php';
 require __DIR__ . '/OrderParse.php';

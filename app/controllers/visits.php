@@ -27,6 +27,15 @@ $requireRecorder = function () use ($canRecord): void {
         redirect('dashboard.index');
     }
 };
+$canImport = $auth->isAdmin() || can_access('visits_import');
+$canMap = $canImport || (($user['role'] ?? '') === 'hr');
+$requireImport = function () use ($canImport): void {
+    if (!$canImport) {
+        http_response_code(403);
+        flash(t('vis_msg_import_only'), 'error');
+        redirect('visits.index');
+    }
+};
 $requireAll = function () use ($all): void {
     if (!$all) {
         http_response_code(403);
@@ -77,7 +86,10 @@ switch ($action) {
     case 'index':
         if (!$canRecord) {
             if ($all) {
-                redirect('visits.list');
+                redirect('visits.day');
+            }
+            if ($canImport) {
+                redirect('visits.import');
             }
             $requireRecorder();
         }
@@ -206,6 +218,17 @@ switch ($action) {
         $d['updated_at'] = date('Y-m-d H:i:s');
         $pdo->beginTransaction();
         $pdo->prepare('UPDATE visits SET ' . implode(',', array_map(fn($k) => "{$k} = ?", array_keys($d))) . ' WHERE id = ?')->execute([...array_values($d), $v['id']]);
+        // An imported visit: the salesperson may correct the customer the system matched (v3 §四).
+        $newType = (string) input('target_type', '');
+        $newId = (int) input('target_id', 0);
+        if ($v['source'] === 'wa_import' && in_array($newType, ['customer', 'prospect'], true) && $newId
+            && !($newType === $v['target_type'] && $newId === (int) ($v['customer_id'] ?: $v['prospect_id']))) {
+            VisitImport::attach($pdo, array_merge($v, $d), $newType, $newId, 'manual', $operator);
+            audit($pdo, 'visits', 'update', 'visits', (int) $v['id'], (string) $v['visit_no'], "visits.target: {$newType} #{$newId} (sales)");
+            $st = $pdo->prepare('SELECT * FROM visits WHERE id = ?');
+            $st->execute([$v['id']]);
+            $v = $st->fetch() + $v;
+        }
         Visits::link_customer($pdo, array_merge($v, $d), $user);
         Visits::refresh_prospect($pdo, $v['prospect_id'] ? (int) $v['prospect_id'] : null);
         $pdo->commit();
@@ -225,6 +248,11 @@ switch ($action) {
             http_response_code(404);
             exit('Not found');
         }
+        if ($v['source'] === 'wa_import') {
+            $photos = array_values(array_filter((array) json_decode((string) $v['photos'], true)));
+            $file = $photos[(int) input('n', 0)] ?? $v['photo_path'];
+            Hr::send_file(0, basename((string) $file), str_ends_with((string) $file, '.png') ? 'image/png' : 'image/jpeg', basename((string) $file), dirname(VisitImport::photo_file((string) $file)));
+        }
         Hr::send_file((int) $v['employee_id'], (string) $v['photo_path'], $v['photo_mime'], (string) $v['photo_name'], Visits::photo_dir((int) $v['employee_id']));
         break;
 
@@ -233,11 +261,11 @@ switch ($action) {
         $requireAll();
         $f = [
             'employee_id' => (int) input('employee_id', 0),
-            'outcome' => isset(Visits::OUTCOMES[(string) input('outcome', '')]) ? (string) input('outcome') : '',
+            'outcome' => (isset(Visits::OUTCOMES[(string) input('outcome', '')]) || input('outcome') === Visits::UNKNOWN) ? (string) input('outcome') : '',
             'from' => Hr::valid_date((string) input('from', '')) ? (string) input('from') : HrContract::add_days($today, -6),
             'to' => Hr::valid_date((string) input('to', '')) ? (string) input('to') : $today,
         ];
-        view('visits.list', ['pageTitle' => t('vis_list'), 'pageSub' => '', 'rows' => Visits::fetch($pdo, $f['from'], $f['to'], $f), 'f' => $f, 'sales' => $sales(), 'canRecord' => $canRecord]);
+        view('visits.list', ['pageTitle' => t('vis_list'), 'pageSub' => '', 'rows' => Visits::fetch($pdo, $f['from'], $f['to'], $f), 'f' => $f, 'sales' => $sales(), 'canRecord' => $canRecord, 'canImport' => $canImport]);
         break;
 
     case 'report':
@@ -247,14 +275,20 @@ switch ($action) {
         $rows = array_reverse(Visits::fetch($pdo, $from, $to));
         usort($rows, fn($a, $b) => [$a['sales'], $a['visited_at'], $a['id']] <=> [$b['sales'], $b['visited_at'], $b['id']]);
         $summary = Visits::summary($rows);
+        $np = $pdo->prepare("SELECT assigned_to, COUNT(*) n FROM prospects WHERE source = 'visit' AND date(created_at) BETWEEN ? AND ? GROUP BY assigned_to");
+        $np->execute([$from, $to]);
+        $newProspects = array_column($np->fetchAll(), 'n', 'assigned_to');
         if ($action === 'export') {
             audit($pdo, 'visits', 'export', 'visits', null, "Kunjungan {$week}", count($rows) . ' rows');
             send_workbook("Kunjungan_{$week}", [
                 ['Kunjungan', Visits::REPORT_HEADERS, array_map([Visits::class, 'report_row'], $rows)],
-                ['Ringkasan', Visits::summary_headers(), Visits::summary_rows($summary)],
+                ['Ringkasan', Visits::summary_headers(), Visits::summary_rows($summary, $newProspects)],
             ]);
         }
-        view('visits.report', ['pageTitle' => t('vis_report'), 'pageSub' => $week, 'week' => $week, 'from' => $from, 'to' => $to, 'summary' => $summary, 'count' => count($rows), 'canRecord' => $canRecord]);
+        $dg = $pdo->prepare('SELECT * FROM visit_digests WHERE week = ? ORDER BY id DESC LIMIT 1');
+        $dg->execute([$week]);
+        view('visits.report', ['pageTitle' => t('vis_report'), 'pageSub' => $week, 'week' => $week, 'from' => $from, 'to' => $to, 'summary' => $summary, 'count' => count($rows), 'canRecord' => $canRecord,
+            'canImport' => $canImport, 'newProspects' => $newProspects, 'digest' => $dg->fetch() ?: null, 'aiOn' => AiTask::enabled($config)]);
         break;
 
     case 'map':
@@ -278,7 +312,7 @@ switch ($action) {
         }
         $zoom = $area === 'jabodetabek' ? 10 : 11;
         view('visits.map', ['pageTitle' => t('vis_map'), 'pageSub' => $week, 'week' => $week, 'area' => $area, 'areas' => array_keys($boxes),
-            'map' => Insights::map_layout($points, $boxes[$area], $zoom), 'legend' => array_values($order), 'total' => count($points), 'canRecord' => $canRecord]);
+            'map' => Insights::map_layout($points, $boxes[$area], $zoom), 'legend' => array_values($order), 'total' => count($points), 'canRecord' => $canRecord, 'canImport' => $canImport]);
         break;
 
     case 'prospects':
@@ -308,7 +342,7 @@ switch ($action) {
         $st = $pdo->prepare('SELECT p.*, e.full_name assignee FROM prospects p LEFT JOIN employees e ON e.id = p.assigned_to WHERE ' . implode(' AND ', $where)
             . ' ORDER BY p.is_customer, p.priority DESC, p.name LIMIT 500');
         $st->execute($args);
-        view('visits.prospects', ['pageTitle' => t('vis_prospects'), 'pageSub' => '', 'rows' => $st->fetchAll(), 'f' => $f, 'sales' => $sales(), 'canRecord' => $canRecord,
+        view('visits.prospects', ['pageTitle' => t('vis_prospects'), 'pageSub' => '', 'rows' => $st->fetchAll(), 'f' => $f, 'sales' => $sales(), 'canRecord' => $canRecord, 'canImport' => $canImport,
             'regions' => $pdo->query("SELECT DISTINCT region FROM prospects WHERE region IS NOT NULL ORDER BY region")->fetchAll(PDO::FETCH_COLUMN),
             'categories' => $pdo->query("SELECT DISTINCT category FROM prospects WHERE category IS NOT NULL ORDER BY category")->fetchAll(PDO::FETCH_COLUMN),
             'total' => (int) $pdo->query('SELECT COUNT(*) FROM prospects')->fetchColumn()]);
@@ -350,6 +384,195 @@ switch ($action) {
         flash(sprintf(t('vis_msg_assigned'), $n));
         header('Location: ' . (str_starts_with($back, 'index.php?r=visits.prospects') ? $back : url('visits.prospects')));
         exit;
+
+    // ── v3: WhatsApp group export ──
+    case 'import':
+        $requireImport();
+        if (is_post()) {
+            Csrf::verify();
+            $f = $_FILES['file'] ?? null;
+            if (!$f || ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !preg_match('/\.(zip|txt)$/i', (string) $f['name'])) {
+                flash(t('vis_err_import_file'), 'error');
+                redirect('visits.import');
+            }
+            @set_time_limit(300);
+            try {
+                $up = WaChat::read_upload((string) $f['tmp_name'], (string) $f['name']);
+            } catch (Throwable $e) {
+                flash(t('vis_err_import_file') . ' ' . $e->getMessage(), 'error');
+                redirect('visits.import');
+            }
+            if ($up['txt'] === null || trim($up['txt']) === '') {
+                flash(t('vis_err_import_no_txt'), 'error');
+                redirect('visits.import');
+            }
+            try {
+                $res = VisitImport::import($pdo, $config, $up['txt'], $up['files'], (string) $f['name'], $operator);
+            } finally {
+                WaChat::cleanup($up['tmp']);   // the zip itself is never kept (v3 §二)
+            }
+            $proc = VisitImport::process($pdo, $config, AiTask::enabled($config) ? (int) VisitImport::cfg($config)['ai_per_run'] : 100000, $operator);
+            audit($pdo, 'visits', 'create', 'wa_imports', $res['import_id'], (string) $f['name'],
+                sprintf('wa_imports: %d messages, %d visits found, %d new, %d photos, %d ignored, %d unmapped', $res['messages'], $res['found'], $res['new'], $res['photos'], $res['ignored'], count($res['unmapped'])));
+            $_SESSION['visit_import_result'] = $res + ['left' => $proc['left']];
+            redirect('visits.import');
+        }
+        $result = $_SESSION['visit_import_result'] ?? null;
+        unset($_SESSION['visit_import_result']);
+        view('visits.import', ['pageTitle' => t('vis_import'), 'pageSub' => '', 'result' => $result, 'canRecord' => $canRecord, 'canImport' => $canImport,
+            'left' => count(VisitImport::todo($pdo, $config, 100000)), 'aiOn' => AiTask::enabled($config),
+            'maxUpload' => (string) ini_get('upload_max_filesize'), 'maxPost' => (string) ini_get('post_max_size'),
+            'recent' => $pdo->query('SELECT * FROM wa_imports ORDER BY id DESC LIMIT 10')->fetchAll(), 'unmapped' => VisitImport::unmapped($pdo)]);
+        break;
+
+    case 'ai_run':
+        Csrf::verify();
+        if (!$canImport && !$all) {
+            $requireImport();
+        }
+        @set_time_limit(300);
+        $proc = VisitImport::process($pdo, $config, AiTask::enabled($config) ? (int) VisitImport::cfg($config)['ai_per_run'] : 100000, $operator);
+        flash(sprintf(t('vis_msg_processed'), $proc['done'], $proc['left']));
+        redirect(input('back') === 'queue' ? 'visits.queue' : 'visits.import');
+        break;
+
+    // Sender ↔ employee: HR (or whoever imports) sets it once.
+    case 'senders':
+        if (!$canMap) {
+            $requireImport();
+        }
+        if (is_post()) {
+            Csrf::verify();
+            $sender = trim((string) input('sender', ''));
+            $eid = (int) input('employee_id', 0);
+            $ok = $pdo->prepare("SELECT 1 FROM employees WHERE id = ? AND employment_status <> 'resigned'");
+            $ok->execute([$eid]);
+            if ($sender === '' || !$ok->fetchColumn()) {
+                flash(t('vis_err_assign'), 'error');
+                redirect('visits.senders');
+            }
+            $n = VisitImport::map_sender($pdo, $sender, $eid, $operator);
+            flash(sprintf(t('vis_msg_mapped'), $sender, $n));
+            redirect('visits.senders');
+        }
+        view('visits.senders', ['pageTitle' => t('vis_senders'), 'pageSub' => '', 'unmapped' => VisitImport::unmapped($pdo), 'canRecord' => $canRecord, 'canImport' => $canImport,
+            'mapped' => $pdo->query('SELECT w.*, e.full_name FROM employee_wa_ids w JOIN employees e ON e.id = w.employee_id ORDER BY e.full_name, w.wa_display')->fetchAll(),
+            'staff' => $pdo->query("SELECT id, full_name FROM employees WHERE employment_status <> 'resigned' ORDER BY full_name")->fetchAll()]);
+        break;
+
+    // Supervisor queue: store matches to confirm, AI outcome guesses to adopt.
+    case 'queue':
+        $requireAll();
+        $pending = $pdo->query("SELECT v.*, COALESCE(e.full_name, v.wa_sender) sales FROM visits v LEFT JOIN employees e ON e.id = v.employee_id
+                                 WHERE v.match_status = 'pending' ORDER BY v.visited_at DESC LIMIT 200")->fetchAll();
+        $guesses = $pdo->query("SELECT v.*, COALESCE(e.full_name, v.wa_sender) sales, c.name customer_name, p.name prospect_name FROM visits v
+                                 LEFT JOIN employees e ON e.id = v.employee_id LEFT JOIN customers c ON c.id = v.customer_id LEFT JOIN prospects p ON p.id = v.prospect_id
+                                 WHERE v.outcome = 'unknown' AND v.ai_outcome_guess IS NOT NULL ORDER BY v.visited_at DESC LIMIT 200")->fetchAll();
+        view('visits.queue', ['pageTitle' => t('vis_queue'), 'pageSub' => '', 'pending' => $pending, 'guesses' => $guesses, 'canRecord' => $canRecord, 'canImport' => $canImport,
+            'left' => count(VisitImport::todo($pdo, $config, 100000)), 'aiOn' => AiTask::enabled($config)]);
+        break;
+
+    case 'confirm':
+        Csrf::verify();
+        $requireAll();
+        $ok = VisitImport::confirm($pdo, (int) input('id', 0), (string) input('choice', ''), $operator);
+        flash($ok ? t('hr_msg_saved') : t('vis_err_confirm'), $ok ? 'success' : 'error');
+        redirect('visits.queue');
+        break;
+
+    case 'adopt':
+        Csrf::verify();
+        $requireAll();
+        $ids = array_values(array_filter(array_map('intval', (array) input('ids', [(int) input('id', 0)]))));
+        $n = 0;
+        foreach ($ids as $vid) {
+            $n += VisitImport::adopt_outcome($pdo, $vid, $operator) ? 1 : 0;
+        }
+        flash(sprintf(t('vis_msg_adopted'), $n));
+        redirect('visits.queue');
+        break;
+
+    case 'day':
+        $requireAll();
+        $date = Hr::valid_date((string) input('date', '')) ? (string) input('date') : $today;
+        $rows = Visits::fetch($pdo, $date, $date);
+        $per = [];
+        $order = [];
+        $points = [];
+        foreach (array_reverse($rows) as $v) {
+            $k = (string) $v['sales'];
+            $per[$k] ??= ['sales' => $k, 'n' => 0, 'lama' => 0, 'baru' => 0, 'outcomes' => []];
+            $per[$k]['n']++;
+            $lb = $v['status_lama_baru'] ?: $v['system_lama_baru'];
+            if ($lb === 'lama' || $lb === 'baru') {
+                $per[$k][$lb]++;
+            }
+            $per[$k]['outcomes'][$v['outcome']] = ($per[$k]['outcomes'][$v['outcome']] ?? 0) + 1;
+            if ($v['lat'] !== null) {
+                $order[$k] ??= count($order);
+                $points[] = ['lat' => (float) $v['lat'], 'lng' => (float) $v['lng'], 'sales' => $k, 'color' => $order[$k], 'far' => $v['distance_flag'] === 'far',
+                             'label' => Visits::target_name($v) . ' · ' . Visits::outcome_label((string) $v['outcome'])];
+            }
+        }
+        ksort($per, SORT_NATURAL | SORT_FLAG_CASE);
+        $box = ['north' => -5.95, 'south' => -6.75, 'west' => 106.45, 'east' => 107.25];
+        view('visits.day', ['pageTitle' => t('vis_day'), 'pageSub' => Hr::dmy($date), 'date' => $date, 'rows' => $rows, 'per' => array_values($per), 'canRecord' => $canRecord, 'canImport' => $canImport,
+            'map' => Insights::map_layout($points, $box, 10), 'legend' => array_map(fn($n, $i) => ['name' => $n, 'i' => $i], array_keys($order), $order), 'located' => count($points)]);
+        break;
+
+    case 'customers':
+        $requireAll();
+        $q = trim((string) input('q', ''));
+        $history = [];
+        $found = [];
+        if ($q !== '') {
+            $st = $pdo->prepare('SELECT id, name, owner, city FROM customers WHERE name LIKE ? OR company LIKE ? ORDER BY name LIMIT 20');
+            $st->execute(["%{$q}%", "%{$q}%"]);
+            $found = $st->fetchAll();
+            $cid = (int) input('id', 0) ?: (int) ($found[0]['id'] ?? 0);
+            if ($cid) {
+                $h = $pdo->prepare('SELECT v.*, COALESCE(e.full_name, v.wa_sender) sales FROM visits v LEFT JOIN employees e ON e.id = v.employee_id WHERE v.customer_id = ? ORDER BY v.visited_at DESC LIMIT 100');
+                $h->execute([$cid]);
+                $history = $h->fetchAll();
+            }
+        }
+        $month = substr($today, 0, 7);
+        $often = $pdo->prepare("SELECT c.id, c.name, COUNT(*) n, GROUP_CONCAT(DISTINCT COALESCE(e.full_name, v.wa_sender)) who FROM visits v JOIN customers c ON c.id = v.customer_id
+                                 LEFT JOIN employees e ON e.id = v.employee_id WHERE substr(v.visited_at, 1, 7) = ? GROUP BY c.id HAVING n >= 3 ORDER BY n DESC");
+        $often->execute([$month]);
+        view('visits.customers', ['pageTitle' => t('vis_customers'), 'pageSub' => '', 'q' => $q, 'found' => $found, 'history' => $history, 'canRecord' => $canRecord, 'canImport' => $canImport,
+            'often' => $often->fetchAll(), 'neglected' => VisitImport::neglected($pdo, $today, 60), 'month' => $month]);
+        break;
+
+    case 'competitors':
+        $requireAll();
+        [$week, $from, $to] = $weekParam();
+        $from = Hr::valid_date((string) input('from', '')) ? (string) input('from') : HrContract::add_days($today, -89);
+        $to = Hr::valid_date((string) input('to', '')) ? (string) input('to') : $today;
+        $only = input('all') ? false : true;
+        view('visits.competitors', ['pageTitle' => t('vis_competitors'), 'pageSub' => '', 'rows' => VisitImport::competitors($pdo, $from, $to, $only), 'from' => $from, 'to' => $to,
+            'only' => $only, 'canRecord' => $canRecord, 'canImport' => $canImport]);
+        break;
+
+    case 'quality':
+        if (!$auth->isAdmin()) {
+            http_response_code(403);
+            flash(t('vis_msg_boss_only'), 'error');
+            redirect('visits.index');
+        }
+        [$week, $from, $to] = $weekParam();
+        view('visits.quality', ['pageTitle' => t('vis_quality'), 'pageSub' => $week, 'week' => $week, 'from' => $from, 'to' => $to,
+            'rows' => VisitImport::quality($pdo, $from, $to), 'canRecord' => $canRecord, 'canImport' => $canImport]);
+        break;
+
+    case 'digest':
+        Csrf::verify();
+        $requireAll();
+        [$week] = $weekParam();
+        $r = VisitImport::digest($pdo, $config, $week, $operator);
+        flash($r['status'] === 'ok' ? t('vis_msg_digest_ok') : t('vis_msg_digest_failed') . ' ' . ($r['error'] ?? ''), $r['status'] === 'ok' ? 'success' : 'error');
+        redirect('visits.report', ['week' => $week]);
+        break;
 
     default:
         http_response_code(404);

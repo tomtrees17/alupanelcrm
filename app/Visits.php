@@ -265,10 +265,10 @@ final class Visits
             $where[] = 'v.outcome = ?';
             $args[] = $filter['outcome'];
         }
-        $st = $pdo->prepare('SELECT v.*, e.full_name sales, e.employee_no, c.name customer_name, c.phone customer_phone,
+        $st = $pdo->prepare('SELECT v.*, COALESCE(e.full_name, v.wa_sender) sales, e.employee_no, c.name customer_name, c.phone customer_phone, c.city customer_city,
                                     p.name prospect_name, p.category, p.region, p.priority, p.phone prospect_phone, p.rating, p.reviews, p.is_customer,
                                     p.address, p.lat p_lat, p.lng p_lng
-                               FROM visits v JOIN employees e ON e.id = v.employee_id
+                               FROM visits v LEFT JOIN employees e ON e.id = v.employee_id
                                LEFT JOIN customers c ON c.id = v.customer_id LEFT JOIN prospects p ON p.id = v.prospect_id
                               WHERE ' . implode(' AND ', $where) . ' ORDER BY v.visited_at DESC, v.id DESC');
         $st->execute($args);
@@ -312,6 +312,7 @@ final class Visits
             $k = (string) $v['sales'];
             $by[$k] ??= ['sales' => $k, 'total' => 0, 'counts' => array_fill_keys([...array_keys(self::OUTCOMES), self::UNKNOWN], 0), 'new' => [], 'eid' => (int) $v['employee_id']];
             $by[$k]['total']++;
+            $by[$k]['baru'] = ($by[$k]['baru'] ?? 0) + ((($v['status_lama_baru'] ?? null) ?: ($v['system_lama_baru'] ?? null)) === 'baru' ? 1 : 0);
             $by[$k]['counts'][$v['outcome']] = ($by[$k]['counts'][$v['outcome']] ?? 0) + 1;
             if ($v['target_type'] === 'new') {
                 $by[$k]['new'][mb_strtolower(trim((string) $v['new_customer_name']))] = true;
@@ -321,16 +322,18 @@ final class Visits
         return array_values(array_map(fn($r) => ['new' => count($r['new'])] + $r, $by));
     }
 
-    public static function summary_rows(array $summary): array
+    /** @param array<int,int> $newProspects employee id => prospects that came from their visits this week */
+    public static function summary_rows(array $summary, array $newProspects = []): array
     {
         $rows = [];
         foreach ($summary as $s) {
-            $row = [$s['sales'], $s['total']];
+            $row = [$s['sales'], $s['total'], $s['baru'] ?? 0];
             foreach ([...array_keys(self::OUTCOMES), self::UNKNOWN] as $o) {
                 $row[] = $s['counts'][$o];
                 $row[] = $s['total'] ? round(100 * $s['counts'][$o] / $s['total'], 1) : 0;
             }
             $row[] = $s['new'];
+            $row[] = (int) ($newProspects[$s['eid']] ?? 0);
             $rows[] = $row;
         }
         return $rows;
@@ -338,12 +341,13 @@ final class Visits
 
     public static function summary_headers(): array
     {
-        $h = ['Sales', 'Kunjungan'];
+        $h = ['Sales', 'Kunjungan', 'Baru'];
         foreach ([...array_values(self::OUTCOMES), self::outcome_label(self::UNKNOWN)] as $label) {
             $h[] = $label;
             $h[] = $label . ' %';
         }
         $h[] = 'Pelanggan Baru';
+        $h[] = 'Calon Baru';
         return $h;
     }
 

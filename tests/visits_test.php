@@ -207,7 +207,9 @@ if (function_exists('exec') && is_file($harness)) {
     ok('export: a prospect row carries the list data, PIC, result, date', ($abadiRow[1] ?? '') === 'Toko Aluminium & Kaca' && ($abadiRow[12] ?? '') === 'Ridwan Saputra'
         && ($abadiRow[13] ?? '') === 'Berminat' && ($abadiRow[14] ?? '') === Hr::dmy($T) && (float) ($abadiRow[10] ?? 0) === -6.1376);
     $ridSum = current(array_filter($sum, fn($r) => ($r[0] ?? '') === 'Ridwan Saputra')) ?: [];
-    ok('export: summary sheet, visits and new customers', ($sum[0][0] ?? '') === 'Sales' && (int) ($ridSum[1] ?? 0) >= 5 && (int) end($ridSum) >= 1);
+    $col = array_flip($sum[0] ?? []);
+    ok('export: summary sheet, visits, Baru, new customers, new prospects', ($sum[0] ?? []) === Visits::summary_headers() && (int) ($ridSum[$col['Kunjungan']] ?? 0) >= 5
+        && (int) ($ridSum[$col['Pelanggan Baru']] ?? 0) >= 1 && isset($col['Baru'], $col['Calon Baru']));
 
     // ── assignment ──
     [, $fl] = $run('assign', $ridwan, [], ['ids' => [$mitra], 'employee_id' => $ridwan['employee_id']]);

@@ -1,11 +1,17 @@
 <?php /** @var bool $canRecord */
-// Management sub-navigation: list / weekly report / map / prospects.
+// Management sub-navigation (HR-04): day / week / queue / customers / competitors / map / prospects; import for the assistant.
 $r = (string) ($_GET['r'] ?? '');
+$all = Visits::sees_all();
+$imp = !empty($canImport);
+$boss = isset($auth) && $auth->isAdmin();
+$tab = fn(string $route, string $label) => '<a class="filter-btn ' . ($r === $route ? 'active' : '') . '" href="' . url($route) . '">' . t($label) . '</a>';
 ?>
 <nav class="task-filters">
-    <a class="filter-btn <?= $r === 'visits.list' ? 'active' : '' ?>" href="<?= url('visits.list') ?>"><?= t('vis_list') ?></a>
-    <a class="filter-btn <?= $r === 'visits.report' ? 'active' : '' ?>" href="<?= url('visits.report') ?>"><?= t('vis_report') ?></a>
-    <a class="filter-btn <?= $r === 'visits.map' ? 'active' : '' ?>" href="<?= url('visits.map') ?>"><?= t('vis_map') ?></a>
-    <a class="filter-btn <?= $r === 'visits.prospects' ? 'active' : '' ?>" href="<?= url('visits.prospects') ?>"><?= t('vis_prospects') ?></a>
+    <?php if ($all): ?>
+        <?= $tab('visits.day', 'vis_day') ?><?= $tab('visits.report', 'vis_report') ?><?= $tab('visits.queue', 'vis_queue') ?><?= $tab('visits.list', 'vis_list') ?>
+        <?= $tab('visits.customers', 'vis_customers') ?><?= $tab('visits.competitors', 'vis_competitors') ?><?= $tab('visits.map', 'vis_map') ?><?= $tab('visits.prospects', 'vis_prospects') ?>
+        <?php if ($boss): ?><?= $tab('visits.quality', 'vis_quality') ?><?php endif; ?>
+    <?php endif; ?>
+    <?php if ($imp): ?><?= $tab('visits.import', 'vis_import') ?><?= $tab('visits.senders', 'vis_senders') ?><?php endif; ?>
     <?php if (!empty($canRecord)): ?><a class="filter-btn" href="<?= url('visits.index') ?>"><?= t('vis_mine') ?></a><?php endif; ?>
 </nav>

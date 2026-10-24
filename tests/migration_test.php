@@ -58,10 +58,10 @@ foreach (['delivery_lat', 'delivery_lng', 'delivery_region', 'geo_source'] as $c
     $pdo->exec("ALTER TABLE orders DROP COLUMN {$col}");
 }
 // before 人力 (HR-00/01): no employee tables, no users.employee_id / users.active.
-foreach (['idx_hr_todos_open', 'idx_emp_changes', 'idx_emp_attach', 'idx_contracts_emp', 'idx_contracts_end', 'idx_bpjs_deps'] as $ix) {
+foreach (['idx_hr_todos_open', 'idx_emp_changes', 'idx_emp_attach', 'idx_contracts_emp', 'idx_contracts_end', 'idx_bpjs_deps', 'idx_visits_emp', 'idx_visits_day', 'idx_visits_prospect', 'idx_prospects_assigned', 'idx_visits_match', 'idx_visits_sender', 'idx_digests_week'] as $ix) {
     $pdo->exec("DROP INDEX IF EXISTS {$ix}");
 }
-foreach (['bpjs_monthly', 'bpjs_rates', 'bpjs_ketenagakerjaan', 'bpjs_kesehatan_dependents', 'bpjs_kesehatan', 'employment_contracts', 'hr_todos', 'employee_changes', 'employee_attachments', 'employees'] as $tbl) {
+foreach (['visit_digests', 'wa_imports', 'customer_name_aliases', 'employee_wa_ids', 'visits', 'prospects', 'bpjs_monthly', 'bpjs_rates', 'bpjs_ketenagakerjaan', 'bpjs_kesehatan_dependents', 'bpjs_kesehatan', 'employment_contracts', 'hr_todos', 'employee_changes', 'employee_attachments', 'employees'] as $tbl) {
     $pdo->exec("DROP TABLE IF EXISTS {$tbl}");
 }
 $pdo->exec('ALTER TABLE users DROP COLUMN employee_id');
@@ -154,6 +154,9 @@ ok('existing customer untouched, industry/region left for the enrichment job', $
 // 人力: tables + columns added; every CRM account except admin gets a record, logins unaffected.
 ok('HR tables created (incl. HR-02 contracts, HR-03 BPJS)', $has('employees') && $has('employee_attachments') && $has('employee_changes') && $has('hr_todos') && $has('employment_contracts')
     && $has('bpjs_kesehatan') && $has('bpjs_kesehatan_dependents') && $has('bpjs_ketenagakerjaan') && $has('bpjs_rates') && $has('bpjs_monthly'));
+ok('HR-04 tables created (visits, prospects, WhatsApp import)', $has('visits') && $has('prospects') && $has('employee_wa_ids') && $has('customer_name_aliases') && $has('wa_imports') && $has('visit_digests'));
+ok('HR-04: sales staff in visit mode, visits permissions granted', $pdo->query("SELECT attendance_mode FROM employees e JOIN users u ON u.employee_id = e.id WHERE u.name = 'Rina'")->fetchColumn() === 'visit'
+    && $pdo->query("SELECT GROUP_CONCAT(module) FROM (SELECT module FROM role_permissions WHERE role = 'manager' AND module LIKE 'visits%' ORDER BY module)")->fetchColumn() === 'visits,visits_all,visits_import');
 $ucolsHr = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
 ok('users gains employee_id + active', in_array('employee_id', $ucolsHr, true) && in_array('active', $ucolsHr, true));
 $links = $pdo->query('SELECT u.name, u.active, e.department FROM users u LEFT JOIN employees e ON e.id = u.employee_id ORDER BY u.id')->fetchAll();

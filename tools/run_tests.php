@@ -37,6 +37,8 @@ require __DIR__ . '/../app/Hr.php';
 require __DIR__ . '/../app/HrContract.php';
 require __DIR__ . '/../app/HrBpjs.php';
 require __DIR__ . '/../app/Visits.php';
+require __DIR__ . '/../app/WaChat.php';
+require __DIR__ . '/../app/VisitImport.php';
 require __DIR__ . '/../app/SalesHistory.php';
 require __DIR__ . '/../app/CoNumbers.php';
 require __DIR__ . '/../app/OrderParse.php';

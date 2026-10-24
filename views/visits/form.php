@@ -13,14 +13,17 @@ $date = $isNew ? (string) ($old['visit_date'] ?? $today) : substr((string) $v['v
 </div>
 <form method="post" action="<?= url($isNew ? 'visits.store' : 'visits.update') ?>" enctype="multipart/form-data" id="vf" class="vis-form">
     <?= Csrf::field() ?>
-    <?php if ($isNew): ?>
-        <input type="hidden" name="target_type" id="vf-type" value="<?= e($val('target_type')) ?>">
-        <input type="hidden" name="target_id" id="vf-id" value="<?= e($val('target_id')) ?>">
+    <?php $repick = !$isNew && ($v['source'] ?? '') === 'wa_import'; ?>
+    <?php if ($repick): ?><input type="hidden" name="id" value="<?= (int) $v['id'] ?>"><?php endif; ?>
+    <?php if ($isNew || $repick): ?>
+        <input type="hidden" name="target_type" id="vf-type" value="<?= e($isNew ? $val('target_type') : (in_array($v['target_type'], ['customer', 'prospect'], true) ? $v['target_type'] : '')) ?>">
+        <input type="hidden" name="target_id" id="vf-id" value="<?= e($isNew ? $val('target_id') : (string) ($v['customer_id'] ?: $v['prospect_id'])) ?>">
         <input type="hidden" name="lat" id="vf-lat"><input type="hidden" name="lng" id="vf-lng"><input type="hidden" name="accuracy" id="vf-acc">
         <label class="form-label" for="vf-q"><?= t('vis_who') ?></label>
         <div class="vis-chosen" id="vf-chosen" hidden><span id="vf-chosen-name"></span> <button type="button" class="btn btn-ghost btn-sm" id="vf-clear">×</button></div>
-        <input class="form-input vis-q" name="q" id="vf-q" value="<?= e($val('q')) ?>" autocomplete="off" placeholder="<?= t('vis_who_ph') ?>">
+        <input class="form-input vis-q" name="q" id="vf-q" value="<?= e($isNew ? $val('q') : Visits::target_name($v)) ?>" autocomplete="off" placeholder="<?= t('vis_who_ph') ?>">
         <div class="vis-results" id="vf-results"></div>
+        <?php if ($repick): ?><p class="muted small"><?= t('vis_store_written') ?>: <?= e((string) $v['store_name_raw']) ?> · <?= t('vis_repick_hint') ?></p><?php endif; ?>
     <?php else: ?>
         <input type="hidden" name="id" value="<?= (int) $v['id'] ?>">
         <div class="form-label"><?= t('vis_who') ?></div>
