@@ -22,6 +22,8 @@ final class Hr
     public const RELIGIONS = ['Islam', 'Kristen Protestan', 'Katolik', 'Hindu', 'Buddha', 'Konghucu'];
     public const MARITAL = ['belum_kawin', 'kawin', 'cerai_hidup', 'cerai_mati'];
     public const PTKP = ['TK/0', 'TK/1', 'TK/2', 'TK/3', 'K/0', 'K/1', 'K/2', 'K/3'];
+    /** HR-04: visit = records visits on the phone (sales default); office = 打卡 (not built). */
+    public const ATTENDANCE_MODES = ['visit', 'office'];
     public const DOC_TYPES = ['ktp', 'npwp', 'kk', 'ijazah', 'foto', 'lainnya', 'bpjs_kes', 'bpjs_tk'];
     public const CHANGE_TYPES = ['position', 'salary', 'location', 'supervisor', 'status'];
     /**
@@ -41,7 +43,7 @@ final class Hr
         'full_name', 'nik', 'npwp', 'birth_place', 'birth_date', 'gender', 'religion', 'marital_status',
         'ktp_address', 'current_address', 'phone', 'personal_email',
         'emergency_contact_name', 'emergency_contact_relation', 'emergency_contact_phone',
-        'bank_name', 'bank_account_no', 'bank_account_name', 'ptkp_status',
+        'bank_name', 'bank_account_no', 'bank_account_name', 'ptkp_status', 'attendance_mode',
     ];
     /** Job fields: every change needs an effective date and a note, and lands in employee_changes. */
     public const JOB_FIELDS = ['department', 'position', 'work_location', 'supervisor_id', 'employment_status', 'is_dept_head'];
@@ -298,11 +300,12 @@ final class Hr
         ];
         $n = 0;
         $users = $pdo->query("SELECT id, name, role FROM users WHERE role <> 'admin' AND employee_id IS NULL ORDER BY id")->fetchAll();
-        $ins = $pdo->prepare("INSERT INTO employees (employee_no, full_name, department, work_location, employment_status, created_by, updated_by)
-                              VALUES (?, ?, ?, 'Jakarta', 'active', 'system', 'system')");
+        $ins = $pdo->prepare("INSERT INTO employees (employee_no, full_name, department, work_location, employment_status, attendance_mode, created_by, updated_by)
+                              VALUES (?, ?, ?, 'Jakarta', 'active', ?, 'system', 'system')");
         $link = $pdo->prepare('UPDATE users SET employee_id = ? WHERE id = ?');
         foreach ($users as $u) {
-            $ins->execute([self::next_employee_no($pdo), (string) $u['name'], $deptByRole[(string) $u['role']] ?? null]);
+            $dept = $deptByRole[(string) $u['role']] ?? null;
+            $ins->execute([self::next_employee_no($pdo), (string) $u['name'], $dept, $dept === 'sales' ? 'visit' : null]);   // HR-04: sales record visits
             $link->execute([(int) $pdo->lastInsertId(), (int) $u['id']]);
             $n++;
         }
@@ -355,12 +358,15 @@ final class Hr
      * and move it into the employee's private dir under a random name.
      * @return array{error?:string, stored?:string, name?:string, mime?:string, size?:int}  error = i18n key
      */
-    public static function accept_upload(?array $file, int $empId): array
+    public static function accept_upload(?array $file, int $empId, ?string $dir = null, ?array $exts = null): array
     {
         if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
             return ['error' => 'hr_err_upload'];
         }
         $allowed = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png'];
+        if ($exts !== null) {   // e.g. visit photos: images only
+            $allowed = array_intersect_key($allowed, array_flip($exts));
+        }
         $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
         if ((int) $file['size'] <= 0 || (int) $file['size'] > 10 * 1024 * 1024) {
             return ['error' => 'hr_err_too_big'];
@@ -368,7 +374,7 @@ final class Hr
         if (!isset($allowed[$ext]) || self::sniff((string) $file['tmp_name']) !== $allowed[$ext]) {
             return ['error' => 'hr_err_type'];
         }
-        $dir = self::upload_dir($empId);
+        $dir ??= self::upload_dir($empId);
         if (!is_dir($dir)) {
             mkdir($dir, 0750, true);
         }
@@ -383,9 +389,9 @@ final class Hr
     }
 
     /** Stream a stored private file (after the caller's permission check). */
-    public static function send_file(int $empId, string $stored, ?string $mime, string $name): void
+    public static function send_file(int $empId, string $stored, ?string $mime, string $name, ?string $dir = null): void
     {
-        $path = self::upload_dir($empId) . '/' . basename($stored);
+        $path = ($dir ?? self::upload_dir($empId)) . '/' . basename($stored);
         if (!is_file($path)) {
             http_response_code(404);
             exit('Not found');

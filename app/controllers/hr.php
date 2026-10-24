@@ -331,7 +331,7 @@ switch ($action) {
                 $errors[] = t('hr_err_join_future');
             }
         }
-        foreach (['gender' => Hr::GENDERS, 'religion' => Hr::RELIGIONS, 'marital_status' => Hr::MARITAL, 'ptkp_status' => Hr::PTKP] as $k => $allowed) {
+        foreach (['gender' => Hr::GENDERS, 'religion' => Hr::RELIGIONS, 'marital_status' => Hr::MARITAL, 'ptkp_status' => Hr::PTKP, 'attendance_mode' => Hr::ATTENDANCE_MODES] as $k => $allowed) {
             if ($data[$k] !== null && !in_array($data[$k], $allowed, true)) {
                 $data[$k] = null;
             }
@@ -347,6 +347,9 @@ switch ($action) {
                 flash(t('hr_err_no_key'), 'error');
                 $_SESSION['hr_form_old'] = $_POST;
                 redirect('hr.create');
+            }
+            if ($data['attendance_mode'] === null && $job['department'] === 'sales') {
+                $data['attendance_mode'] = 'visit';   // HR-04: sales record visits by default
             }
             $no = Hr::next_employee_no($pdo);
             $cols = array_merge(['employee_no'], array_keys($data), array_keys($job), ['base_salary_enc', 'salary_effective_date', 'created_by', 'updated_by', 'updated_at']);

@@ -436,6 +436,35 @@ th.center, td.center { text-align: center; }
 .hr-subhead { margin: 18px 0 8px; font-size: 14px; }
 .inline-form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
 
+/* ─ 拜访 / Kunjungan (HR-04): thumb-sized on the phone ─ */
+.vis-big { display: block; width: 100%; text-align: center; padding: 14px; font-size: 16px; margin: 6px 0 14px; }
+.vis-form { max-width: 560px; }
+.vis-form .form-label { margin-top: 12px; }
+.vis-form textarea, .vis-tb .form-input { margin-top: 10px; }
+.vis-q { font-size: 16px; padding: 12px; }
+.vis-results { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; max-height: 320px; overflow-y: auto; }
+.vis-result { text-align: left; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card, transparent); color: inherit; font: inherit; cursor: pointer; }
+.vis-chosen { padding: 10px 12px; border: 1px solid var(--success); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+.vis-outcomes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.vis-outcome input { position: absolute; opacity: 0; pointer-events: none; }
+.vis-outcome span { display: block; text-align: center; padding: 16px 8px; border: 2px solid var(--border); border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.vis-outcome input:checked + span { border-color: var(--accent2); background: rgba(0,153,255,.10); }
+.vis-o-berminat input:checked + span { border-color: var(--success); background: rgba(0,200,150,.12); }
+.vis-o-tidak_butuh input:checked + span { border-color: var(--text3); background: rgba(139,149,168,.14); }
+.vis-o-tidak_terhubung input:checked + span { border-color: var(--accent3); background: rgba(255,107,53,.10); }
+.vis-more { margin-top: 10px; font-size: 13px; }
+.vis-more summary { cursor: pointer; color: var(--text3); }
+.vis-photo { display: block; margin-top: 4px; font-size: 13px; color: var(--text3); }
+.vis-photo input { display: block; margin-top: 6px; }
+.vis-card .card-body { padding: 12px 14px; }
+.vis-card-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.vis-cards { display: flex; flex-direction: column; gap: 8px; }
+.vis-far td { opacity: .55; }
+.vis-pt { stroke: #fff; stroke-width: 2; opacity: .9; }
+.vis-pt-far { opacity: .45; }
+.vis-c0 { fill: #2a78d6; background: #2a78d6; } .vis-c1 { fill: #e8590c; background: #e8590c; } .vis-c2 { fill: #2f9e44; background: #2f9e44; } .vis-c3 { fill: #9c36b5; background: #9c36b5; }
+.vis-c4 { fill: #e03131; background: #e03131; } .vis-c5 { fill: #0c8599; background: #0c8599; } .vis-c6 { fill: #c2a400; background: #c2a400; } .vis-c7 { fill: #5c5f66; background: #5c5f66; }
+
 /* ─ RESPONSIVE (mobile) ─ */
 .nav-toggle { display: none; background: none; border: none; font-size: 22px; line-height: 1; color: var(--text); cursor: pointer; padding: 0 2px; }
 .sidebar-backdrop { display: none; }

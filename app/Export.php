@@ -112,3 +112,63 @@ function xlsx_cell(int $col, int $row, $val): string
     $text = htmlspecialchars((string) $val, ENT_XML1 | ENT_QUOTES, 'UTF-8');
     return '<c r="' . $ref . '" t="inlineStr"><is><t xml:space="preserve">' . $text . '</t></is></c>';
 }
+
+/**
+ * Several sheets in one .xlsx (HR-04 weekly visit report: rows + summary).
+ * $sheets: list of [title, headers, rows]. CSV fallback keeps only the first.
+ */
+function send_workbook(string $baseName, array $sheets): void
+{
+    if (class_exists('ZipArchive')) {
+        $tmp = tempnam(sys_get_temp_dir(), 'xlsx');
+        $zip = new ZipArchive();
+        if ($tmp !== false && $zip->open($tmp, ZipArchive::OVERWRITE) === true) {
+            xlsx_build_book($zip, $sheets);
+            $zip->close();
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header('Content-Disposition: attachment; filename="' . $baseName . '.xlsx"');
+            header('Content-Length: ' . filesize($tmp));
+            header('Cache-Control: max-age=0');
+            readfile($tmp);
+            @unlink($tmp);
+            exit;
+        }
+    }
+    send_csv($baseName, $sheets[0][1], $sheets[0][2]);
+}
+
+function xlsx_build_book(ZipArchive $zip, array $sheets): void
+{
+    $types = '';
+    $entries = '';
+    $rels = '';
+    foreach (array_values($sheets) as $i => [$title, $headers, $rows]) {
+        $n = $i + 1;
+        $title = mb_substr(preg_replace('/[\\\\\\/\\?\\*\\[\\]:]/', ' ', (string) $title) ?? '', 0, 31) ?: "Sheet{$n}";
+        $types .= '<Override PartName="/xl/worksheets/sheet' . $n . '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+        $entries .= '<sheet name="' . htmlspecialchars($title, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '" sheetId="' . $n . '" r:id="rId' . $n . '"/>';
+        $rels .= '<Relationship Id="rId' . $n . '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' . $n . '.xml"/>';
+        $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+        foreach (array_merge([$headers], $rows) as $ri => $row) {
+            $xml .= '<row r="' . ($ri + 1) . '">';
+            $ci = 0;
+            foreach ($row as $val) {
+                $xml .= xlsx_cell($ci++, $ri + 1, $val);
+            }
+            $xml .= '</row>';
+        }
+        $zip->addFromString("xl/worksheets/sheet{$n}.xml", $xml . '</sheetData></worksheet>');
+    }
+    $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        . '<Default Extension="xml" ContentType="application/xml"/>'
+        . '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' . $types . '</Types>');
+    $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+    $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' . $entries . '</sheets></workbook>');
+    $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' . $rels . '</Relationships>');
+}

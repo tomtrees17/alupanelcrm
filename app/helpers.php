@@ -273,13 +273,13 @@ function role_label(string $r): string
 /** Modules whose access is route-guarded + configurable per role. */
 function controllable_modules(): array
 {
-    return ['customers', 'insights', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'hr', 'audit'];
+    return ['customers', 'insights', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'hr', 'visits', 'audit'];
 }
 
 /** Non-route view permissions (dashboard widgets, export, etc.), configurable per role. */
 function view_permissions(): array
 {
-    return ['performance', 'export', 'insights_all', 'hr_all', 'ai_usage'];   // 全员销售业绩 / 导出 Excel / 全部客户分析 / 人力档案看全部（不含薪资）/ AI 使用情况
+    return ['performance', 'export', 'insights_all', 'hr_all', 'ai_usage', 'visits_all'];   // 全员销售业绩 / 导出 Excel / 全部客户分析 / 人力档案看全部（不含薪资）/ AI 使用情况
 }
 
 /** All permission keys shown in the 权限设置 matrix. */
@@ -292,14 +292,14 @@ function permission_keys(): array
 function default_permissions(): array
 {
     return [
-        'manager'         => ['hr', 'hr_all', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'export'],
-        'finance_manager' => ['hr', 'customers', 'insights', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'ai_usage'],
-        'ops_supervisor'  => ['hr', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals', 'performance'],
-        'supervisor'      => ['hr', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
-        'sales'           => ['hr', 'customers', 'insights', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
-        'warehouse'       => ['hr', 'orders', 'inventory', 'approvals'],
-        'hr'              => ['hr', 'customers', 'insights', 'tasks', 'approvals'],
-        'clerk'           => ['hr', 'customers', 'insights', 'tasks', 'orders', 'approvals'],
+        'manager'         => ['hr', 'visits', 'visits_all', 'hr_all', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'export'],
+        'finance_manager' => ['hr', 'visits', 'customers', 'insights', 'finance', 'orders', 'inventory', 'approvals', 'performance', 'ai_usage'],
+        'ops_supervisor'  => ['hr', 'visits', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals', 'performance'],
+        'supervisor'      => ['hr', 'visits', 'customers', 'insights', 'insights_all', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
+        'sales'           => ['hr', 'visits', 'customers', 'insights', 'pipeline', 'tasks', 'orders', 'inventory', 'approvals'],
+        'warehouse'       => ['hr', 'visits', 'orders', 'inventory', 'approvals'],
+        'hr'              => ['hr', 'visits', 'customers', 'insights', 'tasks', 'approvals'],
+        'clerk'           => ['hr', 'visits', 'customers', 'insights', 'tasks', 'orders', 'approvals'],
         // admin is omitted on purpose → always full access.
     ];
 }
@@ -536,7 +536,7 @@ function delivery_services(): array
 /** Modules that can appear in the audit log (filter dropdown order). */
 function audit_modules(): array
 {
-    return ['orders', 'finance', 'bank', 'tax', 'inventory', 'customers', 'approvals', 'pipeline', 'tasks', 'hr', 'users', 'roles', 'account', 'auth'];
+    return ['orders', 'finance', 'bank', 'tax', 'inventory', 'customers', 'approvals', 'pipeline', 'tasks', 'hr', 'visits', 'users', 'roles', 'account', 'auth'];
 }
 
 /** Actions that can appear in the audit log (filter dropdown order). */

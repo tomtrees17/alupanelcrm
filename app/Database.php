@@ -401,6 +401,37 @@ final class Database
             salary_base_enc TEXT, company_amount_enc TEXT, employee_amount_enc TEXT, total_enc TEXT, breakdown_enc TEXT, rates_id INTEGER,
             generated_by TEXT, generated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), UNIQUE (period, run, employee_id, program))");
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_bpjs_deps ON bpjs_kesehatan_dependents(employee_id)');
+        // HR-04 拜访记录 (added 2026-10-24).
+        if (!in_array('attendance_mode', array_column($pdo->query('PRAGMA table_info(employees)')->fetchAll(), 'name'), true)) {
+            $pdo->exec('ALTER TABLE employees ADD COLUMN attendance_mode TEXT');
+        }
+        $pdo->exec("CREATE TABLE IF NOT EXISTS prospects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, category TEXT, region TEXT, priority REAL, phone TEXT, rating REAL, reviews INTEGER,
+            is_customer INTEGER NOT NULL DEFAULT 0, address TEXT, lat REAL, lng REAL, assigned_to INTEGER, assigned_at TEXT, assigned_by TEXT,
+            last_visit_at TEXT, last_outcome TEXT, visit_count INTEGER NOT NULL DEFAULT 0, source TEXT, source_key TEXT UNIQUE,
+            created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), updated_by TEXT, updated_at TEXT)");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS visits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, visit_no TEXT UNIQUE, employee_id INTEGER NOT NULL, visited_at TEXT NOT NULL,
+            target_type TEXT NOT NULL, customer_id INTEGER, prospect_id INTEGER, new_customer_name TEXT, outcome TEXT NOT NULL,
+            note TEXT, current_supplier TEXT, current_price TEXT, photo_path TEXT, photo_name TEXT, photo_mime TEXT,
+            lat REAL, lng REAL, accuracy REAL, distance_m INTEGER, distance_flag TEXT NOT NULL DEFAULT 'none', followup_id INTEGER,
+            created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), updated_by TEXT, updated_at TEXT)");
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_emp ON visits(employee_id, visited_at)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_day ON visits(visited_at)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_prospect ON visits(prospect_id)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_prospects_assigned ON prospects(assigned_to)');
+        // Once: sales staff record visits (card: 销售默认拜访); module for everyone (the page itself
+        // checks the employee's mode), 'visits_all' (see everyone's visits) for the general manager.
+        if (!$pdo->query("SELECT 1 FROM app_meta WHERE k = 'visits_v1'")->fetchColumn()) {
+            $pdo->exec("UPDATE employees SET attendance_mode = 'visit' WHERE department = 'sales' AND attendance_mode IS NULL");
+            foreach (all_roles() as $role) {
+                if ($role !== 'admin') {
+                    $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role, module) VALUES (?, 'visits')")->execute([$role]);
+                }
+            }
+            $pdo->exec("INSERT OR IGNORE INTO role_permissions (role, module) VALUES ('manager', 'visits_all')");
+            $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('visits_v1', '1')");
+        }
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_emp_attach ON employee_attachments(employee_id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_emp_changes ON employee_changes(employee_id, id)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_hr_todos_open ON hr_todos(status, due_date)');
@@ -767,7 +798,7 @@ final class Database
 
         self::seedPermissions($pdo);
         $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (k TEXT PRIMARY KEY, v TEXT)');
-        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1'), ('pwd_policy_v1', '1'), ('perm_approvals', '1'), ('perm_insights', '1'), ('perm_insights_v2', '1'), ('perm_hr_v1', '1'), ('perm_ai_usage_v1', '1')");
+        $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance', '1'), ('perm_roles_v2', '1'), ('perm_export', '1'), ('pwd_policy_v1', '1'), ('perm_approvals', '1'), ('perm_insights', '1'), ('perm_insights_v2', '1'), ('perm_hr_v1', '1'), ('perm_ai_usage_v1', '1'), ('visits_v1', '1')");
 
         $pdo->commit();
     }

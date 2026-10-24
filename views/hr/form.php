@@ -26,6 +26,11 @@ $req = fn(bool $r) => $r ? ' *' : '';
                 <select class="form-select" name="ptkp_status"><option value=""></option><?php foreach (Hr::PTKP as $p): ?><option value="<?= $p ?>" <?= $sel('ptkp_status', $p) ?>><?= $p ?></option><?php endforeach; ?></select></div>
         </div>
         <div class="form-row">
+            <div class="form-group"><label class="form-label"><?= t('hr_attendance_mode') ?></label>
+                <select class="form-select" name="attendance_mode"><option value=""><?= $isNew ? t('hr_attendance_auto') : '' ?></option><?php foreach (Hr::ATTENDANCE_MODES as $m): ?><option value="<?= $m ?>" <?= $sel('attendance_mode', $m) ?>><?= t('hrmode_' . $m) ?></option><?php endforeach; ?></select></div>
+            <div class="form-group"></div>
+        </div>
+        <div class="form-row">
             <div class="form-group"><label class="form-label"><?= t('hr_birth_place') ?></label><input class="form-input" name="birth_place" value="<?= $v('birth_place') ?>"></div>
             <div class="form-group"><label class="form-label"><?= t('hr_birth_date') ?></label><input class="form-input" type="date" name="birth_date" value="<?= $v('birth_date') ?>"></div>
         </div>

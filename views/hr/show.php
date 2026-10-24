@@ -63,6 +63,7 @@ $valueOf = function (?string $field, ?string $v) use ($salaryVisible): string {
         <div><dt><?= t('hr_emergency') ?></dt><dd><?= $dash(trim(implode(' · ', array_filter([$e['emergency_contact_name'], $e['emergency_contact_relation'], $e['emergency_contact_phone']])))) ?></dd></div>
         <div><dt><?= t('hr_bank') ?></dt><dd><?= $dash(trim(implode(' · ', array_filter([$e['bank_name'], $e['bank_account_no'], $e['bank_account_name']])))) ?></dd></div>
         <div><dt>PTKP</dt><dd><?= $dash($e['ptkp_status']) ?></dd></div>
+        <div><dt><?= t('hr_attendance_mode') ?></dt><dd><?= $e['attendance_mode'] ? t('hrmode_' . $e['attendance_mode']) : $dash(null) ?></dd></div>
     </dl>
 </div></div>
 

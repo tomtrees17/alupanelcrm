@@ -460,6 +460,7 @@ CREATE TABLE employees (
     work_location       TEXT,                        -- Jakarta|Surabaya|Bandung
     supervisor_id       INTEGER REFERENCES employees(id),
     is_dept_head        INTEGER NOT NULL DEFAULT 0,  -- 部门主管: reads own department (none today: flat team)
+    attendance_mode     TEXT,                        -- visit (拜访: records visits, sales default) | office (打卡, not built) — HR-04
     join_date           TEXT,
     employment_status   TEXT NOT NULL DEFAULT 'active', -- probation|active|resigned
     resign_date TEXT, resign_reason TEXT,
@@ -578,7 +579,49 @@ CREATE TABLE bpjs_monthly (
     generated_by TEXT, generated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     UNIQUE (period, run, employee_id, program)
 );
+-- HR-04 拜访记录 (visits replace the weekly Excel 回收表; prospects = the Daftar Calon Pelanggan list)
+CREATE TABLE prospects (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL,
+    category      TEXT,                          -- Kategori (Kontraktor / Advertising / Toko Aluminium & Kaca / Interior …)
+    region        TEXT,                          -- Wilayah as in the list
+    priority      REAL,                          -- Skor Prioritas
+    phone TEXT, rating REAL, reviews INTEGER,
+    is_customer   INTEGER NOT NULL DEFAULT 0,    -- Sudah Pelanggan = Ya: kept, never offered as a prospect
+    address TEXT, lat REAL, lng REAL,
+    assigned_to   INTEGER REFERENCES employees(id),
+    assigned_at TEXT, assigned_by TEXT,
+    last_visit_at TEXT, last_outcome TEXT,
+    visit_count   INTEGER NOT NULL DEFAULT 0,
+    source        TEXT,                          -- import file
+    source_key    TEXT UNIQUE,                   -- sha1(name | lat,lng): re-imports update, never duplicate
+    created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_by TEXT, updated_at TEXT
+);
+CREATE TABLE visits (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    visit_no          TEXT UNIQUE,               -- KV-YYMM-NNNN
+    employee_id       INTEGER NOT NULL REFERENCES employees(id),
+    visited_at        TEXT NOT NULL,             -- the visit day (back-fill ≤ 7 days) + saving time
+    target_type       TEXT NOT NULL,             -- customer|prospect|new
+    customer_id       INTEGER REFERENCES customers(id),
+    prospect_id       INTEGER REFERENCES prospects(id),
+    new_customer_name TEXT,
+    outcome           TEXT NOT NULL,             -- berminat|penawaran|tidak_butuh|tidak_terhubung
+    note TEXT, current_supplier TEXT, current_price TEXT,
+    photo_path TEXT, photo_name TEXT, photo_mime TEXT,  -- optional, data/visits/{employee_id}/
+    lat REAL, lng REAL, accuracy REAL,           -- only if the browser already allowed location
+    distance_m        INTEGER,
+    distance_flag     TEXT NOT NULL DEFAULT 'none',  -- ok|far|none
+    followup_id       INTEGER,                   -- the customer_followups row this visit wrote
+    created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_by TEXT, updated_at TEXT
+);
 CREATE INDEX idx_emp_attach ON employee_attachments(employee_id);
+CREATE INDEX idx_visits_emp ON visits(employee_id, visited_at);
+CREATE INDEX idx_visits_day ON visits(visited_at);
+CREATE INDEX idx_visits_prospect ON visits(prospect_id);
+CREATE INDEX idx_prospects_assigned ON prospects(assigned_to);
 CREATE INDEX idx_bpjs_deps ON bpjs_kesehatan_dependents(employee_id);
 CREATE INDEX idx_contracts_emp ON employment_contracts(employee_id, status);
 CREATE INDEX idx_contracts_end ON employment_contracts(status, end_date);

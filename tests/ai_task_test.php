@@ -301,7 +301,7 @@ $old = $newDb();
 $old->exec('DROP TABLE ai_suggestions');
 $old->exec('DROP TABLE ai_calls');
 $old->exec('CREATE TABLE IF NOT EXISTS app_meta (k TEXT PRIMARY KEY, v TEXT)');
-$old->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance','1'),('perm_roles_v2','1'),('perm_export','1'),('pwd_policy_v1','1'),('perm_approvals','1'),('perm_insights','1'),('perm_insights_v2','1'),('perm_hr_v1','1'),('hr_employees_v1','1')");
+$old->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('perm_performance','1'),('perm_roles_v2','1'),('perm_export','1'),('pwd_policy_v1','1'),('perm_approvals','1'),('perm_insights','1'),('perm_insights_v2','1'),('perm_hr_v1','1'),('hr_employees_v1','1'),('visits_v1','1')");
 $old->exec("INSERT INTO role_permissions (role, module) VALUES ('finance_manager', 'finance'), ('sales', 'orders')");
 $old->exec("INSERT INTO ai_queries (user_id, user_name, question, in_tokens, out_tokens) VALUES (3, 'Sales', 'stok 4.0', 100, 50)");
 $old->exec("INSERT INTO users (name, email, password_hash, role) VALUES ('Admin', 'admin@alupanel.local', 'x', 'admin')");
