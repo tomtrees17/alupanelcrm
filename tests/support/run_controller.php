@@ -82,6 +82,9 @@ register_shutdown_function(function (): void {
 $_SERVER['REMOTE_ADDR'] = '203.0.113.9';
 
 $config = (array) (require __DIR__ . '/../../config.php');
+// Tests never reach the real API: on the server config.php reads the live key
+// from .env, so the key is blanked here (in-process AI tests use Claude::$http).
+$config['ai']['key'] = '';
 $pdo = new PDO('sqlite:' . $dbFile, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
 $userArr = (array) json_decode($userJson, true);
 if (!empty($userArr['real'])) {
