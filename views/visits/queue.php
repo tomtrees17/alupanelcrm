@@ -1,4 +1,4 @@
-<?php /** @var array $pending */ /** @var array $guesses */ /** @var int $left */ /** @var bool $aiOn */ /** @var bool $canRecord */ /** @var bool $canImport */
+<?php /** @var array $pending */ /** @var array $guesses */ /** @var array $tags */ /** @var int $left */ /** @var bool $aiOn */ /** @var bool $canRecord */ /** @var bool $canImport */
 include __DIR__ . '/_helpers.php';
 ?>
 <div class="page-head"><h1><?= t('vis_queue') ?></h1></div>
@@ -40,6 +40,24 @@ include __DIR__ . '/_helpers.php';
     </table></div>
     <p class="card-body muted small"><?= t('vis_queue_hint') ?></p>
 </div>
+
+<?php if ($tags): ?>
+<div class="card">
+    <div class="card-header"><span class="card-title"><?= t('vis_queue_tags') ?></span><span class="muted small"><?= count($tags) ?></span></div>
+    <div class="table-wrap"><table>
+        <tbody>
+        <?php foreach ($tags as $tg => $n): ?>
+            <tr><td><code>#<?= e($tg) ?></code> <span class="muted small">×<?= (int) $n ?></span></td>
+                <td class="right"><form method="post" action="<?= url('visits.tag') ?>" class="inline-form">
+                    <?= Csrf::field() ?><input type="hidden" name="tag" value="<?= e($tg) ?>">
+                    <button class="btn btn-primary btn-sm" type="submit" name="kind" value="brand"><?= t('vis_tag_is_brand') ?></button>
+                    <button class="btn btn-ghost btn-sm" type="submit" name="kind" value="ignore"><?= t('vis_tag_not_brand') ?></button>
+                </form></td></tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table></div>
+</div>
+<?php endif; ?>
 
 <div class="card">
     <div class="card-header"><span class="card-title"><?= t('vis_queue_outcome') ?></span><span class="muted small"><?= count($guesses) ?></span></div>

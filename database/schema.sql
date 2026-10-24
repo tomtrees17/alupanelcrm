@@ -631,7 +631,9 @@ CREATE TABLE visits (
     late_flag         INTEGER NOT NULL DEFAULT 0,  -- 补发 (watermark > 2 h before the message, or a date line)
     photo_is_store    TEXT,                      -- yes|no|unsure (watermark read)
     competitor_brand TEXT, competitor_price INTEGER,
-    format_ok         INTEGER NOT NULL DEFAULT 0,  -- the four-line report format
+    format_ok         INTEGER NOT NULL DEFAULT 0,  -- complete: tags #Lama/#Baru + a result (rule v2), or the shelved four-line format
+    has_tags          INTEGER NOT NULL DEFAULT 0,  -- any trailing tag (rule v2); quality only
+    unknown_tags      TEXT,                      -- JSON #words not known yet (maybe a brand) → supervisor
     template_text     INTEGER NOT NULL DEFAULT 0,  -- an old template sentence (quality only)
     match_status      TEXT,                      -- auto|pending|confirmed|new|manual (import); NULL = form
     match_score REAL, match_candidates TEXT,     -- JSON top candidates for the confirmation queue
@@ -656,6 +658,13 @@ CREATE TABLE customer_name_aliases (
     source       TEXT NOT NULL,                  -- confirm (supervisor) | manual
     confirmed_by TEXT,
     created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE visit_tags (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    tag_key    TEXT NOT NULL UNIQUE,             -- lower case, without #
+    label      TEXT NOT NULL,                    -- brand as shown
+    kind       TEXT NOT NULL,                    -- brand (joins the brand list) | ignore (not a brand)
+    created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE TABLE wa_imports (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,

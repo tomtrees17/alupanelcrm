@@ -469,6 +469,7 @@ switch ($action) {
                                  LEFT JOIN employees e ON e.id = v.employee_id LEFT JOIN customers c ON c.id = v.customer_id LEFT JOIN prospects p ON p.id = v.prospect_id
                                  WHERE v.outcome = 'unknown' AND v.ai_outcome_guess IS NOT NULL ORDER BY v.visited_at DESC LIMIT 200")->fetchAll();
         view('visits.queue', ['pageTitle' => t('vis_queue'), 'pageSub' => '', 'pending' => $pending, 'guesses' => $guesses, 'canRecord' => $canRecord, 'canImport' => $canImport,
+            'tags' => VisitImport::unknown_tags($pdo),
             'left' => count(VisitImport::todo($pdo, $config, 100000)), 'aiOn' => AiTask::enabled($config)]);
         break;
 
@@ -477,6 +478,17 @@ switch ($action) {
         $requireAll();
         $ok = VisitImport::confirm($pdo, (int) input('id', 0), (string) input('choice', ''), $operator);
         flash($ok ? t('hr_msg_saved') : t('vis_err_confirm'), $ok ? 'success' : 'error');
+        redirect('visits.queue');
+        break;
+
+    // An unknown #tag: a brand (joins the list) or not (规则-销售日报 v2).
+    case 'tag':
+        Csrf::verify();
+        $requireAll();
+        $tag = trim((string) input('tag', ''));
+        $kind = (string) input('kind', '');
+        $n = VisitImport::decide_tag($pdo, $tag, $kind, $operator);
+        flash(sprintf(t('vis_msg_tag_saved'), ltrim($tag, '#'), $n));
         redirect('visits.queue');
         break;
 

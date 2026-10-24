@@ -442,6 +442,7 @@ chown -R www:www data
 - **v3 主路径**：销售习惯不变，销售助理每天把当天群聊（WhatsApp 网页版导出工具，按日期、含媒体，格式同 iPhone）上传；也可传 txt 后再传含媒体 zip，按「发送者 + 时间 + 说明文字」哈希去重，含媒体时只补图。导入结果只显示新增 / 补图 / 未识别发送者。
 - 解析：一次拜访 = 带说明文字的照片，同发送者同一分钟的无字照片并入；照片与文字分两条发（2 分钟内）合并。四行格式规则解析（含首行日期 = 补发）；自由文本规则取店名（首行 / "Visit X" 下一行）、店类型、PIC、竞品品牌（config `visits.competitor_brands`）与价格，再跑 `visit_parse`（便宜档）补全并给 `outcome_guess`（主管一键采纳，结果仍是 unknown 直到采纳）。
 - 店名匹配：别名表 `customer_name_aliases` 直接命中 → 客户名 / 公司名 / 潜客名 / 银行付款人名相似度；唯一 ≥ 0.95 自动挂，≥ 0.60 进「待确认」（AI 开启时 `visit_match` 给建议），无候选 = 新店进潜客池（`prospects.source = visit`，带店类型）。主管一键确认后写别名，同名的其它待确认一起归位，下次自动命中。
+- **规则-销售日报 v2（标签版，2026-10-24）**：解析顺序 = 末尾标签（`VisitImport::tags()`：#Lama/#Baru、#Minat/#Penawaran/#Order/#Tidak/#Tutup、#品牌，大小写不敏感；最后一行不带 # 时只在每个词都是状态 / 结果 / 竞品品牌时才算标签）→ 首行店名 → 品牌正则 → 仍缺**结果或店名**才调 `visit_parse`，AI 只填空缺，标签优先。`visits.has_tags`（质量页「有标签」）、`format_ok` = 标签齐（Lama/Baru + 结果）或旧四行格式。未知 #标签存 `visits.unknown_tags`，在「待确认」列出，主管点「是品牌 / 不是品牌」写入 `visit_tags`，品牌表 = config + visit_tags，确认后补到已导入的记录。没标签时 AI 猜的结果仍须主管采纳。
 - 照片：存 `data/visits/{yyyymm}/`，原 zip 不保留（解压到临时目录，导入后删）。`visit_photo_read` 读水印（时间、地址行、是否店面）→ 地址走现有 Geocoding → 坐标与距离；水印比发送时间早 > 2 小时 = 补发，以水印时间为准。
 - 发送者 ↔ 员工：`employee_wa_ids`（手机号按数字归一，名字折叠大小写）；未映射的消息先存（employee_id 空），映射后自动补上。导入与映射权限 `visits_import`（默认只给 manager；销售助理的角色需在「权限设置」勾上），映射 HR 也能做。
 - 输出：日视图（每人 Lama/Baru、结果分布、地图；店名缺 / 非店面 / 待确认淡色）、周报（+ AI 周评按钮，`visit_weekly_digest` 中印双语，存 `visit_digests`）、待确认、客户维度（历史、本月 ≥3 次、A 类 ≥60 天无人拜访）、竞品板（默认只看 Tidak Butuh）、质量（只给老板：模板话、无结果、非店面、补发、四行格式占比）、地图、潜客分配。手机表单降为「补录 / Tambah manual」；销售可在 24 小时内改导入记录的结果、备注和被对上的客户。

@@ -14,6 +14,19 @@ $vcfg = VisitImport::cfg($cfgFull);
 $savedPhotoRoot = Visits::$photoRoot;
 Visits::$photoRoot = sys_get_temp_dir() . '/vi-photos-' . bin2hex(random_bytes(4));   // never data/ on the server
 
+// ── upgrade: the visits table deployed before rule v2 gains the tag columns ──
+$up = new PDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+$up->exec((string) @file_get_contents(__DIR__ . '/../database/schema.sql'));
+$up->exec('ALTER TABLE visits DROP COLUMN has_tags');
+$up->exec('ALTER TABLE visits DROP COLUMN unknown_tags');
+$up->exec('DROP TABLE visit_tags');
+$up->exec("INSERT INTO users (name, email, password_hash, role) VALUES ('Admin', 'admin@alupanel.local', 'x', 'admin')");
+Database::migrate($up);
+$vc = array_column($up->query('PRAGMA table_info(visits)')->fetchAll(), 'name');
+ok('upgrade: visits gains has_tags / unknown_tags, visit_tags created', in_array('has_tags', $vc, true) && in_array('unknown_tags', $vc, true)
+    && (bool) $up->query("SELECT 1 FROM sqlite_master WHERE name = 'visit_tags'")->fetchColumn());
+$up = null;
+
 // ── reading the export ──
 $m = WaChat::messages($ios);
 ok('iPhone export: every message read (57)', count($m) === 57, (string) count($m));
@@ -50,6 +63,18 @@ ok('"Visit Advertising" heading: the store is the next line; 3mm is not a price'
 ok('"- Mitra Laser" bullet stripped; our own brand is never a competitor', VisitImport::parse_report("- Mitra Laser \n- Menawarkan ACP alusignpanel", '2026-10-20 14:34:37', $vcfg)['store'] === 'Mitra Laser'
     && VisitImport::brands('pakai Alusign dan Tajima', $vcfg) === ['Tajima']);
 ok('prices: Rp 175.000, 1,2jt', VisitImport::price_near('Alcopan Rp 175.000 per lembar', 'Alcopan') === 175000 && VisitImport::price_near('Marks 1,2jt', 'Marks') === 1200000);
+// rule v2: free text + trailing tags
+$tagged = VisitImport::parse_report("Anugrah Aluminium\nWorkshop\nPic : Bpk Riswanto\nPenawaran Alusign, rencana ada kebutuhan di serat kayu, sdh berikan katalog dan sample\n#Baru #Minat #Marks", '2026-10-24 10:00:00', $vcfg);
+ok('tags: store from the first line, type, PIC, #Baru #Minat #Marks, complete', $tagged['store'] === 'Anugrah Aluminium' && $tagged['type'] === 'Workshop' && $tagged['pic'] === 'Riswanto'
+    && $tagged['status'] === 'baru' && $tagged['outcome'] === 'berminat' && $tagged['brand'] === 'Marks' && $tagged['has_tags'] === 1 && $tagged['format_ok'] === 1 && !str_contains($tagged['note'], '#'));
+ok('tags win over what the text seems to say', VisitImport::parse_report("Sumber Kaca\nbelum ada kebutuhan\n#Lama #Order", '2026-10-24 10:00:00', $vcfg)['outcome'] === 'order');
+ok('tags are case-insensitive; # may be left out on the last line', VisitImport::parse_report("Sumber Kaca\nngobrol\n#lama #TIDAK", '2026-10-24 10:00:00', $vcfg)['outcome'] === 'tidak_butuh'
+    && VisitImport::parse_report("Sumber Kaca\nngobrol\nBaru Minat Seven", '2026-10-24 10:00:00', $vcfg)['status'] === 'baru');
+$sent = VisitImport::parse_report("Abadi Glass\nToko\nPenawaran Alusign", '2026-10-24 10:00:00', $vcfg);
+ok('…but a last line that is a sentence ("Penawaran Alusign") is not tags', $sent['outcome'] === Visits::UNKNOWN && $sent['has_tags'] === 0);
+$unk = VisitImport::parse_report("Sumber Kaca\nngobrol\n#Baru #Tidak #Hylite", '2026-10-24 10:00:00', $vcfg);
+ok('an unknown #tag is kept for the supervisor, not taken as a brand', $unk['unknown_tags'] === ['Hylite'] && $unk['brand'] === null);
+ok('brand tag + price in the text', VisitImport::parse_report("Sumber Kaca\npakai Seven 185rb\n#Lama #Tidak #Seven", '2026-10-24 10:00:00', $vcfg)['price'] === 185000);
 ok('names compare without PT / Toko / punctuation', VisitImport::name_key('PT. Abadi Glass') === 'abadi glass' && VisitImport::similarity('Toko Abadi Glass', 'ABADI GLASS') === 1.0
     && VisitImport::similarity('Abadi Glass', 'Abadi Glass Bekasi') >= 0.9 && VisitImport::similarity('Nusa Alumunium', 'Nusa Aluminium') < 0.95);
 
@@ -63,7 +88,9 @@ $extra = "[10/25/26, 8:01:00 AM] Budi Santoso: <attached: 00000047-PHOTO-2026-10
        . "[10/25/26, 10:15:00 AM] +62 811-0000-0001: <attached: 00000051-PHOTO-2026-10-25-10-15-00.jpg> Toko: Mitra Laser\nStatus: Lama\nHasil: Tidak\nCatatan: pakai Toin 165rb\n"
        . "[10/25/26, 11:00:00 AM] Budi Santoso: <attached: 00000052-PHOTO-2026-10-25-11-00-00.jpg> 23/10\nToko: Toko Kaca Abadi Jaya\nStatus: Baru\nHasil: Minat\n"
        . "[10/25/26, 11:30:00 AM] Rina Marlina: <attached: 00000053-PHOTO-2026-10-25-11-30-00.jpg>\n"
-       . "[10/25/26, 11:30:40 AM] Rina Marlina: Toko Mulia Kaca\nToko\nBiasa pakai ACP Toin, untuk sementara belum ada kebutuhan\n";
+       . "[10/25/26, 11:30:40 AM] Rina Marlina: Toko Mulia Kaca\nToko\nBiasa pakai ACP Toin, untuk sementara belum ada kebutuhan\n"
+       . "[10/25/26, 12:00:00 PM] +62 812-0000-0002: <attached: 00000054-PHOTO-2026-10-25-12-00-00.jpg> Anugrah Aluminium\nWorkshop\nPic : Bpk Riswanto\nPenawaran Alusign, rencana ada kebutuhan di serat kayu\n#Baru #Minat #Marks\n"
+       . "[10/25/26, 12:30:00 PM] Budi Santoso: <attached: 00000055-PHOTO-2026-10-25-12-30-00.jpg> Sumber Kaca\nToko\nbelum ada kebutuhan, pakai ACP lain\n#lama #TIDAK #Hylite\n";
 $full = rtrim($ios) . "\n" . $extra;
 $names = [];
 foreach (WaChat::messages($full) as $msg) {
@@ -171,7 +198,20 @@ $byStore = function (string $store, string $ts = '') use ($pdo): array {
     $st->execute($ts !== '' ? [$store, $ts] : [$store]);
     return $st->fetchAll();
 };
-ok('AI read the free text only (four-line reports need no model)', $calls['parse'] === count($fv['visits']) - $fourCount && (int) $pdo->query('SELECT COUNT(*) FROM visits WHERE format_ok = 1 AND ai_parse_status IS NOT NULL')->fetchColumn() === 0);
+$gaps = count(array_filter($fv['visits'], function ($v) use ($vcfg) {
+    $r = VisitImport::parse_report($v['caption'], $v['ts'], $vcfg);
+    return $r['outcome'] === Visits::UNKNOWN || $r['store'] === '';
+}));
+ok('AI only where tags / first line / brand regex left the result or the store missing', $calls['parse'] === $gaps && $gaps < count($fv['visits'])
+    && (int) $pdo->query("SELECT COUNT(*) FROM visits WHERE outcome <> 'unknown' AND ai_parse_status IS NOT NULL")->fetchColumn() === 0, "{$calls['parse']} / {$gaps}");
+$an = $byStore('Anugrah Aluminium')[0] ?? [];
+ok('a tagged report: Baru, Minat, Marks straight from the tags, no AI', ($an['status_lama_baru'] ?? '') === 'baru' && $an['outcome'] === 'berminat' && $an['competitor_brand'] === 'Marks'
+    && (int) $an['has_tags'] === 1 && $an['ai_parse_status'] === null);
+ok('unknown tag waits for the supervisor', VisitImport::unknown_tags($pdo) === ['Hylite' => 1]);
+ok('supervisor: #Hylite is a brand → the visit gets it, the tag leaves the list', VisitImport::decide_tag($pdo, 'Hylite', 'brand', 'tania') === 1
+    && ($byStore('Sumber Kaca')[0]['competitor_brand'] ?? '') === 'Hylite' && VisitImport::unknown_tags($pdo) === []);
+VisitImport::import($pdo, $cfg, "[10/28/26, 9:00:00 AM] Budi Santoso: <attached: 00000062-PHOTO.jpg> Toko Berlian\nngobrol\n#Baru #Tidak #hylite\n", [], 'n3.txt', 'assistant');
+ok('…and is read as a brand from then on', $pdo->query("SELECT competitor_brand FROM visits WHERE wa_message_ts = '2026-10-28 09:00:00'")->fetchColumn() === 'Hylite');
 
 // matching: exact, alias, similar, none
 $ab = $byStore('Abadi Glass');
@@ -233,7 +273,8 @@ ok('competitor board: brands × area, prices from the notes', in_array('Seven', 
     && in_array(165000, array_map('intval', array_column(VisitImport::competitors($pdo, '2026-10-01', '2026-10-31', true), 'min_price')), true));
 $q = VisitImport::quality($pdo, '2026-10-19', '2026-10-27');
 $tpl = array_sum(array_column($q, 'template'));
-ok('quality: template sentences, no result, photos read, late', $tpl >= 10 && array_sum(array_column($q, 'late')) >= 2 && array_sum(array_column($q, 'photo_read')) > 0);
+ok('quality: template sentences, no result, photos read, late, tagged', $tpl >= 10 && array_sum(array_column($q, 'late')) >= 2 && array_sum(array_column($q, 'photo_read')) > 0
+    && array_sum(array_column($q, 'tagged')) >= 2);
 $r = VisitImport::digest($pdo, $cfg, '2026-W43', 'tania');
 ok('AI weekly digest: Chinese + Indonesian saved for the week', $r['status'] === 'ok' && $pdo->query("SELECT text_id FROM visit_digests WHERE week = '2026-W43'")->fetchColumn() === 'Minggu ini kunjungan terpusat di Jakarta Utara.');
 $facts = VisitImport::week_facts($pdo, '2026-10-19', '2026-10-25');

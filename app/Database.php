@@ -418,10 +418,20 @@ final class Database
             source TEXT NOT NULL DEFAULT 'manual', wa_sender TEXT, wa_message_ts TEXT, wa_hash TEXT UNIQUE, wa_import_id INTEGER, caption TEXT,
             store_name_raw TEXT, store_type TEXT, pic_name TEXT, needs TEXT, status_lama_baru TEXT, system_lama_baru TEXT,
             address_text TEXT, watermark_at TEXT, late_flag INTEGER NOT NULL DEFAULT 0, photo_is_store TEXT,
-            competitor_brand TEXT, competitor_price INTEGER, format_ok INTEGER NOT NULL DEFAULT 0, template_text INTEGER NOT NULL DEFAULT 0,
+            competitor_brand TEXT, competitor_price INTEGER, format_ok INTEGER NOT NULL DEFAULT 0, has_tags INTEGER NOT NULL DEFAULT 0, unknown_tags TEXT, template_text INTEGER NOT NULL DEFAULT 0,
             match_status TEXT, match_score REAL, match_candidates TEXT,
             ai_parse TEXT, ai_outcome_guess TEXT, ai_photo TEXT, ai_match TEXT, ai_parse_status TEXT, ai_photo_status TEXT, ai_match_status TEXT,
             created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), updated_by TEXT, updated_at TEXT)");
+        $vcols = array_column($pdo->query('PRAGMA table_info(visits)')->fetchAll(), 'name');   // rule v2 tags (added 2026-10-24, after the first deploy)
+        if (!in_array('has_tags', $vcols, true)) {
+            $pdo->exec('ALTER TABLE visits ADD COLUMN has_tags INTEGER NOT NULL DEFAULT 0');
+        }
+        if (!in_array('unknown_tags', $vcols, true)) {
+            $pdo->exec('ALTER TABLE visits ADD COLUMN unknown_tags TEXT');
+        }
+        $pdo->exec("CREATE TABLE IF NOT EXISTS visit_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, tag_key TEXT NOT NULL UNIQUE, label TEXT NOT NULL, kind TEXT NOT NULL,
+            created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))");
         if (!in_array('store_type', array_column($pdo->query('PRAGMA table_info(prospects)')->fetchAll(), 'name'), true)) {
             $pdo->exec('ALTER TABLE prospects ADD COLUMN store_type TEXT');
         }

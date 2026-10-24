@@ -34,8 +34,57 @@ final class VisitImport
         return ((array) ($config['visits'] ?? [])) + [
             'competitor_brands' => ['Seven', 'Marks', 'Tajima', 'Alcopan', 'Toin'], 'own_brands' => ['Alusign', 'Alusignpanel', 'Alupanel'],
             'store_types' => ['Toko', 'Workshop', 'Advertising', 'Distributor', 'Aplikator', 'Kontraktor', 'Interior'],
-            'template_patterns' => [], 'match_auto' => 0.95, 'match_min' => 0.60, 'late_hours' => 2, 'ai_per_run' => 15,
+            'template_patterns' => [], 'match_auto' => 0.95, 'match_min' => 0.60, 'late_hours' => 2, 'ai_per_run' => 15, 'ignored_tags' => [],
         ];
+    }
+
+    /** Config plus the brands / non-brand tags supervisors confirmed (visit_tags). */
+    public static function cfg_db(PDO $pdo, array $config): array
+    {
+        $cfg = self::cfg($config);
+        foreach ($pdo->query('SELECT label, kind FROM visit_tags') as $t) {
+            $cfg[$t['kind'] === 'brand' ? 'competitor_brands' : 'ignored_tags'][] = (string) $t['label'];
+        }
+        return $cfg;
+    }
+
+    /** Unknown #tags waiting for the supervisor (maybe new brands), most used first. @return array<string,int> */
+    public static function unknown_tags(PDO $pdo): array
+    {
+        $known = array_map('mb_strtolower', $pdo->query('SELECT label FROM visit_tags')->fetchAll(PDO::FETCH_COLUMN));
+        $n = [];
+        foreach ($pdo->query("SELECT unknown_tags FROM visits WHERE unknown_tags IS NOT NULL AND unknown_tags <> '[]'")->fetchAll(PDO::FETCH_COLUMN) as $j) {
+            foreach ((array) json_decode((string) $j, true) as $t) {
+                if (!in_array(mb_strtolower((string) $t), $known, true)) {
+                    $n[(string) $t] = ($n[(string) $t] ?? 0) + 1;
+                }
+            }
+        }
+        arsort($n);
+        return $n;
+    }
+
+    /** Supervisor: an unknown tag is a brand (joins the brand list, fills visits that named no brand) or not. */
+    public static function decide_tag(PDO $pdo, string $tag, string $kind, string $by): int
+    {
+        $tag = trim(ltrim($tag, '#'));
+        if ($tag === '' || !in_array($kind, ['brand', 'ignore'], true)) {
+            return 0;
+        }
+        $label = $kind === 'brand' ? mb_convert_case($tag, MB_CASE_TITLE) : $tag;
+        $pdo->prepare('INSERT OR REPLACE INTO visit_tags (tag_key, label, kind, created_by) VALUES (?,?,?,?)')->execute([mb_strtolower($tag), $label, $kind, $by]);
+        $n = 0;
+        if ($kind === 'brand') {
+            $upd = $pdo->prepare('UPDATE visits SET competitor_brand = ?, current_supplier = COALESCE(current_supplier, ?) WHERE id = ? AND competitor_brand IS NULL');
+            foreach ($pdo->query("SELECT id, unknown_tags FROM visits WHERE unknown_tags LIKE " . $pdo->quote('%' . $tag . '%'))->fetchAll() as $v) {
+                if (in_array(mb_strtolower($tag), array_map('mb_strtolower', (array) json_decode((string) $v['unknown_tags'], true)), true)) {
+                    $upd->execute([$label, $label, $v['id']]);
+                    $n += $upd->rowCount();
+                }
+            }
+        }
+        audit($pdo, 'visits', 'update', 'visit_tags', null, '#' . $tag, "visit_tags: #{$tag} → {$kind}; {$n} visits");
+        return $n;
     }
 
     public static function photo_dir(string $ym): string
@@ -45,16 +94,75 @@ final class VisitImport
 
     // ───────────────────────────── reading a report ─────────────────────────────
 
+    /** Words a tag may carry besides brands: #Lama / #Baru and the result words. */
+    private const STATUS_TAGS = ['lama' => 'lama', 'baru' => 'baru'];
+
     /**
-     * Rule parse of one caption: the four-line format (Toko / Status / Hasil /
-     * Catatan, optional date line for a late report) or the old free text.
-     * @return array{store:string,type:?string,status:?string,outcome:string,note:string,pic:?string,format_ok:int,template:int,brand:?string,price:?int,brands:list<string>,date:?string}
+     * Trailing tags (规则-销售日报 v2): #Lama/#Baru, #Minat/#Penawaran/#Order/#Tidak/#Tutup,
+     * #Brand. Case-insensitive; a last line without # counts only when every
+     * word on it is a known tag word. Unknown #words are returned for the
+     * supervisor (maybe a new brand).
+     * @return array{body:string,status:?string,outcome:?string,brands:list<string>,unknown:list<string>,any:bool}
+     */
+    public static function tags(string $caption, array $cfg): array
+    {
+        $brandOf = [];
+        foreach ((array) $cfg['competitor_brands'] as $b) {
+            $brandOf[mb_strtolower((string) $b)] = (string) $b;
+        }
+        $ignored = array_map('mb_strtolower', (array) ($cfg['ignored_tags'] ?? []));
+        $own = array_map('mb_strtolower', (array) $cfg['own_brands']);
+        // A line without # is tags only if every word is a status, a result or a competitor brand
+        // ("Penawaran Alusign" as a last line is a sentence about our product, not tags).
+        $known = fn(string $w) => isset(self::STATUS_TAGS[$w]) || (isset(self::OUTCOME_WORDS[$w]) && !str_contains($w, ' ')) || isset($brandOf[$w]);
+        $words = [];
+        $body = (string) preg_replace_callback('/#([\p{L}\p{N}_\-]+)/u', function ($m) use (&$words) {
+            $words[] = ['w' => mb_strtolower($m[1]), 'raw' => $m[1], 'hash' => true];
+            return '';
+        }, $caption);
+        $lines = array_values(array_filter(array_map('trim', explode("\n", $body)), fn($l) => $l !== ''));
+        if (count($lines) > 1) {
+            $last = preg_split('/[\s,]+/u', mb_strtolower(end($lines)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            if ($last && count(array_filter($last, $known)) === count($last)) {
+                foreach ($last as $w) {
+                    $words[] = ['w' => $w, 'raw' => $w, 'hash' => false];
+                }
+                array_pop($lines);
+            }
+        }
+        $out = ['body' => implode("\n", $lines), 'status' => null, 'outcome' => null, 'brands' => [], 'unknown' => [], 'any' => false];
+        foreach ($words as $t) {
+            $w = $t['w'];
+            if (isset(self::STATUS_TAGS[$w])) {
+                $out['status'] ??= self::STATUS_TAGS[$w];
+            } elseif (isset(self::OUTCOME_WORDS[$w])) {
+                $out['outcome'] ??= self::OUTCOME_WORDS[$w];
+            } elseif (isset($brandOf[$w])) {
+                $out['brands'][] = $brandOf[$w];
+            } elseif (!in_array($w, $ignored, true) && !in_array($w, $own, true) && $t['hash']) {
+                $out['unknown'][] = $t['raw'];
+            }
+        }
+        $out['brands'] = array_values(array_unique($out['brands']));
+        $out['unknown'] = array_values(array_unique($out['unknown']));
+        $out['any'] = $out['status'] !== null || $out['outcome'] !== null || $out['brands'] !== [];
+        return $out;
+    }
+
+    /**
+     * Rule parse of one caption, in the order of the sales report rule v2:
+     * tags → first line = store → brand regex (the AI fills only what is still
+     * missing, later). Also reads the shelved four-line format (Toko / Status /
+     * Hasil / Catatan, optional date line) that some reports already use.
+     * @return array{store:string,type:?string,status:?string,outcome:string,note:string,pic:?string,format_ok:int,has_tags:int,unknown_tags:list<string>,template:int,brand:?string,price:?int,brands:list<string>,date:?string}
      */
     public static function parse_report(string $caption, string $msgTs, array $cfg): array
     {
+        $tag = self::tags($caption, $cfg);
+        $caption = $tag['body'];
         $lines = array_values(array_filter(array_map('trim', explode("\n", $caption)), fn($l) => $l !== ''));
         $r = ['store' => '', 'type' => null, 'status' => null, 'outcome' => Visits::UNKNOWN, 'note' => '', 'pic' => null,
-              'format_ok' => 0, 'template' => 0, 'brand' => null, 'price' => null, 'brands' => [], 'date' => null];
+              'format_ok' => 0, 'has_tags' => (int) $tag['any'], 'unknown_tags' => $tag['unknown'], 'template' => 0, 'brand' => null, 'price' => null, 'brands' => [], 'date' => null];
         $isFour = (bool) preg_grep('/^toko\s*:/i', $lines);
         if ($isFour) {
             if ($lines && preg_match('/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/', $lines[0], $m)) {
@@ -100,9 +208,17 @@ final class VisitImport
             $text = $caption;
         }
         $r['store'] = mb_substr(trim($r['store']), 0, 200);
-        $r['brands'] = self::brands($text, $cfg);
+        // Tags win over what the text seems to say.
+        $r['status'] = $tag['status'] ?? $r['status'];
+        if ($tag['outcome'] !== null) {
+            $r['outcome'] = $tag['outcome'];
+        }
+        if ($tag['status'] !== null && $tag['outcome'] !== null && $r['store'] !== '') {
+            $r['format_ok'] = 1;
+        }
+        $r['brands'] = array_values(array_unique([...$tag['brands'], ...self::brands($text, $cfg)]));
         $r['brand'] = $r['brands'][0] ?? null;
-        $r['price'] = $r['brand'] !== null ? self::price_near($text, $r['brand']) : null;
+        $r['price'] = $r['brand'] !== null ? (self::price_near($text, $r['brand']) ?? self::price_near($caption, $r['brand'])) : null;
         foreach ((array) $cfg['template_patterns'] as $pat) {
             if (@preg_match('/' . str_replace('/', '\/', (string) $pat) . '/iu', $caption)) {
                 $r['template'] = 1;
@@ -312,7 +428,7 @@ final class VisitImport
      */
     public static function import(PDO $pdo, array $config, string $txt, array $files, string $fileName, string $by): array
     {
-        $cfg = self::cfg($config);
+        $cfg = self::cfg_db($pdo, $config);
         $msgs = WaChat::messages($txt);
         $res = WaChat::visits($msgs);
         $map = self::sender_map($pdo);
@@ -354,7 +470,8 @@ final class VisitImport
                 'source' => 'wa_import', 'wa_sender' => $wv['sender'], 'wa_message_ts' => $wv['ts'], 'wa_hash' => $wv['hash'], 'wa_import_id' => $importId,
                 'caption' => $wv['caption'], 'store_name_raw' => $p['store'] !== '' ? $p['store'] : null, 'store_type' => $p['type'], 'pic_name' => $p['pic'],
                 'status_lama_baru' => $p['status'], 'late_flag' => $p['date'] !== null ? 1 : 0, 'competitor_brand' => $p['brand'], 'competitor_price' => $p['price'],
-                'format_ok' => $p['format_ok'], 'template_text' => $p['template'], 'created_by' => $by,
+                'format_ok' => $p['format_ok'], 'has_tags' => $p['has_tags'], 'unknown_tags' => $p['unknown_tags'] ? json_encode($p['unknown_tags'], JSON_UNESCAPED_UNICODE) : null,
+                'template_text' => $p['template'], 'created_by' => $by,
             ];
             $pdo->prepare('INSERT INTO visits (' . implode(',', array_keys($row)) . ') VALUES (' . implode(',', array_fill(0, count($row), '?')) . ')')->execute(array_values($row));
             $out['new_ids'][] = (int) $pdo->lastInsertId();
@@ -407,7 +524,7 @@ final class VisitImport
     {
         $ai = AiTask::enabled($config);
         $where = $ai
-            ? "source = 'wa_import' AND (match_status IS NULL OR (format_ok = 0 AND ai_parse_status IS NULL) OR (photo_path IS NOT NULL AND ai_photo_status IS NULL)
+            ? "source = 'wa_import' AND (match_status IS NULL OR ((outcome = 'unknown' OR store_name_raw IS NULL) AND ai_parse_status IS NULL) OR (photo_path IS NOT NULL AND ai_photo_status IS NULL)
                  OR (match_status = 'pending' AND ai_match_status IS NULL))"
             : "source = 'wa_import' AND match_status IS NULL";
         return $pdo->query("SELECT id FROM visits WHERE {$where} ORDER BY id LIMIT " . max(1, $limit))->fetchAll(PDO::FETCH_COLUMN);
@@ -436,15 +553,15 @@ final class VisitImport
         if (!$v) {
             return;
         }
-        // 1. Free text → AI parse (store, type, PIC, brands, outcome guess).
-        if ($ai && (int) $v['format_ok'] === 0 && $v['ai_parse_status'] === null) {
+        // 1. Still missing the result or the store after tags / first line / brand regex → AI fills the gaps only.
+        if ($ai && ($v['outcome'] === Visits::UNKNOWN || (string) $v['store_name_raw'] === '') && $v['ai_parse_status'] === null) {
             $r = self::ai_parse($pdo, $config, $v);
             $d = $r['data'] ?? null;
             $set = ['ai_parse_status' => $r['status'] === 'ok' ? 'ok' : 'failed', 'ai_parse' => $d ? json_encode($d, JSON_UNESCAPED_UNICODE) : null];
             if ($d) {
                 $guess = (string) ($d['outcome_guess'] ?? 'unknown');
                 $set['ai_outcome_guess'] = isset(Visits::OUTCOMES[$guess]) ? $guess : null;
-                if (trim((string) ($d['store_name'] ?? '')) !== '' && $v['match_status'] === null) {
+                if (trim((string) ($d['store_name'] ?? '')) !== '' && (string) $v['store_name_raw'] === '' && $v['match_status'] === null) {
                     $set['store_name_raw'] = mb_substr(trim((string) $d['store_name']), 0, 200);
                     $set['new_customer_name'] = $set['store_name_raw'];
                 }
@@ -763,7 +880,7 @@ final class VisitImport
     {
         $st = $pdo->prepare("SELECT COALESCE(e.full_name, v.wa_sender) sales, COUNT(*) n,
                     SUM(v.template_text) template, SUM(v.outcome = 'unknown') unknown, SUM(v.photo_is_store = 'no') not_store,
-                    SUM(v.photo_is_store IS NOT NULL) photo_read, SUM(v.late_flag) late, SUM(v.format_ok) four_line
+                    SUM(v.photo_is_store IS NOT NULL) photo_read, SUM(v.late_flag) late, SUM(v.has_tags) tagged
                FROM visits v LEFT JOIN employees e ON e.id = v.employee_id
               WHERE v.source = 'wa_import' AND date(v.visited_at) BETWEEN ? AND ? GROUP BY sales ORDER BY sales");
         $st->execute([$from, $to]);
