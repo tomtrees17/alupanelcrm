@@ -340,12 +340,13 @@ function save_order(PDO $pdo, object $auth, ?array $existing): int   // $auth un
             $customerId = null;
         }
     }
-    if ($custName === '') {
+    // A draft may be saved half-filled (owner 2026-10-28); submitting needs the customer and the items.
+    if ($custName === '' && $submit) {
         flash(t('msg_order_cust_req'), 'error');
         redirect($back[0], $back[1]);
     }
     // First-time customer: create it in the customers module, owned by the assigned sales.
-    if (!$customerId && input('save_customer')) {
+    if (!$customerId && $custName !== '' && input('save_customer')) {
         $pdo->prepare('INSERT INTO customers (name, company, phone, owner, tag) VALUES (?,?,?,?,?)')
             ->execute([$custName, trim((string) input('company', '')), trim((string) input('phone', '')), $submitter ?: own_name(), '潜在']);
         $customerId = (int) $pdo->lastInsertId();
@@ -384,7 +385,7 @@ function save_order(PDO $pdo, object $auth, ?array $existing): int   // $auth un
             ((int) ($productIds[$i] ?? 0)) ?: null, $excl,
         ];
     }
-    if (!$items) {
+    if (!$items && $submit) {
         flash(t('msg_order_item_req'), 'error');
         redirect($back[0], $back[1]);
     }
@@ -501,6 +502,10 @@ function save_order(PDO $pdo, object $auth, ?array $existing): int   // $auth un
 /** Submit a draft/rejected order into the approval flow (no item edits). */
 function submit_order(PDO $pdo, array $order): void
 {
+    if (trim((string) $order['customer_name']) === '') {   // a half-filled draft
+        flash(t('msg_order_cust_req'), 'error');
+        return;
+    }
     $oi = $pdo->prepare('SELECT sku, spec, qty, product_id FROM order_items WHERE order_id = ?');
     $oi->execute([$order['id']]);
     $rows = $oi->fetchAll();

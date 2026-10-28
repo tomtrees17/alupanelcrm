@@ -434,6 +434,12 @@ chown -R www:www data
   - 权限：新视图权限 `ai_usage`（权限矩阵新列），默认只给 finance_manager，老板始终可见（用户 2026-10-22 定）。一次性迁移 `app_meta.perm_ai_usage_v1`，之后管理员的调整不会被覆盖；
   - 内容：今日 / 本月费用与上限；本月按任务列出调用次数（按状态拆开）、tokens、费用、平均耗时、采纳率、改动最多的字段；库存助手单独一栏（数据来自 ai_queries）；月份可切换。
 - **上线**：`git pull`，再打开一次网站，`ensureSchema()` 会建好两张表并授权，不需要改 `.env`。服务器 `config.local.php` 里的 `'ai' => ['driver' => 'claude']` 与新配置用 `array_replace_recursive` 合并，互不影响。
+## 6zj. 订单草稿（2026-10-28，用户要求）
+
+- `save_order()`：`do=draft` 时客户名与产品明细都可为空（不建空客户）；`do=submit` 与 `submit_order()`（草稿页「提交审批」）仍要求客户与至少一行产品。列表 / 详情 / 看板最近订单对空客户显示「（未填客户）」。
+- 表单：「存草稿」按钮带 `formnovalidate`；按钮栏 `.order-actions` 用 `position: sticky` 贴在屏幕底部。
+- 自动暂存：`localStorage` 键 `order-form:new` / `order-form:{id}`，输入或重算后 0.6 秒写入（字段 + 产品行 + 含税口径）；空表不存。重开页面有暂存时显示「恢复 / 丢弃」；提交时标记 submitted，若页面带着错误提示回来则自动恢复，否则清掉。只存在本机，不上传服务器。
+
 ## 6zi. 拜访记录 HR-04（v2 表单 + v3 WhatsApp 群日报导入，2026-10-24）
 
 按 docs/任务卡-拜访签到.md v3 与 docs/规则-销售日报.md。代码：`app/Visits.php`、`app/WaChat.php`、`app/VisitImport.php`、`app/controllers/visits.php`、`views/visits/`、`tools/import_prospects.php`、`prompts/visit_*_v1.txt`；测试 `tests/visits_test.php`（v2）、`tests/visit_import_test.php`（v3，样本 `samples_test/wa_chat_sample/`）。

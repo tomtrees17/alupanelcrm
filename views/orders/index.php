@@ -32,7 +32,7 @@
     <?php foreach ($orders as $o): ?>
         <tr class="clickable" onclick="location.href='<?= url('orders.show', ['id' => $o['id']]) ?>'">
             <td><code><?= e($o['order_no']) ?></code></td>
-            <td><strong><?= e($o['customer_name']) ?></strong><br><span class="muted"><?= e($o['company']) ?></span></td>
+            <td><strong><?= trim((string) $o['customer_name']) !== '' ? e($o['customer_name']) : '<span class="muted">' . t('order_no_customer') . '</span>' ?></strong><br><span class="muted"><?= e($o['company']) ?></span></td>
             <td><?= e($o['submitter']) ?></td>
             <td><?= e($o['payment_term']) ?><?= $o['payment_term'] === 'custom' ? ' ' . (int) $o['custom_days'] . 'd' : '' ?></td>
             <td><span class="order-status-badge <?= order_status_class($o['status']) ?>"><?= e(order_status_label($o['status'])) ?></span></td>

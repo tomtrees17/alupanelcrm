@@ -6,7 +6,7 @@
     <?php foreach ($recent as $o): ?>
         <tr class="clickable" onclick="location.href='<?= url('orders.show', ['id' => $o['id']]) ?>'">
             <td><code><?= e($o['order_no']) ?></code></td>
-            <td><?= e($o['customer_name']) ?></td>
+            <td><?= trim((string) $o['customer_name']) !== '' ? e($o['customer_name']) : '<span class="muted">' . t('order_no_customer') . '</span>' ?></td>
             <td><span class="order-status-badge <?= order_status_class($o['status']) ?>"><?= e(order_status_label($o['status'])) ?></span></td>
             <td class="right num"><?= idr($o['amount']) ?></td>
         </tr>

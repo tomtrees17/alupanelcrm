@@ -68,7 +68,7 @@ $canAct = $auth->isAdmin() || in_array($auth->user()['role'] ?? '', order_action
 <div class="grid-2">
     <div class="card"><div class="card-body">
         <dl class="detail">
-            <div><dt><?= t('th_customer') ?></dt><dd><?= e($order['customer_name']) ?></dd></div>
+            <div><dt><?= t('th_customer') ?></dt><dd><?= trim((string) $order['customer_name']) !== '' ? e($order['customer_name']) : '<span class="muted">' . t('order_no_customer') . '</span>' ?></dd></div>
             <div><dt><?= t('th_company') ?></dt><dd><?= e($order['company']) ?: '—' ?></dd></div>
             <div><dt><?= t('th_phone') ?></dt><dd><?= e($order['phone']) ?: '—' ?></dd></div>
             <div><dt><?= t('f_client_type') ?></dt><dd><?= e($order['client_type']) ?></dd></div>

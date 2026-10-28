@@ -122,11 +122,17 @@ $basis = ($order['price_basis'] ?? 'incl') === 'excl' ? 'excl' : 'incl';
         </table></div>
     </div>
 
-    <div class="form-actions">
-        <button class="btn btn-ghost" type="submit" name="do" value="draft"><?= t('btn_save_draft') ?></button>
+    <div class="form-actions order-actions">
+        <span class="muted small" id="autosave-state"></span>
+        <button class="btn btn-ghost" type="submit" name="do" value="draft" formnovalidate title="<?= e(t('order_draft_hint')) ?>"><?= t('btn_save_draft') ?></button>
         <button class="btn btn-primary" type="submit" name="do" value="submit"><?= t('btn_save_order') ?></button>
     </div>
 </form>
+<div class="alert alert-info order-restore" id="autosave-banner" hidden>
+    <span id="autosave-text"></span>
+    <button type="button" class="btn btn-primary btn-sm" id="autosave-restore"><?= t('order_autosave_restore') ?></button>
+    <button type="button" class="btn btn-ghost btn-sm" id="autosave-discard"><?= t('order_autosave_discard') ?></button>
+</div>
 
 <template id="row-tpl">
     <tr class="item-row">
@@ -218,6 +224,7 @@ function recalc() {
         document.getElementById('t-total').textContent = fmt((subSen + ppnSen) / 100);
         document.getElementById('t-ppn').textContent = fmt(ppnSen / 100);
         document.getElementById('t-subtotal').textContent = fmt(subSen / 100);
+        if (window.orderAutosave) window.orderAutosave();
         return;
     }
     let subtotal = 0;
@@ -233,6 +240,7 @@ function recalc() {
     document.getElementById('t-total').textContent = fmt(gross);
     document.getElementById('t-ppn').textContent = fmt(ppn);
     document.getElementById('t-subtotal').textContent = fmt(gross - ppn);
+    if (window.orderAutosave) window.orderAutosave();
 }
 
 // Full designation: SKU · 中文名 / English name · spec
@@ -338,6 +346,83 @@ document.getElementById('order-form').addEventListener('submit', e => {
 });
 
 if (EXISTING.length) { EXISTING.forEach(it => addRow(it)); } else { addRow(); }
+
+// ── Autosave in this browser (owner 2026-10-28): nothing lost if the page closes or the
+// connection drops; after a refused save the form comes back with what was typed.
+(function () {
+    const KEY = <?= json_encode('order-form:' . ($isEdit ? (string) (int) $order['id'] : 'new')) ?>;
+    const form = document.getElementById('order-form');
+    const L = <?= json_encode(['found' => t('order_autosave_found'), 'restored' => t('order_autosave_restored'), 'saved' => t('order_autosave_saved')], JSON_UNESCAPED_UNICODE) ?>;
+    const FIELDS = ['submitter', 'co_no', 'customer_name', 'customer_id', 'company', 'phone', 'client_type', 'address', 'delivery_service',
+                    'delivery_date', 'shipping_cost', 'delivery_address', 'payment_term', 'custom_days', 'note'];
+    const store = {
+        get() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; } },
+        set(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); return true; } catch (e) { return false; } },
+        drop() { try { localStorage.removeItem(KEY); } catch (e) {} },
+    };
+    const snapshot = () => {
+        const v = { at: Date.now(), fields: {}, basis: basis(), save_customer: !!(form.querySelector('[name="save_customer"]') || {}).checked, rows: [] };
+        FIELDS.forEach(n => { const el = form.querySelector(`[name="${n}"]`); if (el) v.fields[n] = el.value; });
+        document.querySelectorAll('#items-table tbody .item-row').forEach(r => v.rows.push({
+            product_id: r.querySelector('.f-pid').value, sku: r.querySelector('.f-sku').value, color: r.querySelector('.f-color').value,
+            spec: r.querySelector('.f-spec').value, size: r.querySelector('.f-size').value, qty: r.querySelector('.qty').value,
+            price: r.querySelector('.price').value, price_excl: r.querySelector('.price-excl').value, label: r.querySelector('.product-search').value,
+        }));
+        return v;
+    };
+    const empty = v => !v.fields.customer_name && !v.fields.note && !v.rows.some(r => r.sku || r.label);
+    let ready = false, timer = null;
+    const state = document.getElementById('autosave-state');
+    window.orderAutosave = () => {
+        if (!ready) return;
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+            const v = snapshot();
+            if (empty(v)) { store.drop(); return; }
+            if (store.set(v)) state.textContent = L.saved.replace('%s', new Date(v.at).toLocaleTimeString().slice(0, 5));
+        }, 600);
+    };
+    const restore = v => {
+        Object.entries(v.fields || {}).forEach(([n, val]) => { const el = form.querySelector(`[name="${n}"]`); if (el) el.value = val; });
+        const sc = form.querySelector('[name="save_customer"]'); if (sc) sc.checked = !!v.save_customer;
+        const b = form.querySelector(`input[name="price_basis"][value="${v.basis === 'excl' ? 'excl' : 'incl'}"]`); if (b) b.checked = true;
+        document.querySelectorAll('#items-table tbody .item-row').forEach(r => r.remove());
+        (v.rows || []).forEach(it => {
+            if (it.sku) {
+                addRow({ product_id: it.product_id, sku: it.sku, color: it.color, spec: it.spec, size: it.size, qty: it.qty, price: it.price,
+                         price_excl: v.basis === 'excl' ? it.price_excl : null });
+            } else {
+                addRow();
+                const row = document.querySelector('#items-table tbody').lastElementChild;
+                row.querySelector('.product-search').value = it.label || '';
+                row.querySelector('.qty').value = it.qty || 1;
+                row.querySelector('.price').value = it.price || 0;
+                syncRow(row, 'incl');
+            }
+        });
+        if (!(v.rows || []).length) addRow();
+        applyBasis();
+        recalc();
+    };
+    const saved = store.get();
+    if (saved && !empty(saved)) {
+        if (saved.submitted) {
+            // The page came back after a save the server refused: put the typing back.
+            if (document.querySelector('.alert-error')) { restore(saved); state.textContent = L.restored; } else { store.drop(); }
+        } else {
+            const banner = document.getElementById('autosave-banner');
+            document.getElementById('autosave-text').textContent = L.found.replace('%s', new Date(saved.at).toLocaleString());
+            form.parentNode.insertBefore(banner, form);
+            banner.hidden = false;
+            document.getElementById('autosave-restore').addEventListener('click', () => { restore(saved); banner.hidden = true; });
+            document.getElementById('autosave-discard').addEventListener('click', () => { store.drop(); banner.hidden = true; });
+        }
+    }
+    ready = true;
+    form.addEventListener('input', window.orderAutosave);
+    form.addEventListener('change', window.orderAutosave);
+    form.addEventListener('submit', () => { const v = snapshot(); v.submitted = true; store.set(v); });
+})();
 
 // ── 粘贴识别: fill the form from the pasted sales message ──
 (function () {
