@@ -434,6 +434,17 @@ chown -R www:www data
   - 权限：新视图权限 `ai_usage`（权限矩阵新列），默认只给 finance_manager，老板始终可见（用户 2026-10-22 定）。一次性迁移 `app_meta.perm_ai_usage_v1`，之后管理员的调整不会被覆盖；
   - 内容：今日 / 本月费用与上限；本月按任务列出调用次数（按状态拆开）、tokens、费用、平均耗时、采纳率、改动最多的字段；库存助手单独一栏（数据来自 ai_queries）；月份可切换。
 - **上线**：`git pull`，再打开一次网站，`ensureSchema()` 会建好两张表并授权，不需要改 `.env`。服务器 `config.local.php` 里的 `'ai' => ['driver' => 'claude']` 与新配置用 `array_replace_recursive` 合并，互不影响。
+## 6zk. 销售周评 HR-07（2026-10-28）
+
+按 docs/任务卡-拜访周评.md。代码：`app/SalesReview.php`、`tools/sales_review.php`（`tools/nightly.php` 第三步）、`app/controllers/hr.php`（review / review_export / review_generate）、`views/hr/review.php`、`prompts/sales_review_v1.txt`；测试 `tests/sales_review_test.php`。
+
+- **用户决定（2026-10-28）**：不另开 cron，并进现有夜间任务（宝塔 02:30 服务器时间 = 01:30 WIB）。每晚检查「上周」是否已有周评，没有就生成（实际只在周一夜里干活；周一漏跑的话第二天夜里补上），并给老板写一条 `hr_todos`（`sales_review`，ref = 周一日期，无员工，`Hr::BOSS_TODO_TYPES`）；同一周再跑不重复建。
+- **谁**：`employees.attendance_mode = visit`、在这一周内在职的人，一人一段；CRM 账号（`users.employee_id` → `users.name`）就是订单 `submitter` 和客户 `owner` 用的名字。
+- **四块**：跑动（拜访数、上周数、Baru / Lama、结果分布含未知、群聊报告里有标签的条数）；该跟的（最近一次是 Penawaran、距周末 > 7 天、之后该店没有拜访也没有订单的店，最多列 8 家、按报价日期，归报价人；他名下 A 类客户本周没拜访的家数）；成果（直接调用 `Dashboard::ranking()`（由 private 改为 public，逻辑不变）：订单、出货张数、销售额、回款，加上周对比；他名下客户到周末已逾期未收的发票金额与张数）；评语（AI）。全队：拜访总数与上周、谁在跑、谁 0 拜访（只点名）、出单区域、拜访区域与竞品价格（沿用 `VisitImport::week_facts`）、未映射发送者条数（不计入任何人）。
+- **AI** `sales_review`（标准档，一周一次调用）：发给模型的只有姓名、数字、店名（不含电话、地址、账号名）；只给本周有拜访的人写评语（0 拜访只在总览点名，不写评语）；`check` 要求每人恰好一段、中印尼各 1–3 句。AI 关闭 / 超预算 / 不合格：只存数字，状态 `ai_skipped`，页面显示「本周无评语」，不重试。
+- **存档**：`sales_reviews`（一周可多版，`data_json` 存全队数字）+ `sales_review_items`（每人 `metrics_json` + 两种语言评语）。「重新生成」只给老板，新建一版，旧版保留，页面显示最新版和第几版；只能生成已结束的周。记审计（生成、导出）。
+- **页面**：人力 → 「销售周评 / Review Mingguan」页签。老板与 `visits_all`（默认总经理、销售经理）看全部；部门主管（本部门有拜访制员工时）只看本部门；销售、HR、其他部门主管看不到页签也打不开。周选择（默认上周）→ 全队总览 → 每人一张卡；上周对比只用灰色箭头和数字（不着色、不排名）；报价未跟的店可点进客户页 / 潜客页；导出 Excel 一人一行（数字 + 中 / 印尼评语两列）。
+
 ## 6zj. 订单草稿（2026-10-28，用户要求）
 
 - `save_order()`：`do=draft` 时客户名与产品明细都可为空（不建空客户）；`do=submit` 与 `submit_order()`（草稿页「提交审批」）仍要求客户与至少一行产品。列表 / 详情 / 看板最近订单对空客户显示「（未填客户）」。
@@ -874,7 +885,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-**faktur_exports（生成的 Coretax / Digunggung 文件，见 6zf）**, customers(+tax_npwp/tax_nik/tax_name/tax_address/tax_nitku/tax_email 买方税务资料), invoices(+faktur_class 分类覆盖), **bank_accounts / bank_imports / bank_transactions / payment_allocations / customer_payer_aliases / bank_book（银行流水与回款对账，见 6ze）**, payments(+noncash 结案差额行), **ai_calls(AI 调用台账：任务/模型/prompt 版本/tokens/费用/耗时/状态，见 6zd)**, **ai_suggestions(AI 建议与人工确认、采纳率)**, hr_todos(+type ai_budget：老板专属、无员工), **sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, **co_requests(Google 表单 CO 号登记，见 6zg)**, ai_calls(+task order_parse 粘贴识别, 见 6zh), orders(+co_no 客户看到的 CO 号), users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
+**faktur_exports（生成的 Coretax / Digunggung 文件，见 6zf）**, customers(+tax_npwp/tax_nik/tax_name/tax_address/tax_nitku/tax_email 买方税务资料), invoices(+faktur_class 分类覆盖), **bank_accounts / bank_imports / bank_transactions / payment_allocations / customer_payer_aliases / bank_book（银行流水与回款对账，见 6ze）**, payments(+noncash 结案差额行), **ai_calls(AI 调用台账：任务/模型/prompt 版本/tokens/费用/耗时/状态，见 6zd)**, **ai_suggestions(AI 建议与人工确认、采纳率)**, hr_todos(+type ai_budget / sales_review：老板专属、无员工), **sales_reviews / sales_review_items(销售周评，见 6zk)**, **sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, **co_requests(Google 表单 CO 号登记，见 6zg)**, ai_calls(+task order_parse 粘贴识别, 见 6zh), orders(+co_no 客户看到的 CO 号), users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
 
 ## 10. 提交历史（main）
 

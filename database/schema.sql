@@ -685,6 +685,26 @@ CREATE TABLE visit_digests (
     ai_call_id  INTEGER,
     created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
+-- HR-07 销售周评: one row per generation (regenerating adds a row, the old one stays)
+CREATE TABLE sales_reviews (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    week         TEXT NOT NULL,                  -- Monday, YYYY-MM-DD
+    generated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    generated_by TEXT NOT NULL,                  -- cron | user name
+    team_zh TEXT, team_id TEXT,                  -- team overview (AI)
+    data_json    TEXT NOT NULL,                  -- the week's team figures as computed
+    ai_call_id   INTEGER,
+    status       TEXT NOT NULL                   -- ok | ai_skipped (AI off / over budget / failed: figures only)
+);
+CREATE TABLE sales_review_items (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    review_id    INTEGER NOT NULL REFERENCES sales_reviews(id),
+    employee_id  INTEGER NOT NULL REFERENCES employees(id),
+    metrics_json TEXT NOT NULL,                  -- 跑动 / 该跟的 / 成果 figures and names
+    comment_zh TEXT, comment_id TEXT,            -- AI, ≤ 3 sentences; NULL = 本周无评语
+    UNIQUE (review_id, employee_id)
+);
+CREATE INDEX idx_sales_reviews_week ON sales_reviews(week, id);
 CREATE INDEX idx_emp_attach ON employee_attachments(employee_id);
 CREATE INDEX idx_visits_emp ON visits(employee_id, visited_at);
 CREATE INDEX idx_visits_day ON visits(visited_at);

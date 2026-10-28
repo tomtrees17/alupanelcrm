@@ -346,7 +346,7 @@ final class Dashboard
     }
 
     /** Per salesperson: orders, sheets and invoiced sales in the period, plus cash if allowed. */
-    private static function ranking(PDO $pdo, string $from, string $to, string $today, bool $fin): array
+    public static function ranking(PDO $pdo, string $from, string $to, string $today, bool $fin): array
     {
         $rows = [];
         $add = function (string $name, string $field, float $v) use (&$rows): void {

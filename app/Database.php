@@ -454,6 +454,14 @@ final class Database
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_match ON visits(match_status)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_sender ON visits(wa_sender)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_digests_week ON visit_digests(week, id)');
+        // HR-07 销售周评
+        $pdo->exec("CREATE TABLE IF NOT EXISTS sales_reviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, week TEXT NOT NULL, generated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            generated_by TEXT NOT NULL, team_zh TEXT, team_id TEXT, data_json TEXT NOT NULL, ai_call_id INTEGER, status TEXT NOT NULL)");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS sales_review_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, review_id INTEGER NOT NULL, employee_id INTEGER NOT NULL, metrics_json TEXT NOT NULL,
+            comment_zh TEXT, comment_id TEXT, UNIQUE (review_id, employee_id))");
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_sales_reviews_week ON sales_reviews(week, id)');
 
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_emp ON visits(employee_id, visited_at)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_day ON visits(visited_at)');

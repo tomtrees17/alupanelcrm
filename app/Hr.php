@@ -36,7 +36,7 @@ final class Hr
      * Platform todos for the boss alone, not tied to an employee (FA-AI-00: the
      * AI budget was used up). HR never sees them; the boss may mark them done.
      */
-    public const BOSS_TODO_TYPES = ['ai_budget'];
+    public const BOSS_TODO_TYPES = ['ai_budget', 'sales_review'];
 
     /** Fields HR fills on the basic-info form (no effective date needed). */
     public const BASIC_FIELDS = [

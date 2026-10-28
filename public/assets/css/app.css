@@ -554,3 +554,17 @@ th.center, td.center { text-align: center; }
 
 /* 粘贴识别: fields the assistant should look at before saving */
 .ai-check { background: #fef9c3 !important; border-color: #eab308 !important; }
+
+/* HR-07 销售周评: one card per salesperson, four blocks */
+.srv-facts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; font-size: 13px; }
+.srv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.srv-grid .card { margin-bottom: 0; }
+.srv-block { padding: 8px 0; border-bottom: 1px dashed var(--border); }
+.srv-block:last-child { border-bottom: 0; }
+.srv-label { font-size: 11px; color: var(--text3); margin-bottom: 4px; letter-spacing: .5px; }
+.srv-big { font-size: 20px; }
+.srv-outcomes, .srv-results { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; align-items: center; }
+.srv-list { margin: 6px 0 0 18px; }
+.srv-list li { margin: 2px 0; }
+.srv-comment p { line-height: 1.6; }
+@media (max-width: 768px) { .srv-grid { grid-template-columns: 1fr; } }

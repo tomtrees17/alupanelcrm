@@ -105,6 +105,8 @@ $config = [
             'visit_photo_read'    => ['tier' => 'cheap', 'effort' => 'low', 'max_tokens' => 1024, 'max_input_chars' => 4000000],
             'visit_match'         => ['tier' => 'cheap', 'effort' => 'low', 'max_tokens' => 1024],
             'visit_weekly_digest' => ['tier' => 'standard', 'effort' => 'low', 'max_tokens' => 2048],
+            // HR-07 销售周评 (SalesReview): team overview + two or three sentences per salesperson, once a week
+            'sales_review'        => ['tier' => 'standard', 'effort' => 'low', 'max_tokens' => 8192],
         ],
         // USD per million tokens (Anthropic list price, checked 2026-10). A model not
         // listed is priced as 'default' — the dearest tier, so the caps never under-count.

@@ -18,6 +18,7 @@ if (PHP_SAPI !== 'cli') {
 $steps = [
     'enrich'   => __DIR__ . '/enrich_customers.php',
     'insights' => __DIR__ . '/compute_insights.php',
+    'sales_review' => __DIR__ . '/sales_review.php',   // HR-07: last week's review, once (Monday night)
 ];
 
 $rc = 0;
