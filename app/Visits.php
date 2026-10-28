@@ -211,7 +211,7 @@ final class Visits
         $me = mb_strtolower(trim((string) ($user['name'] ?? '')));
         $out = [];
         if ($q === '') {
-            $st = $pdo->prepare('SELECT id, name, region, category FROM prospects WHERE assigned_to = ? AND is_customer = 0
+            $st = $pdo->prepare('SELECT id, name, region, category FROM prospects WHERE assigned_to = ? AND is_customer = 0 AND merged_into IS NULL
                                   ORDER BY last_visit_at IS NOT NULL, last_visit_at, priority DESC, name LIMIT ?');
             $st->execute([$empId, $limit]);
             foreach ($st->fetchAll() as $p) {
@@ -225,7 +225,7 @@ final class Visits
         foreach ($st->fetchAll() as $c) {
             $out[] = ['type' => 'customer', 'id' => (int) $c['id'], 'name' => (string) $c['name'], 'sub' => trim(($c['company'] ?? '') . ' · ' . ($c['city'] ?? ''), ' ·'), 'mine' => true];
         }
-        $st = $pdo->prepare('SELECT id, name, region, category, assigned_to FROM prospects WHERE is_customer = 0 AND (name LIKE ? OR address LIKE ? OR phone LIKE ?)
+        $st = $pdo->prepare('SELECT id, name, region, category, assigned_to FROM prospects WHERE is_customer = 0 AND merged_into IS NULL AND (name LIKE ? OR address LIKE ? OR phone LIKE ?)
                               ORDER BY (assigned_to = ?) DESC, priority DESC, name LIMIT ?');
         $st->execute([$like, $like, $like, $empId, $limit]);
         foreach ($st->fetchAll() as $p) {

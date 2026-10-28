@@ -131,7 +131,7 @@ switch ($action) {
             $ok->execute([$tid]);
             $customerId = $ok->fetchColumn() ? $tid : null;
         } elseif ($type === 'prospect' && $tid) {
-            $ok = $pdo->prepare('SELECT 1 FROM prospects WHERE id = ? AND is_customer = 0');
+            $ok = $pdo->prepare('SELECT 1 FROM prospects WHERE id = ? AND is_customer = 0 AND merged_into IS NULL');
             $ok->execute([$tid]);
             $prospectId = $ok->fetchColumn() ? $tid : null;
         }
@@ -321,7 +321,7 @@ switch ($action) {
             'q' => trim((string) input('q', '')), 'region' => trim((string) input('region', '')), 'category' => trim((string) input('category', '')),
             'assigned' => (string) input('assigned', ''),   // '' all | 'none' unassigned | employee id
         ];
-        $where = ['1=1'];
+        $where = ['p.merged_into IS NULL'];
         $args = [];
         if ($f['q'] !== '') {
             $where[] = '(p.name LIKE ? OR p.address LIKE ? OR p.phone LIKE ?)';
@@ -345,7 +345,7 @@ switch ($action) {
         view('visits.prospects', ['pageTitle' => t('vis_prospects'), 'pageSub' => '', 'rows' => $st->fetchAll(), 'f' => $f, 'sales' => $sales(), 'canRecord' => $canRecord, 'canImport' => $canImport,
             'regions' => $pdo->query("SELECT DISTINCT region FROM prospects WHERE region IS NOT NULL ORDER BY region")->fetchAll(PDO::FETCH_COLUMN),
             'categories' => $pdo->query("SELECT DISTINCT category FROM prospects WHERE category IS NOT NULL ORDER BY category")->fetchAll(PDO::FETCH_COLUMN),
-            'total' => (int) $pdo->query('SELECT COUNT(*) FROM prospects')->fetchColumn()]);
+            'total' => (int) $pdo->query('SELECT COUNT(*) FROM prospects WHERE merged_into IS NULL')->fetchColumn()]);
         break;
 
     // Management assigns prospects to a salesperson in one go (owner decision).

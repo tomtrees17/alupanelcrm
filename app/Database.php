@@ -435,6 +435,9 @@ final class Database
         if (!in_array('store_type', array_column($pdo->query('PRAGMA table_info(prospects)')->fetchAll(), 'name'), true)) {
             $pdo->exec('ALTER TABLE prospects ADD COLUMN store_type TEXT');
         }
+        if (!in_array('merged_into', array_column($pdo->query('PRAGMA table_info(prospects)')->fetchAll(), 'name'), true)) {
+            $pdo->exec('ALTER TABLE prospects ADD COLUMN merged_into INTEGER');   // duplicates merged (2026-10-28)
+        }
         $pdo->exec("CREATE TABLE IF NOT EXISTS employee_wa_ids (
             id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL, wa_key TEXT NOT NULL UNIQUE, wa_display TEXT,
             created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))");

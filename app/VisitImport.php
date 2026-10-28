@@ -338,7 +338,7 @@ final class VisitImport
                 $add('customer', (int) $c['id'], (string) $c['company'], (string) $c['city']);
             }
         }
-        foreach ($pdo->query('SELECT id, name, region FROM prospects') as $p) {
+        foreach ($pdo->query('SELECT id, name, region FROM prospects WHERE merged_into IS NULL') as $p) {
             $add('prospect', (int) $p['id'], (string) $p['name'], (string) $p['region']);
         }
         foreach ($pdo->query('SELECT a.customer_id, a.payer_name, c.city FROM customer_payer_aliases a JOIN customers c ON c.id = a.customer_id') as $a) {
@@ -386,7 +386,7 @@ final class VisitImport
     {
         $name = trim((string) ($v['store_name_raw'] ?: $v['new_customer_name']));
         $key = Visits::prospect_key($name, null, null) . ':visit';
-        $st = $pdo->prepare('SELECT id FROM prospects WHERE source_key = ?');
+        $st = $pdo->prepare('SELECT COALESCE(merged_into, id) FROM prospects WHERE source_key = ?');
         $st->execute([$key]);
         $id = (int) $st->fetchColumn();
         if (!$id) {
@@ -407,6 +407,47 @@ final class VisitImport
             return (string) ($st->fetchColumn() ?: $v['wa_sender']);
         }
         return (string) $v['wa_sender'];
+    }
+
+    /**
+     * The same store twice in the pool (a new store met on a visit, then the
+     * list imported): visits move to $into, the written names become aliases
+     * so the group's spelling matches by itself, $from stays but is hidden.
+     * @return int visits moved
+     */
+    public static function merge_prospect(PDO $pdo, int $from, int $into, string $by): int
+    {
+        if ($from === $into) {
+            return 0;
+        }
+        $st = $pdo->prepare('SELECT * FROM prospects WHERE id = ?');
+        $st->execute([$from]);
+        $a = $st->fetch();
+        $st->execute([$into]);
+        $b = $st->fetch();
+        if (!$a || !$b || $b['merged_into'] !== null) {
+            return 0;
+        }
+        $pdo->beginTransaction();
+        $names = $pdo->prepare('SELECT DISTINCT store_name_raw FROM visits WHERE prospect_id = ? AND store_name_raw IS NOT NULL');
+        $names->execute([$from]);
+        $alias = $pdo->prepare('INSERT OR REPLACE INTO customer_name_aliases (customer_id, prospect_id, alias, alias_key, source, confirmed_by) VALUES (NULL,?,?,?,?,?)');
+        foreach (array_unique([(string) $a['name'], ...$names->fetchAll(PDO::FETCH_COLUMN)]) as $n) {
+            if (self::name_key($n) !== '' && self::name_key($n) !== self::name_key((string) $b['name'])) {
+                $alias->execute([$into, $n, self::name_key($n), 'merge', $by]);
+            }
+        }
+        $mv = $pdo->prepare('UPDATE visits SET prospect_id = ? WHERE prospect_id = ?');
+        $mv->execute([$into, $from]);
+        $n = $mv->rowCount();
+        $pdo->prepare('UPDATE customer_name_aliases SET prospect_id = ? WHERE prospect_id = ?')->execute([$into, $from]);
+        $pdo->prepare('UPDATE prospects SET merged_into = ?, updated_by = ?, updated_at = ? WHERE id = ?')->execute([$into, $by, date('Y-m-d H:i:s'), $from]);
+        $pdo->prepare('UPDATE prospects SET assigned_to = COALESCE(assigned_to, ?), store_type = COALESCE(store_type, ?) WHERE id = ?')->execute([$a['assigned_to'], $a['store_type'], $into]);
+        $pdo->commit();
+        Visits::refresh_prospect($pdo, $into);
+        Visits::refresh_prospect($pdo, $from);
+        audit($pdo, 'visits', 'update', 'prospects', $from, (string) $a['name'], "prospects.merged_into: (空) → #{$into} {$b['name']}; {$n} visits moved");
+        return $n;
     }
 
     // ───────────────────────────── import ─────────────────────────────

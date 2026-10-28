@@ -266,6 +266,17 @@ VisitImport::import($pdo, $cfg, $moreNext, [], 'n2.txt', 'assistant');
 ok('…the same number written differently next time is recognised', (int) $pdo->query("SELECT employee_id FROM visits WHERE wa_message_ts = '2026-10-27 09:00:00'")->fetchColumn() === $angga);
 ok('Status written vs matched both kept (Mitra Laser 24-10: Lama, customer → lama)', ($mit['status_lama_baru'] ?? '') === 'lama' && $mit['system_lama_baru'] === 'lama');
 
+// duplicates: a store met on a visit, then found in the imported list
+$pdo->exec("INSERT INTO prospects (id, name, category, region, lat, lng, source, source_key) VALUES (80, 'Toko Cahaya Advertising Jaya', 'Advertising / Reklame', 'Jakarta Timur', -6.29, 106.85, 'daftar', 'k80')");
+$cahP = (int) $pdo->query("SELECT id FROM prospects WHERE source = 'visit' AND name = 'Cahaya Advertising'")->fetchColumn();
+$moved = VisitImport::merge_prospect($pdo, $cahP, 80, 'tania');
+ok('merge duplicates: visits move to the listed row, the visit-made row is hidden, not deleted', $moved === 2
+    && (int) $pdo->query("SELECT COUNT(*) FROM visits WHERE prospect_id = 80")->fetchColumn() === 2 && (int) $pdo->query("SELECT merged_into FROM prospects WHERE id = {$cahP}")->fetchColumn() === 80
+    && (int) $pdo->query("SELECT visit_count FROM prospects WHERE id = 80")->fetchColumn() === 2);
+ok('…the group\'s spelling now matches the listed row by itself', (VisitImport::candidates($pdo, 'Cahaya Advertising', $vcfg)['alias']['key'] ?? '') === 'prospect:80'
+    && !in_array("prospect:{$cahP}", array_column(VisitImport::candidates($pdo, 'Cahaya Adv', $vcfg)['list'], 'key'), true));
+ok('…and a merged row is never offered again', !in_array($cahP, array_column(Visits::search($pdo, ['name' => 'x'], ['id' => 0], 'Cahaya'), 'id'), true));
+
 // analysis
 $comp = VisitImport::competitors($pdo, '2026-10-01', '2026-10-31', false);
 $brandsSeen = array_unique(array_column($comp, 'brand'));

@@ -596,6 +596,7 @@ CREATE TABLE prospects (
     visit_count   INTEGER NOT NULL DEFAULT 0,
     source        TEXT,                          -- import file | visit (a new store met on a visit)
     source_key    TEXT UNIQUE,                   -- sha1(name | lat,lng): re-imports update, never duplicate
+    merged_into   INTEGER REFERENCES prospects(id),  -- the same store listed twice: kept, hidden, visits moved to that row
     created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     updated_by TEXT, updated_at TEXT
 );
