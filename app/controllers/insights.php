@@ -25,12 +25,32 @@ $tab = in_array(input('tab'), Insights::LISTS, true) ? (string) input('tab') : '
 
 switch ($action) {
     case 'index':
-        $lists = Insights::lists($pdo, $config, $today, own_name());
+        // Sales: their own customers. Boss / 全部客户分析 (2026-10-28): everyone's, with a
+        // salesperson filter ('-' = customers nobody owns).
+        $seesAll = insights_sees_all();
+        $owner = $seesAll ? trim((string) input('owner', '')) : '';
+        $lists = Insights::lists($pdo, $config, $today, $seesAll ? null : own_name());
+        $owners = [];
+        if ($seesAll) {
+            foreach ($lists[$tab] as $r) {
+                $k = trim((string) $r['owner']) === '' ? '-' : trim((string) $r['owner']);
+                $owners[$k] = ($owners[$k] ?? 0) + 1;
+            }
+            arsort($owners);
+            if ($owner !== '') {
+                foreach ($lists as $l => $rows) {
+                    $lists[$l] = array_values(array_filter($rows, fn($r) => $owner === '-'
+                        ? trim((string) $r['owner']) === ''
+                        : mb_strtolower(trim((string) $r['owner'])) === mb_strtolower($owner)));
+                }
+            }
+        }
         view('insights.index', [
             'pageTitle' => t('nav_insights'), 'pageSub' => t('sub_insights'),
             'lists' => $lists, 'tab' => $tab, 'computedOn' => $computedOn,
             'recent' => Insights::recent_followups($pdo, array_column($lists[$tab], 'customer_id')),
-            'showOwner' => false, 'canSeeAll' => insights_sees_all(), 'route' => 'insights.index', 'routeParams' => [],
+            'showOwner' => $seesAll, 'canSeeAll' => $seesAll, 'route' => 'insights.index', 'routeParams' => array_filter(['owner' => $owner]),
+            'owners' => $owners, 'owner' => $owner,
         ]);
         break;
 
@@ -68,7 +88,7 @@ switch ($action) {
         Csrf::verify();
         $back = input('back', '') === 'insights_admin' && insights_sees_all()
             ? ['insights.admin', array_filter(['tab' => $tab, 'owner' => trim((string) input('owner', ''))])]
-            : ['insights.index', ['tab' => $tab]];
+            : ['insights.index', array_filter(['tab' => $tab, 'owner' => insights_sees_all() ? trim((string) input('owner', '')) : ''])];
         $st = $pdo->prepare('SELECT * FROM customers WHERE id = ?');
         $st->execute([(int) input('id', 0)]);
         $customer = $st->fetch();

@@ -81,7 +81,7 @@ if (function_exists('exec') && is_file($harness)) {
     [$h] = $run('insights', 'index', [], $ridwan);
     ok('sales list: own customer only', str_contains($h, 'Ridwan Shop') && !str_contains($h, 'Rian Shop'));
     ok('sales list: no link into 客户管理 (they have no access)', !str_contains($h, 'customers.show'));
-    ok('sales list: details panel with industry confirm, posting to insights.*', str_contains($h, t('ins_details')) && str_contains($h, 'insights.set_industry') && str_contains($h, 'insights.followup') && !str_contains($h, 'customers.followup'));
+    ok('sales list: details panel with industry confirm, posting to insights.*', str_contains($h, t('ins_more')) && str_contains($h, 'insights.set_industry') && str_contains($h, 'insights.followup') && !str_contains($h, 'customers.followup'));
     ok('sales list: no 12-month totals across customers', !str_contains($h, t('ins_activity')) && !str_contains($h, t('ins_by_industry')));
 
     // Tampered requests: another salesperson's customer id.

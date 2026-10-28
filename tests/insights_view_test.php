@@ -107,6 +107,12 @@ if (function_exists('exec') && is_file($harness)) {
     ok('sales page: big call / WhatsApp / follow-up buttons', str_contains($h, 'tel:081211112222') && str_contains($h, 'https://wa.me/6281211112222') && str_contains($h, t('btn_followup')) && str_contains($h, t('btn_no_need')));
     ok('sales page: buttons post back to the list', str_contains($h, 'name="back" value="insights"'));
     ok('sales page: no owner column, no manager link', !str_contains($h, 'ins-owner') && !str_contains($h, 'insights.admin'));
+    // 2026-10-28: the boss / 全部客户分析 see everyone's list on this page, with a salesperson filter.
+    $hm = $run('insights', 'index', ['tab' => 'a'], ['id' => 1, 'name' => 'Admin', 'role' => 'admin']);
+    ok('boss on 回访清单: everyone\'s customers, owner shown, a chip per salesperson', str_contains($hm, 'Rina Due') && str_contains($hm, 'ins-owner') && str_contains($hm, 'ins-chip'));
+    $hf = $run('insights', 'index', ['tab' => 'a', 'owner' => 'rina'], ['id' => 1, 'name' => 'Admin', 'role' => 'admin']);
+    ok('…filter by one salesperson; actions post back with the filter', str_contains($hf, 'Rina Due') && !str_contains($hf, '>Andi') && str_contains($hf, 'name="owner" value="rina"'));
+    ok('cards carry an urgency colour', (bool) preg_match('/ins-item ins-lv-(green|orange|red|blue)/', $hm));
     $hb = $run('insights', 'index', ['tab' => 'b'], $rina);
     ok('B tab: snoozed customer hidden (followed up 3 days ago)', !str_contains($hb, 'Rina Risk'));
     ok('unknown tab falls back to A', str_contains($run('insights', 'index', ['tab' => 'zzz'], $rina), 'ins-tab ins-tab-a active'));
