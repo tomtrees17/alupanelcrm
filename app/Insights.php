@@ -366,6 +366,22 @@ final class Insights
     }
 
     /**
+     * Most urgent first, the order the page shows and the export writes
+     * (2026-10-28): A by days since ÷ usual interval, B red first then by days
+     * overdue, C as computed (12-month amount).
+     */
+    public static function sort_list(array $rows, string $tab): array
+    {
+        $ratio = fn(array $r) => (float) $r['days_since'] / max(1.0, (float) ($r['avg_interval'] ?: 1));
+        if ($tab === 'a') {
+            usort($rows, fn($x, $y) => $ratio($y) <=> $ratio($x));
+        } elseif ($tab === 'b') {
+            usort($rows, fn($x, $y) => [(int) $y['overdue_red'], (int) $y['overdue_days']] <=> [(int) $x['overdue_red'], (int) $x['overdue_days']]);
+        }
+        return $rows;
+    }
+
+    /**
      * Web-Mercator layout for a fixed OpenStreetMap tile grid covering the
      * given box: which tiles to draw and where each point lands, in pixels of
      * that grid. Plain SVG on the page; no map library.

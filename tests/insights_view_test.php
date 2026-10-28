@@ -113,6 +113,17 @@ if (function_exists('exec') && is_file($harness)) {
     $hf = $run('insights', 'index', ['tab' => 'a', 'owner' => 'rina'], ['id' => 1, 'name' => 'Admin', 'role' => 'admin']);
     ok('…filter by one salesperson; actions post back with the filter', str_contains($hf, 'Rina Due') && !str_contains($hf, '>Andi') && str_contains($hf, 'name="owner" value="rina"'));
     ok('cards carry an urgency colour', (bool) preg_match('/ins-item ins-lv-(green|orange|red|blue)/', $hm));
+    ok('export button for whoever sees all and may export; not for sales', str_contains($hm, 'r=insights.export') && !str_contains($run('insights', 'index', [], $rina), 'insights.export'));
+    $xl = (string) shell_exec(implode(' ', array_map('escapeshellarg', [PHP_BINARY, $harness, $db, 'insights', 'export', json_encode(['owner' => 'rina']), json_encode(['id' => 1, 'name' => 'Admin', 'role' => 'admin'])])) . ' 2>&1');
+    $f = tempnam(sys_get_temp_dir(), 'ix') . '.xlsx';
+    file_put_contents($f, substr($xl, 0, (int) strrpos($xl, "\n<!--FLASH:")));
+    $sheetA = class_exists('ZipArchive') ? SalesHistory::read_xlsx($f, t('list_a')) : [];
+    $sheetB = class_exists('ZipArchive') ? SalesHistory::read_xlsx($f, t('list_b')) : [];
+    @unlink($f);
+    ok('export: one sheet per list, the salesperson\'s customers, phone and WhatsApp link', ($sheetA[0][1] ?? '') === t('th_name') && in_array('Rina Due', array_column($sheetA, 1), true)
+        && !in_array('Andi Due', array_column($sheetA, 1), true) && in_array('https://wa.me/6281211112222', array_column($sheetA, 4), true) && ($sheetB[0][0] ?? '') === t('owner'));
+    $xs = (string) shell_exec(implode(' ', array_map('escapeshellarg', [PHP_BINARY, $harness, $db, 'insights', 'export', '{}', json_encode($rina)])) . ' 2>&1');
+    ok('export: refused to a salesperson', str_contains($xs, t('msg_no_export')) && !str_starts_with($xs, 'PK'));
     $hb = $run('insights', 'index', ['tab' => 'b'], $rina);
     ok('B tab: snoozed customer hidden (followed up 3 days ago)', !str_contains($hb, 'Rina Risk'));
     ok('unknown tab falls back to A', str_contains($run('insights', 'index', ['tab' => 'zzz'], $rina), 'ins-tab ins-tab-a active'));

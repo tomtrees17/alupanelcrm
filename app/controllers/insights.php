@@ -24,6 +24,48 @@ $computedOn = (string) $pdo->query("SELECT v FROM app_meta WHERE k = 'insights_c
 $tab = in_array(input('tab'), Insights::LISTS, true) ? (string) input('tab') : 'a';
 
 switch ($action) {
+    // Export the three lists (the current salesperson filter) for a manager to send to sales (2026-10-28).
+    case 'export':
+        if (!insights_sees_all() || !can_export()) {
+            http_response_code(403);
+            flash(t('msg_no_export'), 'error');
+            redirect('insights.index');
+        }
+        $owner = trim((string) input('owner', ''));
+        $lists = Insights::lists($pdo, $config, $today, ($owner === '' || $owner === '-') ? null : $owner);
+        if ($owner === '-') {
+            foreach ($lists as $l => $rows) {
+                $lists[$l] = array_values(array_filter($rows, fn($r) => trim((string) $r['owner']) === ''));
+            }
+        }
+        $wa = function (string $phone): string {
+            $d = preg_replace('/\D+/', '', $phone) ?? '';
+            if (str_starts_with($d, '0')) {
+                $d = '62' . substr($d, 1);
+            }
+            return strlen($d) >= 9 ? 'https://wa.me/' . $d : '';
+        };
+        $headers = [t('owner'), t('th_name'), t('th_company'), t('th_phone'), 'WhatsApp', t('th_region'), t('th_industry'),
+                    t('ins_x_days_since'), t('ins_x_interval'), t('ins_x_overdue'), t('ins_x_amount12'), t('ins_x_last_date'), t('ins_x_last_items')];
+        $sheets = [];
+        foreach (Insights::LISTS as $l) {
+            $rows = [];
+            foreach (Insights::sort_list($lists[$l], $l) as $r) {
+                $rows[] = [
+                    trim((string) $r['owner']) ?: t('ins_unassigned'), (string) $r['name'], (string) $r['company'], (string) $r['phone'], $wa((string) $r['phone']),
+                    $r['region'] === null ? '' : region_label((string) $r['region']), industry_label((string) ($r['industry'] ?? '')),
+                    (int) $r['days_since'], $r['avg_interval'] !== null ? (int) round((float) $r['avg_interval']) : '',
+                    $l === 'b' ? (int) $r['overdue_days'] : '', (float) $r['total_amount'], (string) $r['last_order_date'],
+                    $l === 'c' && !empty($r['top_specs']) ? (string) $r['top_specs'] : (string) $r['last_items'],
+                ];
+            }
+            $sheets[] = [t('list_' . $l), $headers, $rows];
+        }
+        $who = $owner === '' ? 'all' : ($owner === '-' ? 'unassigned' : (preg_replace('/[^A-Za-z0-9_-]+/', '_', $owner) ?: 'sales'));
+        audit($pdo, 'customers', 'export', 'insights', null, t('nav_insights'), sprintf('%s: %d / %d / %d', $who, count($lists['a']), count($lists['b']), count($lists['c'])));
+        send_workbook("Follow-up_{$who}_{$today}", $sheets);
+        break;
+
     case 'index':
         // Sales: their own customers. Boss / 全部客户分析 (2026-10-28): everyone's, with a
         // salesperson filter ('-' = customers nobody owns).
@@ -50,7 +92,7 @@ switch ($action) {
             'lists' => $lists, 'tab' => $tab, 'computedOn' => $computedOn,
             'recent' => Insights::recent_followups($pdo, array_column($lists[$tab], 'customer_id')),
             'showOwner' => $seesAll, 'canSeeAll' => $seesAll, 'route' => 'insights.index', 'routeParams' => array_filter(['owner' => $owner]),
-            'owners' => $owners, 'owner' => $owner,
+            'owners' => $owners, 'owner' => $owner, 'canExport' => $seesAll && can_export(),
         ]);
         break;
 

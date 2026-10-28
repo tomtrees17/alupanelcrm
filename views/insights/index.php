@@ -4,7 +4,10 @@
 ?>
 <div class="page-head">
     <h1><?= t('nav_insights') ?></h1>
-    <?php if ($canSeeAll): ?><a class="btn btn-ghost" href="<?= url('insights.admin') ?>"><?= t('insights_admin') ?></a><?php endif; ?>
+    <div class="head-actions">
+        <?php if (!empty($canExport)): ?><a class="btn btn-ghost" href="<?= url('insights.export', array_filter(['owner' => $owner])) ?>"><?= t('btn_export') ?></a><?php endif; ?>
+        <?php if ($canSeeAll): ?><a class="btn btn-ghost" href="<?= url('insights.admin') ?>"><?= t('insights_admin') ?></a><?php endif; ?>
+    </div>
 </div>
 <?php if ($computedOn === ''): ?>
     <div class="alert alert-error"><?= t('ins_not_computed') ?></div>

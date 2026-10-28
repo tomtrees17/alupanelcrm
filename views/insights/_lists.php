@@ -24,12 +24,7 @@ $level = function (array $r) use ($tab): string {
     $ratio = $r['avg_interval'] ? (float) $r['days_since'] / max(1.0, (float) $r['avg_interval']) : 0;
     return $ratio >= 1.3 ? 'orange' : 'green';
 };
-$rows = $lists[$tab];
-if ($tab === 'a') {
-    usort($rows, fn($x, $y) => ((float) $y['days_since'] / max(1.0, (float) ($y['avg_interval'] ?: 1))) <=> ((float) $x['days_since'] / max(1.0, (float) ($x['avg_interval'] ?: 1))));
-} elseif ($tab === 'b') {
-    usort($rows, fn($x, $y) => [(int) $y['overdue_red'], (int) $y['overdue_days']] <=> [(int) $x['overdue_red'], (int) $x['overdue_days']]);
-}
+$rows = Insights::sort_list($lists[$tab], $tab);
 $wa = function (string $phone): string {
     $d = preg_replace('/\D+/', '', $phone) ?? '';
     if (str_starts_with($d, '0')) {
