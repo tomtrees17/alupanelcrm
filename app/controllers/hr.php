@@ -1179,54 +1179,9 @@ switch ($action) {
         redirect($back[0], $back[1]);
         break;
 
-    // ── HR-07 销售周评: boss and visits_all see everyone, a sales department head their department ──
+    // HR-07 销售周评 moved to the 客户 group (reviews.index); old links still land there.
     case 'review':
-    case 'review_export':
-    case 'review_generate':
-        $rv = SalesReview::viewer($pdo);
-        if ($rv['scope'] === 'none') {
-            http_response_code(403);
-            flash(t('hr_msg_not_yours'), 'error');
-            redirect('hr.index');
-        }
-        $week = (string) input('week', '');
-        $week = SalesReview::valid_week($week) ? $week : SalesReview::last_week($today);
-        if ($action === 'review_generate') {
-            Csrf::verify();
-            if (!$auth->isAdmin()) {
-                http_response_code(403);
-                flash(t('hr_msg_read_only'), 'error');
-                redirect('hr.review', ['week' => $week]);
-            }
-            if ($week > SalesReview::last_week($today)) {   // only finished weeks
-                flash(t('srv_msg_unfinished'), 'error');
-                redirect('hr.review', ['week' => $week]);
-            }
-            $r = SalesReview::generate($pdo, $config, $week, $operator);
-            flash(t($r['status'] === 'ok' ? 'srv_msg_done' : 'srv_msg_done_no_ai'));
-            redirect('hr.review', ['week' => $week]);
-        }
-        $review = SalesReview::latest($pdo, $week);
-        $items = $review ? SalesReview::items($pdo, (int) $review['id'], $rv) : [];
-        if ($action === 'review_export') {
-            if (!$review) {
-                flash(t('srv_none'), 'error');
-                redirect('hr.review', ['week' => $week]);
-            }
-            audit($pdo, 'hr', 'export', 'sales_reviews', (int) $review['id'], $week, 'sales review export, ' . count($items) . ' rows');
-            send_workbook('Review-Mingguan-' . $week, [['Review', SalesReview::export_headers(), array_map([SalesReview::class, 'export_row'], $items)]]);
-        }
-        $weeks = SalesReview::weeks($pdo);
-        $last = SalesReview::last_week($today);
-        if (!in_array($last, $weeks, true)) {
-            array_unshift($weeks, $last);
-        }
-        if (!in_array($week, $weeks, true)) {
-            $weeks[] = $week;
-            rsort($weeks);
-        }
-        view('hr.review', ['pageTitle' => t('srv_title'), 'pageSub' => '', 'week' => $week, 'weeks' => $weeks, 'review' => $review, 'items' => $items,
-                           'boss' => $auth->isAdmin(), 'canGenerate' => $auth->isAdmin() && $week <= $last, 'aiOn' => AiTask::enabled($config)]);
+        redirect('reviews.index', array_filter(['week' => (string) input('week', '')]));
         break;
 
     default:

@@ -180,8 +180,8 @@ if (function_exists('exec') && is_file($harness)) {
     $ridwan = $u(4, 'ridwan', 'sales', $R);
     $budi = $u(7, 'budi', 'sales', $B);
     $liu = $u(8, 'liuxian', 'warehouse', $emp('liuxian'));
-    $run = function (string $action, array $user, array $get = [], ?array $post = null) use ($db, $harness): array {
-        $args = [PHP_BINARY, $harness, $db, 'hr', $action, json_encode($get ?: new stdClass()), json_encode($user), $post === null ? '' : json_encode($post), json_encode(['lang' => 'zh'])];
+    $run = function (string $action, array $user, array $get = [], ?array $post = null, string $ctl = 'reviews') use ($db, $harness): array {
+        $args = [PHP_BINARY, $harness, $db, $ctl, $action, json_encode($get ?: new stdClass()), json_encode($user), $post === null ? '' : json_encode($post), json_encode(['lang' => 'zh'])];
         $out = [];
         exec(implode(' ', array_map('escapeshellarg', $args)) . ' 2>&1', $out);
         $html = implode("\n", $out);
@@ -190,38 +190,43 @@ if (function_exists('exec') && is_file($harness)) {
     };
     $isErr = fn(array $fl) => ($fl[0]['type'] ?? '') === 'error';
 
-    [$h] = $run('review', $admin, ['week' => $W]);
+    [$h] = $run('index', $admin, ['week' => $W]);
     ok('boss: overview, every card, the quote linked to the prospect page, export and regenerate', str_contains($h, '本周 2 人在跑') && str_contains($h, 'Ridwan Saputra') && str_contains($h, 'Angga Pratama')
-        && str_contains($h, 'Dewi Lestari') && str_contains($h, 'r=visits.prospects&q=Abadi+Glass') && str_contains($h, 'hr.review_export') && str_contains($h, 'hr.review_generate')
+        && str_contains($h, 'Dewi Lestari') && str_contains($h, 'r=visits.prospects&q=Abadi+Glass') && str_contains($h, 'reviews.export') && str_contains($h, 'reviews.generate')
         && str_contains($h, t('srv_no_visits')) && !str_contains($h, 'PHP:'), mb_substr(strip_tags($h), 0, 300));
-    [$h] = $run('review', $admin);
-    ok('default week = last week (empty state when nothing generated)', str_contains($h, t('srv_none')) || str_contains($h, 'Ridwan Saputra'));
-    [$h] = $run('review', $tania, ['week' => $W]);
-    ok('visits_all (manager): everyone, no regenerate button', str_contains($h, 'Angga Pratama') && str_contains($h, 'Ridwan Saputra') && !str_contains($h, 'hr.review_generate'));
-    [$h] = $run('review', $budi, ['week' => $W]);
-    ok('sales department head: own department only', str_contains($h, 'Ridwan Saputra') && str_contains($h, 'Dewi Lestari') && !str_contains($h, 'Angga Pratama'));
-    [, $fl] = $run('review', $ridwan, ['week' => $W]);
-    ok('ACCEPTANCE: a salesperson cannot open it', $isErr($fl));
-    [, $fl] = $run('review', $hana, ['week' => $W]);
-    [, $fl2] = $run('review', $liu, ['week' => $W]);
-    ok('HR (no visits_all) and a warehouse head cannot either', $isErr($fl) && $isErr($fl2));
-    [$h] = $run('employees', $liu);
-    [$h2] = $run('employees', $tania);
-    ok('ACCEPTANCE: the menu tab shows only to those who may open it', !str_contains($h, 'r=hr.review') && str_contains($h2, 'r=hr.review'));
     [$h] = $run('index', $admin);
-    ok('boss todo list: 上周销售周评已生成, linked to the week', str_contains($h, t('hrtodo_sales_review')) && str_contains($h, 'r=hr.review&week=' . $W));
-    [$h] = $run('index', $hana);
+    ok('default week = last week (empty state when nothing generated)', str_contains($h, t('srv_none')) || str_contains($h, 'Ridwan Saputra'));
+    [$h] = $run('index', $tania, ['week' => $W]);
+    ok('visits_all (manager): everyone, no regenerate button', str_contains($h, 'Angga Pratama') && str_contains($h, 'Ridwan Saputra') && !str_contains($h, 'reviews.generate'));
+    [$h] = $run('index', $budi, ['week' => $W]);
+    ok('sales department head: own department only', str_contains($h, 'Ridwan Saputra') && str_contains($h, 'Dewi Lestari') && !str_contains($h, 'Angga Pratama'));
+    [, $fl] = $run('index', $ridwan, ['week' => $W]);
+    ok('ACCEPTANCE: a salesperson cannot open it', $isErr($fl));
+    [, $fl] = $run('index', $hana, ['week' => $W]);
+    [, $fl2] = $run('index', $liu, ['week' => $W]);
+    ok('HR (no visits_all) and a warehouse head cannot either', $isErr($fl) && $isErr($fl2));
+    [$h] = $run('index', $ridwan, ['r' => 'insights.index'], null, 'insights');
+    [$h2] = $run('index', $tania, ['r' => 'insights.index'], null, 'insights');
+    [$h3] = $run('index', $tania, ['r' => 'reviews.index']);
+    [$h4] = $run('employees', $tania, [], null, 'hr');
+    ok('ACCEPTANCE: a 客户 tab, shown only to those who may open it, active on the page; gone from 人力', !str_contains($h, 'r=reviews.index') && str_contains($h2, 'r=reviews.index')
+        && (bool) preg_match('/class="group-tab active" href="index\.php\?r=reviews\.index"/', $h3) && !str_contains($h4, 'r=reviews.index'));
+    [, $fl] = $run('review', $tania, ['week' => $W], null, 'hr');
+    ok('the old 人力 address forwards (no error)', !$isErr($fl));
+    [$h] = $run('index', $admin, [], null, 'hr');
+    ok('boss todo list: 上周销售周评已生成, linked to the week', str_contains($h, t('hrtodo_sales_review')) && str_contains($h, 'r=reviews.index&week=' . $W));
+    [$h] = $run('index', $hana, [], null, 'hr');
     ok('HR does not see the boss\'s todo', !str_contains($h, t('hrtodo_sales_review')));
-    [$x] = $run('review_export', $tania, ['week' => $W]);
+    [$x] = $run('export', $tania, ['week' => $W]);
     ok('export: an xlsx', str_starts_with($x, 'PK'));
-    [, $fl] = $run('review_generate', $tania, ['week' => $W], []);
+    [, $fl] = $run('generate', $tania, ['week' => $W], []);
     $q = new PDO('sqlite:' . $db, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
     ok('regenerate: not for the manager', $isErr($fl) && (int) $q->query('SELECT COUNT(*) FROM sales_reviews')->fetchColumn() === 1);
-    [, $fl] = $run('review_generate', $admin, ['week' => $W], []);
+    [, $fl] = $run('generate', $admin, ['week' => $W], []);
     ok('regenerate: the boss gets a new record (AI off in tests: figures only), the old one stays', ($fl[0]['type'] ?? '') !== 'error'
         && (int) $q->query('SELECT COUNT(*) FROM sales_reviews')->fetchColumn() === 2 && $q->query('SELECT status FROM sales_reviews ORDER BY id DESC LIMIT 1')->fetchColumn() === 'ai_skipped'
         && $q->query("SELECT generated_by FROM sales_reviews ORDER BY id DESC LIMIT 1")->fetchColumn() === 'Administrator');
-    [, $fl] = $run('review_generate', $admin, ['week' => '2099-01-05'], []);
+    [, $fl] = $run('generate', $admin, ['week' => '2099-01-05'], []);
     ok('regenerate: not for a week not finished yet', $isErr($fl));
     $q = null;
 }

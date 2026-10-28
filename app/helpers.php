@@ -367,6 +367,7 @@ function customer_tabs(): array
         ['key' => 'visits', 'route' => 'visits.index', 'label' => t('nav_visits'), 'show' => $visits],
         ['key' => 'prospects', 'route' => 'visits.prospects', 'label' => t('tab_prospects'), 'show' => $prospects],
         ['key' => 'analysis', 'route' => 'insights.admin', 'label' => t('tab_analysis'), 'show' => can_access('insights') && insights_sees_all()],
+        ['key' => 'review', 'route' => 'reviews.index', 'label' => t('srv_title'), 'show' => class_exists('SalesReview') && SalesReview::viewer($GLOBALS['pdo'])['scope'] !== 'none'],
     ];
     return array_values(array_map(fn($t) => array_diff_key($t, ['show' => 1]), array_filter($tabs, fn($t) => $t['show'])));
 }
@@ -377,6 +378,7 @@ function customer_tab_of(string $route): ?string
     $module = explode('.', $route)[0];
     return match (true) {
         $module === 'customers' => 'list',
+        $module === 'reviews' => 'review',
         $route === 'insights.admin' => 'analysis',
         $module === 'insights' => 'insights',
         in_array($route, ['visits.prospects', 'visits.assign'], true) => 'prospects',

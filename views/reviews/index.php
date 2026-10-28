@@ -16,22 +16,21 @@ $team = $review['data']['team'] ?? [];
     <h1><?= t('srv_title') ?></h1>
     <div class="head-actions">
         <form method="get" class="inline-form">
-            <input type="hidden" name="r" value="hr.review">
+            <input type="hidden" name="r" value="reviews.index">
             <select class="form-input" name="week" onchange="this.form.submit()">
                 <?php foreach ($weeks as $w): ?>
                     <option value="<?= e($w) ?>" <?= $w === $week ? 'selected' : '' ?>><?= e(Hr::dmy($w) . ' – ' . Hr::dmy(HrContract::add_days($w, 6))) ?></option>
                 <?php endforeach; ?>
             </select>
         </form>
-        <?php if ($review): ?><a class="btn btn-ghost" href="<?= url('hr.review_export', ['week' => $week]) ?>"><?= t('srv_export') ?></a><?php endif; ?>
+        <?php if ($review): ?><a class="btn btn-ghost" href="<?= url('reviews.export', ['week' => $week]) ?>"><?= t('srv_export') ?></a><?php endif; ?>
         <?php if ($canGenerate): ?>
-            <form method="post" action="<?= url('hr.review_generate', ['week' => $week]) ?>" class="inline-form" <?= $review ? 'onsubmit="return confirm(\'' . e(t('srv_regen_confirm')) . '\')"' : '' ?>>
+            <form method="post" action="<?= url('reviews.generate', ['week' => $week]) ?>" class="inline-form" <?= $review ? 'onsubmit="return confirm(\'' . e(t('srv_regen_confirm')) . '\')"' : '' ?>>
                 <?= Csrf::field() ?><button class="btn btn-primary" type="submit"><?= t($review ? 'srv_regen' : 'srv_generate') ?></button>
             </form>
         <?php endif; ?>
     </div>
 </div>
-<?php include __DIR__ . '/_tabs.php'; ?>
 
 <?php if (!$review): ?>
     <div class="card"><div class="card-body"><p class="muted"><?= t('srv_none') ?></p></div></div>

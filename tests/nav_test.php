@@ -53,7 +53,7 @@ if (function_exists('exec') && is_file($harness)) {
         return preg_match('/<a class="nav-item[^"]*" href="index\.php\?r=([a-z_.]+)"><span class="nav-icon">◎<\/span>/u', $html, $m) ? $m[1] : null;
     };
     $h = $run('customers', 'index', $tania);
-    ok('manager: one 客户 entry, five tabs in order, the list active', $tabs($h) === ['*customers.index', 'insights.index', 'visits.index', 'visits.prospects', 'insights.admin'], json_encode($tabs($h)));
+    ok('manager: one 客户 entry, six tabs in order (销售周评 last, HR-07), the list active', $tabs($h) === ['*customers.index', 'insights.index', 'visits.index', 'visits.prospects', 'insights.admin', 'reviews.index'], json_encode($tabs($h)));
     ok('the old separate sidebar items are gone', !str_contains($h, 'href="index.php?r=insights.index"><span class="nav-icon">') && !str_contains($h, 'href="index.php?r=visits.index"><span class="nav-icon">')
         && $entry($h) === 'customers.index');
     $h = $run('visits', 'list', $tania);
