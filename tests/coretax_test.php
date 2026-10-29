@@ -134,12 +134,16 @@ $coOrder = array_merge($ocols, ['id' => 9, 'order_no' => 'SO-9', 'customer_name'
 $coItems = [array_merge($icols, ['sku' => 'SJ2020-07', 'spec' => '4.0*0.15', 'size' => '1220X2440', 'qty' => 23, 'unit' => 'LBR', 'price' => 463500.48, 'price_excl' => 417568]),
             array_merge($icols, ['sku' => 'SJ8033', 'spec' => '4.0*0.21', 'size' => '1220X2440', 'qty' => 10, 'unit' => 'LBR', 'price' => 432394.95, 'price_excl' => 389545])];
 $co = $render(__DIR__ . '/../views/print/co.php', ['order' => $coOrder, 'items' => $coItems, 'sales' => []]);
-ok('CO pre-tax: rows read DPP (11/12) and PPN 12% × DPP, with the effective 11% note',
-    str_contains($co, 'DPP (11/12)') && str_contains($co, 'PPN 12% × DPP') && str_contains($co, 'PPN efektif 11% dari Sub Total') && !str_contains($co, '>PPN 12%<'));
+ok('CO pre-tax: Sub Total is the DPP, then DPP Nilai Lain and PPN 12%, with the 11/12 and effective 11% note (Coretax wording)',
+    str_contains($co, 'SUB TOTAL (DPP)') && str_contains($co, '>DPP Nilai Lain<') && str_contains($co, '>PPN 12%<')
+    && str_contains($co, 'DPP Nilai Lain = 11/12 × DPP') && str_contains($co, 'PPN efektif 11%'));
+$coShip = $render(__DIR__ . '/../views/print/co.php', ['order' => array_merge($coOrder, ['shipping_cost' => 500000]), 'items' => $coItems, 'sales' => []]);
+ok('CO pre-tax with ongkir: Sub Total is not labelled DPP (the tax base also holds shipping ÷ 1,11)',
+    !str_contains($coShip, 'SUB TOTAL (DPP)') && str_contains($coShip, '>SUB TOTAL<') && str_contains($coShip, '>DPP Nilai Lain<'));
 ok('CO pre-tax: figures unchanged (DPP 12.374.554,50 · PPN 1.484.946,54 · total 14.984.460,54)',
     str_contains($co, '12.374.554,5') && str_contains($co, '1.484.946,54') && str_contains($co, '14.984.460,54'));
 $coIncl = $render(__DIR__ . '/../views/print/co.php', ['order' => array_merge($coOrder, ['price_basis' => 'incl']), 'items' => $coItems, 'sales' => []]);
-ok('CO tax-inclusive: no PPN rows, no effective-rate note', !str_contains($coIncl, 'PPN efektif') && str_contains($coIncl, 'Harga sudah termasuk PPN'));
+ok('CO tax-inclusive: no PPN rows, no effective-rate note', !str_contains($coIncl, 'PPN efektif') && !str_contains($coIncl, 'SUB TOTAL (DPP)') && str_contains($coIncl, 'Harga sudah termasuk PPN'));
 
 // 4) Legacy invoices keep their old presentation.
 $legacy = array_merge($inv, ['calc' => 'legacy', 'subtotal' => 1351352, 'ppn' => 148649, 'dpp' => null, 'rounding' => -1]);
