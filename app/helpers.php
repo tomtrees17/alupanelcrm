@@ -447,7 +447,10 @@ function sees_only_own(): bool
     return ($auth->user()['role'] ?? '') === 'sales';
 }
 
-/** An order can be edited only while draft/rejected, by its submitter or admin. */
+/**
+ * An order can be edited only while draft/rejected, by its submitter, the person
+ * who keyed it in (e.g. a sales assistant entering it for a salesperson), or admin.
+ */
 function order_editable(array $order): bool
 {
     $auth = $GLOBALS['auth'] ?? null;
@@ -457,7 +460,8 @@ function order_editable(array $order): bool
     if (!in_array($order['status'] ?? '', ['draft', 'rejected'], true)) {
         return false;
     }
-    return $auth->isAdmin() || ($order['submitter'] ?? '') === ($auth->user()['name'] ?? '');
+    $me = (string) ($auth->user()['name'] ?? '');
+    return $auth->isAdmin() || ($me !== '' && in_array($me, [(string) ($order['submitter'] ?? ''), (string) ($order['created_by'] ?? '')], true));
 }
 
 /** Current user's display name (used as order submitter / customer owner). */

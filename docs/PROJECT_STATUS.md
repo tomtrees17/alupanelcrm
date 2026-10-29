@@ -55,7 +55,7 @@ php -S localhost:8000 -t public
 
 **订单四级审批流**：销售→主管(supervisor)→经理(manager)→仓库(warehouse)。
 - 状态：`draft / pending_sup / pending_mgr / pending_wh / approved`（旧 rejected 仅历史数据）
-- 新建订单可**保存草稿**或**提交审批**（表单两按钮 do=draft|submit）。草稿/被驳回订单可由本人或 admin **编辑**(`order_editable()`)；草稿不占库存，提交时才校验可用库存并预留
+- 新建订单可**保存草稿**或**提交审批**（表单两按钮 do=draft|submit）。草稿/被驳回订单可由提交人（销售）、**录单人**（`created_by`，如替销售录单的销售助理；2026-10-29 用户要求，其他助理不行）或 admin **编辑**(`order_editable()`，同一判断也管重新提交 / 删除草稿 / 草稿挂接 CO 号)；草稿不占库存，提交时才校验可用库存并预留
 - 仅对应角色（或 admin）能在该阶段审批（`order_action_role()`）。**驳回 = 退回草稿**：记录 `reject_note/by/date`、清空已有审批、释放预留，销售改后可重新提交
 - 仓库「确认出货」(`fulfill_order`) 自动：扣库存(out_auto) + 生成送货单DO + 生成发票
 - `save_order()` 统一处理建/改；`submit_order()` 草稿→pending_sup；`orders.reject_note/by/date` 字段由 ensureSchema 自动加
