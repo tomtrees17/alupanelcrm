@@ -159,8 +159,9 @@ $clientType = ['CONTRACTOR' => 'APLIKATOR / KONTRAKTOR', 'DISTRIBUTOR' => 'DISTR
             <tr class="tot"><td colspan="6" style="border-top:none;border-bottom:none"></td><td></td><td></td><td class="lbl" style="border-top:none">ONGKIR</td><td class="r rp" style="border-top:none"><span class="cur">Rp</span><?= $rp((float) $order['shipping_cost']) ?></td></tr>
         <?php endif; ?>
         <?php if ($preTax): ?>
-            <tr><td colspan="6"></td><td></td><td></td><td class="lbl">DPP</td><td class="r rp"><span class="cur">Rp</span><?= $rp($amt['dpp']) ?></td></tr>
-            <tr><td colspan="6"></td><td></td><td></td><td class="lbl">PPN 12%</td><td class="r rp"><span class="cur">Rp</span><?= $rp($amt['ppn']) ?></td></tr>
+            <tr><td colspan="6"></td><td></td><td></td><td class="lbl">DPP (11/12)</td><td class="r rp"><span class="cur">Rp</span><?= $rp($amt['dpp']) ?></td></tr>
+            <tr><td colspan="6"></td><td></td><td></td><td class="lbl">PPN 12% × DPP</td><td class="r rp"><span class="cur">Rp</span><?= $rp($amt['ppn']) ?></td></tr>
+            <tr><td colspan="6"></td><td></td><td></td><td class="lbl" colspan="2" style="text-align:right;font-weight:400;font-style:italic">PPN efektif 11% dari Sub Total (effective VAT 11% of Sub Total)</td></tr>
         <?php else: ?>
             <tr><td colspan="6"></td><td></td><td></td><td class="lbl" colspan="2" style="text-align:right;font-weight:400;font-style:italic">Harga sudah termasuk PPN (prices include VAT)</td></tr>
         <?php endif; ?>

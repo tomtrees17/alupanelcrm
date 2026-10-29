@@ -126,6 +126,21 @@ ok('Word: same Coretax figures', str_contains($body, 'Rp148.648,64') && str_cont
 $sc = $render(__DIR__ . '/../views/finance/show.php', ['invoice' => $inv, 'items' => $invItems, 'payments' => [], 'voidBlock' => null]);
 ok('screen: DPP Nilai Lain, PPN and Total Invoice (= Coretax) with 2 decimals', str_contains($sc, 'DPP Nilai Lain') && str_contains($sc, 'Rp 148.648,64') && str_contains($sc, 'Rp 1.499.999,94'));
 
+// CO for a pre-tax order: the PPN rows say how they are computed, so 12% is not read as 12% of Sub Total.
+$ocols = array_fill_keys(array_column($mem->query('PRAGMA table_info(orders)')->fetchAll(), 'name'), '');
+$icols = array_fill_keys(array_column($mem->query('PRAGMA table_info(order_items)')->fetchAll(), 'name'), '');
+$coOrder = array_merge($ocols, ['id' => 9, 'order_no' => 'SO-9', 'customer_name' => 'Ibu Dewi', 'company' => 'DAPUR GEMILANG', 'shipping_cost' => 0,
+    'price_basis' => 'excl', 'status' => 'approved', 'created_at' => '2026-10-28 10:00:00', 'submitter' => 'Admin']);
+$coItems = [array_merge($icols, ['sku' => 'SJ2020-07', 'spec' => '4.0*0.15', 'size' => '1220X2440', 'qty' => 23, 'unit' => 'LBR', 'price' => 463500.48, 'price_excl' => 417568]),
+            array_merge($icols, ['sku' => 'SJ8033', 'spec' => '4.0*0.21', 'size' => '1220X2440', 'qty' => 10, 'unit' => 'LBR', 'price' => 432394.95, 'price_excl' => 389545])];
+$co = $render(__DIR__ . '/../views/print/co.php', ['order' => $coOrder, 'items' => $coItems, 'sales' => []]);
+ok('CO pre-tax: rows read DPP (11/12) and PPN 12% × DPP, with the effective 11% note',
+    str_contains($co, 'DPP (11/12)') && str_contains($co, 'PPN 12% × DPP') && str_contains($co, 'PPN efektif 11% dari Sub Total') && !str_contains($co, '>PPN 12%<'));
+ok('CO pre-tax: figures unchanged (DPP 12.374.554,50 · PPN 1.484.946,54 · total 14.984.460,54)',
+    str_contains($co, '12.374.554,5') && str_contains($co, '1.484.946,54') && str_contains($co, '14.984.460,54'));
+$coIncl = $render(__DIR__ . '/../views/print/co.php', ['order' => array_merge($coOrder, ['price_basis' => 'incl']), 'items' => $coItems, 'sales' => []]);
+ok('CO tax-inclusive: no PPN rows, no effective-rate note', !str_contains($coIncl, 'PPN efektif') && str_contains($coIncl, 'Harga sudah termasuk PPN'));
+
 // 4) Legacy invoices keep their old presentation.
 $legacy = array_merge($inv, ['calc' => 'legacy', 'subtotal' => 1351352, 'ppn' => 148649, 'dpp' => null, 'rounding' => -1]);
 $dl = invoice_display($legacy, $GLOBALS['config']);
