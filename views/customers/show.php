@@ -21,7 +21,28 @@
         <div><dt><?= t('owner') ?></dt><dd><?= e($customer['owner'] ?? '') ?: '—' ?></dd></div>
     </dl>
     <?php if ($customer['note']): ?><p class="notes"><?= nl2br(e($customer['note'])) ?></p><?php endif; ?>
+    <?php if (!empty($mergedFrom)): ?>
+        <p class="muted small"><?= t('cm_merged_from') ?>:
+            <?php foreach ($mergedFrom as $i => $mf): ?><?= $i ? ' · ' : '' ?>#<?= (int) $mf['id'] ?> <?= e($mf['name']) ?><?= $mf['company'] ? ' (' . e($mf['company']) . ')' : '' ?> — <?= e(Hr::dmy((string) $mf['merged_at'])) ?> <?= e((string) $mf['merged_by']) ?><?php endforeach; ?>
+        </p>
+    <?php endif; ?>
 </div></div>
+<?php if (!empty($mergeTargets)): ?>
+    <details class="card cm-into"><summary class="card-header"><span class="card-title"><?= t('cm_into_title') ?></span></summary>
+        <div class="card-body">
+            <p class="muted small"><?= t('cm_into_hint') ?></p>
+            <form method="post" action="<?= url('customers.merge') ?>" class="searchbar">
+                <?= Csrf::field() ?>
+                <input type="hidden" name="from[]" value="<?= (int) $customer['id'] ?>"><input type="hidden" name="back" value="show">
+                <input class="form-input" type="text" name="target" list="cm-targets" placeholder="<?= t('cm_into_ph') ?>" required>
+                <datalist id="cm-targets">
+                    <?php foreach ($mergeTargets as $mt): ?><option value="#<?= (int) $mt['id'] ?> · <?= e($mt['name']) ?><?= $mt['company'] ? ' · ' . e($mt['company']) : '' ?>"></option><?php endforeach; ?>
+                </datalist>
+                <button class="btn btn-ghost" type="submit"><?= t('cm_btn_next') ?></button>
+            </form>
+        </div>
+    </details>
+<?php endif; ?>
 
 <?php
 $ind = (string) ($customer['industry'] ?? '');

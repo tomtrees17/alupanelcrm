@@ -25,7 +25,7 @@ switch ($action) {
         view('tasks.index', [
             'tasks' => $stmt->fetchAll(), 'filter' => $filter,
             'stats' => ['total' => $total, 'done' => $done, 'high' => $high, 'rate' => $total ? round($done / $total * 100) : 0],
-            'customers' => $pdo->query('SELECT id, name FROM customers ORDER BY name')->fetchAll(),
+            'customers' => $pdo->query('SELECT id, name FROM customers WHERE merged_into IS NULL ORDER BY name')->fetchAll(),
         ]);
         break;
 

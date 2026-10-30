@@ -332,7 +332,7 @@ final class VisitImport
                 $best[$k] = ['key' => $k, 'kind' => $kind, 'id' => $id, 'name' => $name, 'where' => $where, 'score' => $s];
             }
         };
-        foreach ($pdo->query('SELECT id, name, company, city FROM customers') as $c) {
+        foreach ($pdo->query('SELECT COALESCE(merged_into, id) id, name, company, city FROM customers') as $c) {
             $add('customer', (int) $c['id'], (string) $c['name'], (string) $c['city']);
             if (trim((string) $c['company']) !== '') {
                 $add('customer', (int) $c['id'], (string) $c['company'], (string) $c['city']);

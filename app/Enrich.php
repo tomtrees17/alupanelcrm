@@ -604,7 +604,7 @@ final class Enrich
             $byCustomer[(int) $r['customer_id']][] = $r['delivery_region'] ?? 'unknown';
         }
         $updC = $pdo->prepare('UPDATE customers SET region = ?, delivery_regions = ? WHERE id = ? AND (region IS NOT ? OR delivery_regions IS NOT ?)');
-        foreach ($pdo->query('SELECT id FROM customers')->fetchAll(PDO::FETCH_COLUMN) as $cid) {
+        foreach ($pdo->query('SELECT id FROM customers WHERE merged_into IS NULL')->fetchAll(PDO::FETCH_COLUMN) as $cid) {
             $regs = $byCustomer[(int) $cid] ?? [];
             $region = self::customer_region($regs);
             $counts = $regs ? array_count_values(array_map(fn($x) => $x ?? 'unknown', $regs)) : null;
@@ -622,7 +622,7 @@ final class Enrich
         $facts = self::customer_facts($pdo);
         $needAi = [];
         $setRule = $pdo->prepare("UPDATE customers SET industry = ?, industry_source = 'rule', industry_confidence = 1, industry_pending = 0, industry_note = ?, enriched_at = datetime('now','localtime') WHERE id = ? AND COALESCE(industry_source, '') <> 'manual'");
-        foreach ($pdo->query('SELECT id, name, company, industry, industry_source FROM customers ORDER BY id')->fetchAll() as $c) {
+        foreach ($pdo->query('SELECT id, name, company, industry, industry_source FROM customers WHERE merged_into IS NULL ORDER BY id')->fetchAll() as $c) {
             if (($c['industry_source'] ?? '') === 'manual') {
                 $sum['manual_kept']++;
                 continue;

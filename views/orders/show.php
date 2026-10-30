@@ -68,7 +68,11 @@ $canAct = $auth->isAdmin() || in_array($auth->user()['role'] ?? '', order_action
 <div class="grid-2">
     <div class="card"><div class="card-body">
         <dl class="detail">
-            <div><dt><?= t('th_customer') ?></dt><dd><?= trim((string) $order['customer_name']) !== '' ? e($order['customer_name']) : '<span class="muted">' . t('order_no_customer') . '</span>' ?></dd></div>
+            <div><dt><?= t('th_customer') ?></dt><dd><?= trim((string) $order['customer_name']) !== '' ? e($order['customer_name']) : '<span class="muted">' . t('order_no_customer') . '</span>' ?>
+                <?php if (($order['customer_matched'] ?? '') === 'phone' && $order['customer_id']): ?>
+                    <?php $mc = $GLOBALS['pdo']->prepare('SELECT name FROM customers WHERE id = ?'); $mc->execute([(int) $order['customer_id']]); ?>
+                    <div class="muted small"><?= t('cm_order_matched') ?>: <a href="<?= url('customers.show', ['id' => $order['customer_id']]) ?>"><?= e((string) $mc->fetchColumn()) ?></a></div>
+                <?php endif; ?></dd></div>
             <div><dt><?= t('th_company') ?></dt><dd><?= e($order['company']) ?: '—' ?></dd></div>
             <div><dt><?= t('th_phone') ?></dt><dd><?= e($order['phone']) ?: '—' ?></dd></div>
             <div><dt><?= t('f_client_type') ?></dt><dd><?= e($order['client_type']) ?></dd></div>

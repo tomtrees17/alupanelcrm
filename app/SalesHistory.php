@@ -329,7 +329,7 @@ final class SalesHistory
     public static function lookups(PDO $pdo): array
     {
         $customers = [];
-        foreach ($pdo->query('SELECT id, name, company FROM customers ORDER BY id') as $c) {
+        foreach ($pdo->query('SELECT COALESCE(merged_into, id) id, name, company FROM customers ORDER BY merged_into IS NOT NULL, id') as $c) {
             foreach ([(string) $c['name'], (string) $c['company']] as $field) {
                 foreach (explode('/', $field) as $part) {
                     $k = self::normalize_name($part);

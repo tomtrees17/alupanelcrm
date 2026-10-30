@@ -60,7 +60,7 @@ final class CustomerData
     public static function name_variants(PDO $pdo): array
     {
         $out = [];
-        foreach (['SELECT owner n, COUNT(*) c FROM customers GROUP BY owner', 'SELECT submitter n, COUNT(*) c FROM orders GROUP BY submitter'] as $sql) {
+        foreach (['SELECT owner n, COUNT(*) c FROM customers WHERE merged_into IS NULL GROUP BY owner', 'SELECT submitter n, COUNT(*) c FROM orders GROUP BY submitter'] as $sql) {
             foreach ($pdo->query($sql) as $r) {
                 $n = (string) $r['n'];
                 if (trim($n) !== '') {

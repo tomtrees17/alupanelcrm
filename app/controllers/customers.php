@@ -16,7 +16,7 @@ switch ($action) {
         $owner = trim((string) input('owner', ''));
         $sort = (string) input('sort', '');
 
-        $cond = [];
+        $cond = ['merged_into IS NULL'];
         $args = [];
         if ($q !== '') {
             $cond[] = '(name LIKE ? OR company LIKE ? OR email LIKE ? OR city LIKE ?)';
@@ -37,7 +37,7 @@ switch ($action) {
             $cond[] = 'owner = ?';
             $args[] = $owner;
         }
-        $where = $cond ? ' WHERE ' . implode(' AND ', $cond) : '';
+        $where = ' WHERE ' . implode(' AND ', $cond);
         // Whitelisted sort (never interpolate raw input into ORDER BY).
         $orderBy = [
             'value_desc' => 'value DESC, id DESC',
@@ -49,13 +49,13 @@ switch ($action) {
 
         // Distinct city / owner options for the filter dropdowns (scoped to visibility).
         if (sees_only_own()) {
-            $cs = $pdo->prepare("SELECT DISTINCT city FROM customers WHERE COALESCE(city,'') <> '' AND owner = ? ORDER BY city");
+            $cs = $pdo->prepare("SELECT DISTINCT city FROM customers WHERE merged_into IS NULL AND COALESCE(city,'') <> '' AND owner = ? ORDER BY city");
             $cs->execute([own_name()]);
             $cities = array_column($cs->fetchAll(), 'city');
             $owners = [];
         } else {
-            $cities = array_column($pdo->query("SELECT DISTINCT city FROM customers WHERE COALESCE(city,'') <> '' ORDER BY city")->fetchAll(), 'city');
-            $owners = array_column($pdo->query("SELECT DISTINCT owner FROM customers WHERE COALESCE(owner,'') <> '' ORDER BY owner")->fetchAll(), 'owner');
+            $cities = array_column($pdo->query("SELECT DISTINCT city FROM customers WHERE merged_into IS NULL AND COALESCE(city,'') <> '' ORDER BY city")->fetchAll(), 'city');
+            $owners = array_column($pdo->query("SELECT DISTINCT owner FROM customers WHERE merged_into IS NULL AND COALESCE(owner,'') <> '' ORDER BY owner")->fetchAll(), 'owner');
         }
 
         view('customers.index', [
@@ -72,7 +72,7 @@ switch ($action) {
             redirect('customers.index');
         }
         $rows = [];
-        foreach ($pdo->query('SELECT * FROM customers ORDER BY id DESC') as $c) {
+        foreach ($pdo->query('SELECT * FROM customers WHERE merged_into IS NULL ORDER BY id DESC') as $c) {
             $rows[] = [
                 $c['name'], $c['company'], $c['phone'], $c['email'], $c['city'],
                 $c['tag'], (float) $c['value'], $c['owner'], $c['last_contact'],
@@ -140,6 +140,9 @@ switch ($action) {
             'customer' => $customer, 'deals' => $deals->fetchAll(), 'orders' => $orders->fetchAll(),
             'followups' => $fu->fetchAll(), 'insight' => $ins->fetch() ?: null, 'history' => $hist->fetchAll(),
             'snooze' => Insights::snoozed($pdo, $config, date('Y-m-d'))[(int) $customer['id']] ?? null,
+            'mergedFrom' => $pdo->query('SELECT id, name, company, merged_at, merged_by FROM customers WHERE merged_into = ' . (int) $customer['id'] . ' ORDER BY merged_at, id')->fetchAll(),
+            'mergeTargets' => CustomerMerge::can()
+                ? $pdo->query('SELECT id, name, company FROM customers WHERE merged_into IS NULL AND id <> ' . (int) $customer['id'] . ' ORDER BY name')->fetchAll() : [],
         ]);
         break;
 
@@ -258,10 +261,10 @@ switch ($action) {
             "SELECT c.id, c.name, c.company, c.owner,
                     (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id) AS orders,
                     (SELECT MAX(date(created_at)) FROM orders o WHERE o.customer_id = c.id) AS last_order
-               FROM customers c WHERE TRIM(COALESCE(c.owner, '')) = ? ORDER BY orders DESC, c.id DESC"
+               FROM customers c WHERE c.merged_into IS NULL AND TRIM(COALESCE(c.owner, '')) = ? ORDER BY orders DESC, c.id DESC"
         );
         $st->execute([trim($ownerFilter)]);
-        $owners = $pdo->query("SELECT TRIM(COALESCE(owner, '')) o, COUNT(*) c FROM customers GROUP BY o ORDER BY c DESC")->fetchAll(PDO::FETCH_KEY_PAIR);
+        $owners = $pdo->query("SELECT TRIM(COALESCE(owner, '')) o, COUNT(*) c FROM customers WHERE merged_into IS NULL GROUP BY o ORDER BY c DESC")->fetchAll(PDO::FETCH_KEY_PAIR);
 
         view('customers.cleanup', [
             'pageTitle' => t('cleanup_title'), 'pageSub' => t('cleanup_sub'),
@@ -341,9 +344,60 @@ switch ($action) {
         redirect('customers.cleanup', $back);
         break;
 
+    // ── CM-01 重复客户合并: admin + sales manager ──
+    case 'duplicates':
+        require_merger();
+        view('customers.duplicates', ['pageTitle' => t('cm_title'), 'pageSub' => t('cm_sub'), 'groups' => CustomerMerge::groups($pdo)]);
+        break;
+
+    case 'merge':
+        require_merger();
+        Csrf::verify();
+        $keep = (int) input('keep', 0);
+        $from = array_map('intval', (array) input('from', []));
+        $target = trim((string) input('target', ''));
+        if ($target !== '') {
+            // From a customer's page: "合并到…" names the record to keep ("#12 · Name").
+            $keep = preg_match('/^#?(\d+)/', $target, $m) ? (int) $m[1] : 0;
+        }
+        $back = (string) input('back', '') === 'show' && $from ? ['customers.show', ['id' => $from[0]]] : ['customers.duplicates', []];
+        $plan = CustomerMerge::plan($pdo, $keep, $from);
+        if (!$plan['ok']) {
+            flash(t($plan['error']), 'error');
+            redirect($back[0], $back[1]);
+        }
+        if (input('confirm', '') !== '1') {
+            view('customers.merge_confirm', ['pageTitle' => t('cm_confirm_title'), 'pageSub' => '', 'plan' => $plan, 'back' => $back]);
+            break;
+        }
+        CustomerMerge::merge($pdo, $keep, $from, own_name());
+        flash(sprintf(t('cm_msg_merged'), count($plan['from']), (string) $plan['keep']['name']));
+        redirect('customers.show', ['id' => $keep]);
+        break;
+
+    case 'dup_ignore':
+        require_merger();
+        Csrf::verify();
+        $ids = array_values(array_filter(array_map('intval', (array) input('ids', [])), fn($i) => $i > 0));
+        if (count($ids) > 1) {
+            CustomerMerge::ignore($pdo, $ids);
+            audit($pdo, 'customers', 'update', 'customer_dup', null, implode(', ', array_map(fn($i) => '#' . $i, $ids)), '标记为不是同一个客户');
+        }
+        redirect('customers.duplicates');
+        break;
+
     default:
         http_response_code(404);
         echo 'Not found';
+}
+
+function require_merger(): void
+{
+    if (!CustomerMerge::can()) {
+        http_response_code(403);
+        flash(t('cm_msg_no_access'), 'error');
+        redirect('customers.index');
+    }
 }
 
 function require_admin(): void
@@ -387,6 +441,13 @@ function find_customer(PDO $pdo, int $id): array
     if (!$row) {
         http_response_code(404);
         exit('客户不存在');
+    }
+    if ($row['merged_into'] !== null) {
+        // CM-01: an old link to a merged record lands on the kept one.
+        $into = $pdo->prepare('SELECT name FROM customers WHERE id = ?');
+        $into->execute([(int) $row['merged_into']]);
+        flash(sprintf(t('cm_msg_was_merged'), (string) $row['name'], (string) $into->fetchColumn()));
+        redirect('customers.show', ['id' => (int) $row['merged_into']]);
     }
     if (sees_only_own() && ($row['owner'] ?? '') !== own_name()) {
         http_response_code(403);

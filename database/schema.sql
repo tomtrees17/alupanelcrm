@@ -47,7 +47,11 @@ CREATE TABLE customers (
     tax_nitku      TEXT,                  -- 22 digits; empty = NPWP/NIK + 000000
     tax_email      TEXT,
     tax_updated_by TEXT,
-    tax_updated_at TEXT
+    tax_updated_at TEXT,
+    merged_into    INTEGER REFERENCES customers(id),  -- CM-01: the same customer entered twice; kept, hidden, references moved to that row
+    merged_at      TEXT,
+    merged_by      TEXT,
+    merge_log      TEXT                   -- JSON: ids moved from this record per table (for a manual reversal)
 );
 
 -- ── Deals (sales pipeline) ──
@@ -131,6 +135,7 @@ CREATE TABLE orders (
     reject_note  TEXT, reject_by    TEXT, reject_date TEXT,   -- last rejection (sent back to draft)
     do_number        TEXT,
     invoice_number   TEXT,
+    customer_matched TEXT,                   -- 'phone': a new order's customer was linked to an existing one by phone (CM-01)
     co_no            TEXT,                   -- CO number as the customer knows it (= order_no from 1379 on; older orders link the Google-Form number here)
     delivery_lat     REAL,                   -- geocoded delivery point (NULL = none / not resolved)
     delivery_lng     REAL,

@@ -55,8 +55,8 @@ $shipped = Enrich::SHIPPED;
 $tot = (int) $pdo->query("SELECT COUNT(*) FROM orders WHERE {$shipped}")->fetchColumn();
 $known = (int) $pdo->query("SELECT COUNT(*) FROM orders WHERE {$shipped} AND delivery_region IS NOT NULL AND delivery_region <> 'unknown'")->fetchColumn();
 $points = (int) $pdo->query("SELECT COUNT(*) FROM orders WHERE {$shipped} AND delivery_lat IS NOT NULL")->fetchColumn();
-$ind = $pdo->query('SELECT COALESCE(industry_source, \'(none)\') s, COUNT(*) c FROM customers GROUP BY s')->fetchAll(PDO::FETCH_KEY_PAIR);
-$pending = (int) $pdo->query('SELECT COUNT(*) FROM customers WHERE industry_pending = 1 AND COALESCE(industry_source, \'\') <> \'manual\'')->fetchColumn();
+$ind = $pdo->query('SELECT COALESCE(industry_source, \'(none)\') s, COUNT(*) c FROM customers WHERE merged_into IS NULL GROUP BY s')->fetchAll(PDO::FETCH_KEY_PAIR);
+$pending = (int) $pdo->query('SELECT COUNT(*) FROM customers WHERE merged_into IS NULL AND industry_pending = 1 AND COALESCE(industry_source, \'\') <> \'manual\'')->fetchColumn();
 
 $src = [];
 foreach ($s['by_source'] as $k => $v) {

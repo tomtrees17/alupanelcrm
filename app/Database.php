@@ -462,6 +462,16 @@ final class Database
             id INTEGER PRIMARY KEY AUTOINCREMENT, review_id INTEGER NOT NULL, employee_id INTEGER NOT NULL, metrics_json TEXT NOT NULL,
             comment_zh TEXT, comment_id TEXT, UNIQUE (review_id, employee_id))");
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_sales_reviews_week ON sales_reviews(week, id)');
+        // CM-01 重复客户合并
+        $ccols3 = array_column($pdo->query('PRAGMA table_info(customers)')->fetchAll(), 'name');
+        foreach (['merged_into' => 'INTEGER', 'merged_at' => 'TEXT', 'merged_by' => 'TEXT', 'merge_log' => 'TEXT'] as $col => $type) {
+            if (!in_array($col, $ccols3, true)) {
+                $pdo->exec("ALTER TABLE customers ADD COLUMN {$col} {$type}");
+            }
+        }
+        if (!in_array('customer_matched', array_column($pdo->query('PRAGMA table_info(orders)')->fetchAll(), 'name'), true)) {
+            $pdo->exec('ALTER TABLE orders ADD COLUMN customer_matched TEXT');
+        }
 
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_emp ON visits(employee_id, visited_at)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_day ON visits(visited_at)');

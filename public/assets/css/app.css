@@ -568,3 +568,11 @@ th.center, td.center { text-align: center; }
 .srv-list li { margin: 2px 0; }
 .srv-comment p { line-height: 1.6; }
 @media (max-width: 768px) { .srv-grid { grid-template-columns: 1fr; } }
+
+/* CM-01 重复客户合并 */
+.cm-table td { white-space: nowrap; }
+.cm-table td.wrap { white-space: normal; min-width: 110px; }
+.cm-confirm p { margin: 0 0 10px; }
+.cm-confirm ul { margin: 0 0 12px; padding-left: 20px; }
+.cm-confirm li { margin: 2px 0; }
+.cm-into summary { cursor: pointer; list-style: none; }

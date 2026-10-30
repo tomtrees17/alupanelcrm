@@ -108,7 +108,7 @@ switch ($action) {
         $box = ['north' => -5.95, 'south' => -6.75, 'west' => 106.45, 'east' => 107.25];   // Jabodetabek
         $layout = Insights::map_layout($points, $box, 10);
 
-        $owners = $pdo->query("SELECT DISTINCT TRIM(owner) FROM customers WHERE TRIM(COALESCE(owner, '')) <> '' ORDER BY TRIM(owner) COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
+        $owners = $pdo->query("SELECT DISTINCT TRIM(owner) FROM customers WHERE merged_into IS NULL AND TRIM(COALESCE(owner, '')) <> '' ORDER BY TRIM(owner) COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
         view('insights.admin', [
             'pageTitle' => t('insights_admin'), 'pageSub' => t('sub_insights_admin'),
             'lists' => $lists, 'tab' => $tab, 'owner' => $owner, 'owners' => $owners, 'computedOn' => $computedOn,

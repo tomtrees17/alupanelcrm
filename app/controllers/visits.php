@@ -538,7 +538,7 @@ switch ($action) {
         $history = [];
         $found = [];
         if ($q !== '') {
-            $st = $pdo->prepare('SELECT id, name, owner, city FROM customers WHERE name LIKE ? OR company LIKE ? ORDER BY name LIMIT 20');
+            $st = $pdo->prepare('SELECT id, name, owner, city FROM customers WHERE merged_into IS NULL AND (name LIKE ? OR company LIKE ?) ORDER BY name LIMIT 20');
             $st->execute(["%{$q}%", "%{$q}%"]);
             $found = $st->fetchAll();
             $cid = (int) input('id', 0) ?: (int) ($found[0]['id'] ?? 0);

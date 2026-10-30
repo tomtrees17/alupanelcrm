@@ -104,7 +104,7 @@ printf("   %d phone fields change, %d of them move text to the note\n", $phoneCh
 echo "\n3) Orders with no customer_id\n";
 $linked = 0;
 foreach ($pdo->query('SELECT id, order_no, customer_name FROM orders WHERE customer_id IS NULL')->fetchAll() as $o) {
-    $m = $pdo->prepare('SELECT id FROM customers WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))');
+    $m = $pdo->prepare('SELECT id FROM customers WHERE merged_into IS NULL AND LOWER(TRIM(name)) = LOWER(TRIM(?))');
     $m->execute([$o['customer_name']]);
     $ids = $m->fetchAll(PDO::FETCH_COLUMN);
     if (count($ids) === 1) {

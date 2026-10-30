@@ -279,7 +279,7 @@ final class Insights
     public static function activity(PDO $pdo, string $today): array
     {
         $out = [];
-        foreach ($pdo->query("SELECT TRIM(owner) o, COUNT(*) n FROM customers WHERE TRIM(COALESCE(owner,'')) <> '' GROUP BY TRIM(owner)") as $r) {
+        foreach ($pdo->query("SELECT TRIM(owner) o, COUNT(*) n FROM customers WHERE merged_into IS NULL AND TRIM(COALESCE(owner,'')) <> '' GROUP BY TRIM(owner)") as $r) {
             $out[(string) $r['o']] = ['customers' => (int) $r['n'], 'fu30' => 0, 'listed' => 0, 'handled' => 0];
         }
         $since30 = date('Y-m-d', strtotime($today . ' -30 days'));
@@ -432,6 +432,15 @@ final class Insights
             }
         }
         return $out;
+    }
+
+    /**
+     * A customer merged into another (CM-01) leaves today's lists at once; the
+     * kept record is recomputed tonight with the moved orders. History stays.
+     */
+    public static function drop_merged(PDO $pdo, int $customerId): void
+    {
+        $pdo->prepare('DELETE FROM customer_insights WHERE customer_id = ?')->execute([$customerId]);
     }
 
     /** Record a follow-up or a "no need" (reason required). Also stamps customers.last_contact. */

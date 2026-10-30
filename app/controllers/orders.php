@@ -282,11 +282,11 @@ switch ($action) {
 function order_customer_list(PDO $pdo): array
 {
     if (sees_only_own()) {
-        $s = $pdo->prepare('SELECT id, name, company, phone FROM customers WHERE owner = ? ORDER BY name');
+        $s = $pdo->prepare('SELECT id, name, company, phone FROM customers WHERE merged_into IS NULL AND owner = ? ORDER BY name');
         $s->execute([own_name()]);
         return $s->fetchAll();
     }
-    return $pdo->query('SELECT id, name, company, phone FROM customers ORDER BY name')->fetchAll();
+    return $pdo->query('SELECT id, name, company, phone FROM customers WHERE merged_into IS NULL ORDER BY name')->fetchAll();
 }
 
 function order_product_list(PDO $pdo): array
@@ -345,11 +345,18 @@ function save_order(PDO $pdo, object $auth, ?array $existing): int   // $auth un
         flash(t('msg_order_cust_req'), 'error');
         redirect($back[0], $back[1]);
     }
-    // First-time customer: create it in the customers module, owned by the assigned sales.
+    // First-time customer: create it in the customers module, owned by the assigned sales —
+    // unless the phone is exactly one existing customer's (CM-01): then it is that customer.
+    $matchedBy = null;
     if (!$customerId && $custName !== '' && input('save_customer')) {
-        $pdo->prepare('INSERT INTO customers (name, company, phone, owner, tag) VALUES (?,?,?,?,?)')
-            ->execute([$custName, trim((string) input('company', '')), trim((string) input('phone', '')), $submitter ?: own_name(), '潜在']);
-        $customerId = (int) $pdo->lastInsertId();
+        $customerId = CustomerMerge::by_phone($pdo, trim((string) input('phone', '')));
+        if ($customerId !== null) {
+            $matchedBy = 'phone';
+        } else {
+            $pdo->prepare('INSERT INTO customers (name, company, phone, owner, tag) VALUES (?,?,?,?,?)')
+                ->execute([$custName, trim((string) input('company', '')), trim((string) input('phone', '')), $submitter ?: own_name(), '潜在']);
+            $customerId = (int) $pdo->lastInsertId();
+        }
     }
 
     $skus = (array) input('sku', []);
@@ -457,6 +464,9 @@ function save_order(PDO $pdo, object $auth, ?array $existing): int   // $auth un
         foreach ($items as $it) {
             $pid = $it[6] ?: match_product_id($pdo, $it[0], $it[2]);
             $ins->execute([$oid, $pid, $it[0], $it[1], $it[2], $it[3], $it[4], 'Unit', $it[5], $it[7]]);
+        }
+        if ($matchedBy !== null) {
+            $pdo->prepare('UPDATE orders SET customer_matched = ? WHERE id = ?')->execute([$matchedBy, $oid]);
         }
         recompute_reservations($pdo);
         $pdo->commit();

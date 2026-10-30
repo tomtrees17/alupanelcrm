@@ -19,7 +19,7 @@ switch ($action) {
         view('pipeline.form', [
             'pageTitle' => t('btn_add_deal'), 'pageSub' => '',
             'deal' => null,
-            'customers' => $pdo->query('SELECT id, name, company FROM customers ORDER BY name')->fetchAll(),
+            'customers' => $pdo->query('SELECT id, name, company FROM customers WHERE merged_into IS NULL ORDER BY name')->fetchAll(),
             'stage' => (string) input('stage', '初步接触'),
         ]);
         break;
@@ -50,7 +50,7 @@ switch ($action) {
         view('pipeline.form', [
             'pageTitle' => t('btn_edit') . ' · ' . t('nav_pipeline'), 'pageSub' => '',
             'deal' => find_deal($pdo, (int) input('id', 0)),
-            'customers' => $pdo->query('SELECT id, name, company FROM customers ORDER BY name')->fetchAll(),
+            'customers' => $pdo->query('SELECT id, name, company FROM customers WHERE merged_into IS NULL ORDER BY name')->fetchAll(),
             'stage' => null,
         ]);
         break;

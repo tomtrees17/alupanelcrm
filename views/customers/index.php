@@ -9,6 +9,7 @@ $valueArrow = $sort === 'value_desc' ? '↓' : ($sort === 'value_asc' ? '↑' : 
 <div class="page-head">
     <h1><?= t('page_customers') ?></h1>
     <div class="head-actions">
+        <?php if (CustomerMerge::can()): ?><a class="btn btn-ghost" href="<?= url('customers.duplicates') ?>"><?= t('cm_title') ?></a><?php endif; ?>
         <?php if ($auth && $auth->isAdmin()): ?><a class="btn btn-ghost" href="<?= url('customers.cleanup') ?>"><?= t('cleanup_title') ?></a><?php endif; ?>
         <?php if (can_export()): ?><a class="btn btn-ghost" href="<?= url('customers.export') ?>"><?= t('btn_export') ?></a><?php endif; ?>
         <a class="btn btn-primary" href="<?= url('customers.create') ?>"><?= t('btn_add_customer') ?></a>

@@ -220,7 +220,7 @@ final class Visits
             return $out;
         }
         $like = '%' . $q . '%';
-        $st = $pdo->prepare('SELECT id, name, company, city FROM customers WHERE LOWER(TRIM(COALESCE(owner, \'\'))) = ? AND (name LIKE ? OR company LIKE ?) ORDER BY name LIMIT ?');
+        $st = $pdo->prepare('SELECT id, name, company, city FROM customers WHERE merged_into IS NULL AND LOWER(TRIM(COALESCE(owner, \'\'))) = ? AND (name LIKE ? OR company LIKE ?) ORDER BY name LIMIT ?');
         $st->execute([$me, $like, $like, $limit]);
         foreach ($st->fetchAll() as $c) {
             $out[] = ['type' => 'customer', 'id' => (int) $c['id'], 'name' => (string) $c['name'], 'sub' => trim(($c['company'] ?? '') . ' · ' . ($c['city'] ?? ''), ' ·'), 'mine' => true];
