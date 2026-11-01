@@ -282,6 +282,46 @@ final class Hr
             ->execute([$type, $empId, $ref, $due]);
     }
 
+    public const DEPT_BY_ROLE = [
+        'sales' => 'sales', 'supervisor' => 'finance', 'finance_manager' => 'finance', 'warehouse' => 'warehouse',
+        'clerk' => 'office', 'hr' => 'office', 'manager' => 'management', 'ops_supervisor' => 'management',
+        'sales_manager' => 'sales', 'sales_assistant' => 'sales', 'finance_assistant' => 'finance',
+    ];
+
+    /**
+     * A new CRM account gets its employee record right away (owner 2026-11-01),
+     * so it shows up wherever staff are listed (visit senders, rosters). If HR
+     * already created exactly one active, unlinked record with the same name,
+     * the account is linked to it instead of making a duplicate. Department as
+     * in migrate_users(); everything else is left for HR. The administrator
+     * account gets none. Returns [employee id, employee no, linked-existing?].
+     */
+    public static function employee_for_user(PDO $pdo, int $userId, string $name, string $role, string $operator): ?array
+    {
+        if ($role === 'admin' || trim($name) === '') {
+            return null;
+        }
+        $st = $pdo->prepare("SELECT id, employee_no FROM employees
+                             WHERE lower(trim(full_name)) = lower(trim(?)) AND employment_status <> 'resigned'
+                               AND id NOT IN (SELECT employee_id FROM users WHERE employee_id IS NOT NULL)");
+        $st->execute([$name]);
+        $same = $st->fetchAll();
+        if (count($same) === 1) {
+            [$id, $no, $existing] = [(int) $same[0]['id'], (string) $same[0]['employee_no'], true];
+        } else {
+            $dept = self::DEPT_BY_ROLE[$role] ?? null;
+            $no = self::next_employee_no($pdo);
+            $pdo->prepare("INSERT INTO employees (employee_no, full_name, department, work_location, employment_status, attendance_mode, created_by, updated_by)
+                           VALUES (?, ?, ?, 'Jakarta', 'active', ?, ?, ?)")
+                ->execute([$no, trim($name), $dept, $dept === 'sales' ? 'visit' : null, $operator, $operator]);
+            [$id, $existing] = [(int) $pdo->lastInsertId(), false];
+            audit($pdo, 'hr', 'create', 'employees', $id, $no . ' ' . trim($name), sprintf('employees: %s %s; %s; 随 CRM 账号 #%d 自动建档', $no, trim($name), $dept ?? '—', $userId));
+        }
+        $pdo->prepare('UPDATE users SET employee_id = ? WHERE id = ?')->execute([$id, $userId]);
+        audit($pdo, 'hr', 'update', 'users', $userId, $name, "users.employee_id: (空) → {$id}; {$no}" . ($existing ? '; 同名档案' : ''));
+        return [$id, $no, $existing];
+    }
+
     /**
      * One-time (app_meta 'hr_employees_v1'): an employee record for every
      * existing CRM account except the system administrator account, linked via
@@ -294,11 +334,7 @@ final class Hr
         if ($pdo->query("SELECT 1 FROM app_meta WHERE k = 'hr_employees_v1'")->fetchColumn()) {
             return 0;
         }
-        $deptByRole = [
-            'sales' => 'sales', 'supervisor' => 'finance', 'finance_manager' => 'finance', 'warehouse' => 'warehouse',
-            'clerk' => 'office', 'hr' => 'office', 'manager' => 'management', 'ops_supervisor' => 'management',
-            'sales_manager' => 'sales', 'sales_assistant' => 'sales', 'finance_assistant' => 'finance',
-        ];
+        $deptByRole = self::DEPT_BY_ROLE;
         $n = 0;
         $users = $pdo->query("SELECT id, name, role FROM users WHERE role <> 'admin' AND employee_id IS NULL ORDER BY id")->fetchAll();
         $ins = $pdo->prepare("INSERT INTO employees (employee_no, full_name, department, work_location, employment_status, attendance_mode, created_by, updated_by)

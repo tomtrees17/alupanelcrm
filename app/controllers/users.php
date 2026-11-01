@@ -36,23 +36,28 @@ switch ($action) {
             flash(t('msg_user_req_pwd'), 'error');
             redirect('users.create');
         }
+        $pdo->beginTransaction();
         try {
             $pdo->prepare('INSERT INTO users (name,email,password_hash,role,title,phone,lang) VALUES (?,?,?,?,?,?,?)')
                 ->execute([$name, $email, password_hash($pass, PASSWORD_DEFAULT), $role, $title, $phone, $lang]);
         } catch (PDOException $e) {
+            $pdo->rollBack();
             flash(t('msg_user_email_used'), 'error');
             redirect('users.create');
         }
+        $uid = (int) $pdo->lastInsertId();
         audit(
             $pdo,
             'users',
             'create',
             'user',
-            (int) $pdo->lastInsertId(),
+            $uid,
             $name,
             sprintf('邮箱: %s; 角色: %s; 职位: %s; WhatsApp: %s', $email, role_label((string) $role), $title ?: '(空)', $phone ?: '(未填)')
         );
-        flash(t('msg_user_created'));
+        $emp = Hr::employee_for_user($pdo, $uid, $name, (string) $role, own_name());
+        $pdo->commit();
+        flash(t('msg_user_created') . ($emp ? ' ' . sprintf(t($emp[2] ? 'msg_user_emp_linked' : 'msg_user_emp_created'), $emp[1]) : ''));
         redirect('users.index');
         break;
 

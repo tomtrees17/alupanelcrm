@@ -434,6 +434,14 @@ chown -R www:www data
   - 权限：新视图权限 `ai_usage`（权限矩阵新列），默认只给 finance_manager，老板始终可见（用户 2026-10-22 定）。一次性迁移 `app_meta.perm_ai_usage_v1`，之后管理员的调整不会被覆盖；
   - 内容：今日 / 本月费用与上限；本月按任务列出调用次数（按状态拆开）、tokens、费用、平均耗时、采纳率、改动最多的字段；库存助手单独一栏（数据来自 ai_queries）；月份可切换。
 - **上线**：`git pull`，再打开一次网站，`ensureSchema()` 会建好两张表并授权，不需要改 `.env`。服务器 `config.local.php` 里的 `'ai' => ['driver' => 'claude']` 与新配置用 `array_replace_recursive` 合并，互不影响。
+## 6zm. 开账号自动建员工档案（2026-11-01）
+
+**来源**：新销售有 CRM 账号，但拜访「发送者」下拉（列 `employees` 在职记录）里找不到——员工档案以前只由 `Hr::migrate_users()` 在人力上线时建过一次。
+
+- 管理员在「用户」新建账号（`users.store`）时，同一事务里调 `Hr::employee_for_user()`：已有**恰好一条**同名（忽略大小写和首尾空格）、在职、未关联账号的档案 → 直接关联；否则新建档案（编号 `next_employee_no`、部门按 `Hr::DEPT_BY_ROLE`、销售默认 `attendance_mode = visit`、工作地 Jakarta、created_by 为操作的管理员）并写 `users.employee_id`。管理员账号不建。审计 hr/create/employees + hr/update/users；提示里带员工编号。邮箱重复时整笔回滚，不留孤立档案。
+- 用户决定（2026-11-01）：只管以后；已有的无档案账号（yoga、nasya、HENDRA，其中 yoga / HENDRA 是同一人的两个账号）不补建，由 HR 在人力里手动建档并关联。
+- **测试**：`tests/user_employee_test.php` 9 项。
+
 ## 6zl. 重复客户合并 CM-01（2026-10-30）
 
 **来源**：用户在客户管理搜「darim」看到同一客户 4 条记录（录单时名字写法不同、勾了"保存新客户"就新建）。卡：`docs/任务卡-客户合并.md`。
@@ -896,7 +904,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-**faktur_exports（生成的 Coretax / Digunggung 文件，见 6zf）**, customers(+tax_npwp/tax_nik/tax_name/tax_address/tax_nitku/tax_email 买方税务资料), invoices(+faktur_class 分类覆盖), **bank_accounts / bank_imports / bank_transactions / payment_allocations / customer_payer_aliases / bank_book（银行流水与回款对账，见 6ze）**, payments(+noncash 结案差额行), **ai_calls(AI 调用台账：任务/模型/prompt 版本/tokens/费用/耗时/状态，见 6zd)**, **ai_suggestions(AI 建议与人工确认、采纳率)**, hr_todos(+type ai_budget / sales_review：老板专属、无员工), **sales_reviews / sales_review_items(销售周评，见 6zk)**, customers(+merged_into/merged_at/merged_by/merge_log 重复客户合并，见 6zl), orders(+customer_matched 按电话匹配到现有客户), **sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, **co_requests(Google 表单 CO 号登记，见 6zg)**, ai_calls(+task order_parse 粘贴识别, 见 6zh), orders(+co_no 客户看到的 CO 号), users(+must_change_password), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
+**faktur_exports（生成的 Coretax / Digunggung 文件，见 6zf）**, customers(+tax_npwp/tax_nik/tax_name/tax_address/tax_nitku/tax_email 买方税务资料), invoices(+faktur_class 分类覆盖), **bank_accounts / bank_imports / bank_transactions / payment_allocations / customer_payer_aliases / bank_book（银行流水与回款对账，见 6ze）**, payments(+noncash 结案差额行), **ai_calls(AI 调用台账：任务/模型/prompt 版本/tokens/费用/耗时/状态，见 6zd)**, **ai_suggestions(AI 建议与人工确认、采纳率)**, hr_todos(+type ai_budget / sales_review：老板专属、无员工), **sales_reviews / sales_review_items(销售周评，见 6zk)**, customers(+merged_into/merged_at/merged_by/merge_log 重复客户合并，见 6zl), orders(+customer_matched 按电话匹配到现有客户), **sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, **co_requests(Google 表单 CO 号登记，见 6zg)**, ai_calls(+task order_parse 粘贴识别, 见 6zh), orders(+co_no 客户看到的 CO 号), users(+must_change_password；新建账号自动建员工档案并关联 employee_id，见 6zm), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
 
 ## 10. 提交历史（main）
 
