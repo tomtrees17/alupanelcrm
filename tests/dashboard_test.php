@@ -189,11 +189,11 @@ ok('no finance access → no cash figures at all', !isset($mine['receivable']) &
 ok('no performance access → no ranking', !isset($mine['ranking']));
 ok('sales role approves nothing', $mine['workload']['to_approve'] === null);
 
-$order('ridwan', '2026-10-11', 'pending_sup');
-$order('angga', '2026-10-11', 'pending_sup');
+$order('ridwan', '2026-10-11', 'pending_mgr');
+$order('angga', '2026-10-11', 'pending_mgr');
 $order('angga', '2026-10-11', 'draft', '价格写错');
-$sup = Dashboard::data($pdo, $m, $today, 'nobody', false, false, 'supervisor');
-ok('supervisor sees what waits on their stage, company-wide', $sup['workload']['to_approve'] === 2);
+$sup = Dashboard::data($pdo, $m, $today, 'nobody', false, false, 'sales_manager');
+ok('sales manager sees what waits on their stage, company-wide', $sup['workload']['to_approve'] === 2, json_encode($sup['workload']));
 $sales = Dashboard::data($pdo, $m, $today, 'angga', false, false, 'sales');
 ok('sales sees their own orders in approval', $sales['workload']['pending'] === 1);
 ok('sales sees their rejected drafts to fix', $sales['workload']['rework'] === 1);

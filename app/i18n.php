@@ -50,7 +50,7 @@ const I18N = [
         'no_tasks' => '没有符合条件的任务', 'no_orders' => '暂无订单', 'no_products' => '暂无产品',
         'no_invoice' => '暂无发票', 'no_deal' => '暂无商机', 'no_txn' => '暂无流水', 'no_payment' => '暂无收款',
         // statuses / labels
-        'st_draft' => '草稿', 'st_pending_sup' => '待主管审批', 'st_pending_mgr' => '待经理审批',
+        'st_draft' => '草稿', 'st_pending_sup' => '待主管审批', 'st_pending_mgr' => '待销售经理审批',
         'st_pending_wh' => '待仓库出货', 'st_approved' => '已批准', 'st_rejected' => '已驳回',
         'inv_paid' => '已收款', 'inv_partial' => '部分收款', 'inv_pending' => '待收款', 'inv_overdue' => '逾期',
         'role_admin' => '管理员', 'role_manager' => '经理', 'role_finance_manager' => '财务经理', 'role_ops_supervisor' => '运营主管', 'role_supervisor' => '主管', 'role_sales' => '销售员', 'role_warehouse' => '仓库', 'role_hr' => '人力资源', 'role_clerk' => '文员', 'role_finance_assistant' => '财务助理', 'role_sales_assistant' => '销售助理', 'role_sales_manager' => '销售经理',
@@ -103,6 +103,8 @@ const I18N = [
         // WhatsApp notification bodies (%s placeholders, sent in the RECIPIENT's language)
         'wa_order_pending'  => "【AluPanel】订单 %s（客户 %s）等待你审批。\n请打开系统处理：https://www.alupanel.cc",
         'wa_order_rejected' => "【AluPanel】订单 %s 被 %s 驳回。\n理由：%s\n请修改后重新提交：https://www.alupanel.cc",
+        'wa_order_approved' => "【AluPanel】订单 %s（客户 %s）已由 %s 批准，待仓库出货。",
+        'co_sent_tag' => 'CO 已发 %d 天', 'co_not_sent_tag' => 'CO 未发', 'f_signature' => '签名图片（PNG，打印在 CO 上）', 'f_signature_keep' => '已有签名，上传新图替换', 'btn_remove_signature' => '删除签名', 'msg_signature_bad' => '签名只能是 PNG / JPG，不超过 1MB。',
         'wa_order_shipped'  => "【AluPanel】订单 %s 仓库已确认出货，送货单 %s，发票 %s。",
         'wa_req_pending'    => "【AluPanel】%s %s（申请人 %s）等待你审批。\nhttps://www.alupanel.cc",
         'wa_req_rejected'   => "【AluPanel】你的申请 %s 被 %s 驳回。\n理由：%s",
@@ -1111,7 +1113,7 @@ const I18N = [
         'filter_all' => 'Semua', 'no_customer' => 'Belum ada pelanggan', 'no_data' => 'Belum ada data',
         'no_tasks' => 'Tidak ada tugas', 'no_orders' => 'Belum ada pesanan', 'no_products' => 'Belum ada produk',
         'no_invoice' => 'Belum ada invoice', 'no_deal' => 'Belum ada peluang', 'no_txn' => 'Belum ada riwayat', 'no_payment' => 'Belum ada pembayaran',
-        'st_draft' => 'Draft', 'st_pending_sup' => 'Menunggu Supervisor', 'st_pending_mgr' => 'Menunggu Manager',
+        'st_draft' => 'Draft', 'st_pending_sup' => 'Menunggu Supervisor', 'st_pending_mgr' => 'Menunggu Sales Manager',
         'st_pending_wh' => 'Menunggu Gudang', 'st_approved' => 'Disetujui', 'st_rejected' => 'Ditolak',
         'inv_paid' => 'Lunas', 'inv_partial' => 'Sebagian', 'inv_pending' => 'Belum Dibayar', 'inv_overdue' => 'Jatuh Tempo',
         'role_admin' => 'Admin', 'role_manager' => 'Manager', 'role_finance_manager' => 'Manajer Keuangan', 'role_ops_supervisor' => 'Supervisor Operasional', 'role_supervisor' => 'Supervisor', 'role_sales' => 'Sales', 'role_warehouse' => 'Gudang', 'role_hr' => 'HRD', 'role_clerk' => 'Staf Administrasi', 'role_finance_assistant' => 'Asisten Keuangan', 'role_sales_assistant' => 'Asisten Sales', 'role_sales_manager' => 'Manajer Sales',
@@ -1158,6 +1160,8 @@ const I18N = [
         // WhatsApp notification bodies
         'wa_order_pending'  => "[AluPanel] Order %s (pelanggan %s) menunggu persetujuan Anda.\nBuka sistem: https://www.alupanel.cc",
         'wa_order_rejected' => "[AluPanel] Order %s ditolak oleh %s.\nAlasan: %s\nSilakan perbaiki dan ajukan ulang: https://www.alupanel.cc",
+        'wa_order_approved' => "[AluPanel] Order %s (pelanggan %s) disetujui oleh %s, menunggu gudang.",
+        'co_sent_tag' => 'CO terkirim %d hari', 'co_not_sent_tag' => 'CO belum dikirim', 'f_signature' => 'Gambar tanda tangan (PNG, dicetak di CO)', 'f_signature_keep' => 'Sudah ada tanda tangan; unggah untuk mengganti', 'btn_remove_signature' => 'Hapus tanda tangan', 'msg_signature_bad' => 'Tanda tangan harus PNG / JPG, maksimal 1MB.',
         'wa_order_shipped'  => "[AluPanel] Order %s sudah dikirim gudang. Surat jalan %s, faktur %s.",
         'wa_req_pending'    => "[AluPanel] %s %s (pemohon %s) menunggu persetujuan Anda.\nhttps://www.alupanel.cc",
         'wa_req_rejected'   => "[AluPanel] Pengajuan Anda %s ditolak oleh %s.\nAlasan: %s",

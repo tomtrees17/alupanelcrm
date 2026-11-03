@@ -106,7 +106,7 @@ $_SESSION['lang'] = 'zh';
 // 9) Stage routing must follow the same map as the permission check, or the
 //    person who is told is not the person who is allowed to act.
 $roleOk = true;
-foreach (['pending_sup' => 'supervisor', 'pending_mgr' => 'manager', 'pending_wh' => 'warehouse'] as $status => $role) {
+foreach (['pending_sup' => 'sales_manager', 'pending_mgr' => 'sales_manager', 'pending_wh' => 'warehouse'] as $status => $role) {
     if (order_action_role($status) !== $role) {
         $roleOk = false;
     }
@@ -115,9 +115,11 @@ ok('order stage → role map is the permission map', $roleOk);
 
 $pdo->exec("DELETE FROM notifications");
 $order = ['id' => 5, 'order_no' => 'SO-5', 'customer_name' => 'PT Maju', 'submitter' => 'Sales A', 'created_by' => 'Budi'];
-notify_order_stage($pdo, $order, 'pending_sup');
-$got = $pdo->query("SELECT * FROM notifications")->fetchAll();
-ok('every supervisor is notified', count($got) === 1 && (int) $got[0]['user_id'] === $budi, (string) count($got));
+$pdo->prepare("INSERT INTO users (name,email,password_hash,role,phone,lang) VALUES (?,?,?,?,?,?)")->execute(['Ridwan', 'rid@x.id', 'x', 'sales_manager', '0812-3333-4444', 'id']);
+$ridwan = (int) $pdo->lastInsertId();
+notify_order_stage($pdo, $order, 'pending_mgr');
+$got = $pdo->query("SELECT user_id FROM notifications ORDER BY user_id")->fetchAll(PDO::FETCH_COLUMN);
+ok('the sales manager and the GM (stand-in) are notified, the supervisor is not', $got == [$boss, $ridwan], json_encode($got));
 ok('approved status notifies nobody', (function () use ($pdo, $order) {
     $before = (int) $pdo->query('SELECT COUNT(*) FROM notifications')->fetchColumn();
     notify_order_stage($pdo, $order, 'approved');

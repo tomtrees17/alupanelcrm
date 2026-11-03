@@ -41,6 +41,20 @@ final class CoNumbers
         if (!in_array('co_no', $ocols, true)) {
             $pdo->exec('ALTER TABLE orders ADD COLUMN co_no TEXT');
         }
+        if (!in_array('co_sent_at', $ocols, true)) {
+            $pdo->exec('ALTER TABLE orders ADD COLUMN co_sent_at TEXT');
+        }
+        $ucols = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+        if (!in_array('signature_path', $ucols, true)) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN signature_path TEXT');
+        }
+        // 2026-11-03: one approval (sales manager) instead of supervisor + manager.
+        // Orders waiting for a supervisor move to the manager stage, once.
+        $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (k TEXT PRIMARY KEY, v TEXT)');
+        if (!$pdo->query("SELECT 1 FROM app_meta WHERE k = 'order_flow_v2'")->fetchColumn()) {
+            $pdo->exec("UPDATE orders SET status = 'pending_mgr' WHERE status = 'pending_sup'");
+            $pdo->exec("INSERT OR IGNORE INTO app_meta (k, v) VALUES ('order_flow_v2', '1')");
+        }
     }
 
     public static function format(int $seq, string $mm, string $yy): string

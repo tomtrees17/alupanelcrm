@@ -9,7 +9,7 @@ $v = fn(string $k) => e($user[$k] ?? '');
 </div>
 
 <div class="card"><div class="card-body">
-    <form method="post" action="<?= url($isEdit ? 'users.update' : 'users.store') ?>">
+    <form method="post" action="<?= url($isEdit ? 'users.update' : 'users.store') ?>" enctype="multipart/form-data">
         <?= Csrf::field() ?>
         <?php if ($isEdit): ?><input type="hidden" name="id" value="<?= (int) $user['id'] ?>"><?php endif; ?>
         <div class="form-row">
@@ -24,6 +24,19 @@ $v = fn(string $k) => e($user[$k] ?? '');
             </div>
             <div class="form-group"><label class="form-label"><?= t('f_title') ?></label><input class="form-input" name="title" value="<?= $v('title') ?>"></div>
         </div>
+        <?php if ($isEdit): ?>
+        <div class="form-group">
+            <label class="form-label"><?= t('f_signature') ?></label>
+            <?php if (!empty($user['signature_path'])): ?>
+                <div style="display:flex;gap:12px;align-items:center;margin-bottom:6px">
+                    <img src="<?= url('users.signature', ['id' => $user['id']]) ?>" alt="" style="max-height:60px;border:1px solid var(--border);background:#fff;padding:4px">
+                    <label class="muted small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" name="remove_signature" value="1" style="width:auto"> <?= t('btn_remove_signature') ?></label>
+                </div>
+                <div class="muted small"><?= t('f_signature_keep') ?></div>
+            <?php endif; ?>
+            <input class="form-input" type="file" name="signature" accept="image/png,image/jpeg">
+        </div>
+        <?php endif; ?>
         <div class="form-row">
             <div class="form-group">
                 <label class="form-label"><?= t('f_phone_wa') ?></label>

@@ -244,15 +244,16 @@ function order_status_class(string $s): string
 function order_action_role(string $status): ?string
 {
     return [
-        'pending_sup' => 'supervisor',
-        'pending_mgr' => 'manager',
+        'pending_sup' => 'sales_manager',   // legacy stage (two-level flow before 2026-11-03); handled like pending_mgr
+        'pending_mgr' => 'sales_manager',
         'pending_wh'  => 'warehouse',
     ][$status] ?? null;
 }
 
 /**
- * Every role that may act on that stage: the sales manager approves at the
- * supervisor level, either of them is enough (owner decision 2026-10-24).
+ * Every role that may act on that stage. Since 2026-11-03 (owner decision) an
+ * order needs one approval, the sales manager's; the general manager may
+ * approve as a stand-in. The supervisor stage is gone.
  */
 function order_action_roles(string $status): array
 {
@@ -260,7 +261,19 @@ function order_action_roles(string $status): array
     if ($main === null) {
         return [];
     }
-    return $status === 'pending_sup' ? [$main, 'sales_manager'] : [$main];
+    return in_array($status, ['pending_sup', 'pending_mgr'], true) ? [$main, 'manager'] : [$main];
+}
+
+/** The stage a submitted order enters. */
+function order_first_stage(): string
+{
+    return 'pending_mgr';
+}
+
+/** Roles told when an order is approved for shipping (finance for invoicing, the GM for oversight). */
+function order_cc_roles(): array
+{
+    return ['finance_manager', 'finance_assistant', 'manager'];
 }
 
 /** "主管 / 销售经理" — who an order is waiting for. */

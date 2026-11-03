@@ -46,6 +46,6 @@ if (function_exists('exec') && is_file($harness)) {
     $run('update', [], ['id' => $d['id'], 'do' => 'draft', 'customer_name' => 'PT Denny Jaya', 'product_id' => ['1'], 'sku' => ['SJ8001'], 'color' => ['White'],
         'spec' => ['4.0*0.21'], 'size' => ['1.22x2.44'], 'qty' => ['5'], 'price' => ['235000'], 'price_excl' => ['0'], 'price_basis' => 'incl']);
     [, $fl] = $run('submit', [], ['id' => $d['id']]);
-    ok('completed later, the same draft goes to approval', $q("SELECT status FROM orders WHERE id = {$d['id']}")[0]['status'] === 'pending_sup', json_encode($fl));
+    ok('completed later, the same draft goes to approval', $q("SELECT status FROM orders WHERE id = {$d['id']}")[0]['status'] === 'pending_mgr', json_encode($fl));
     @unlink($db);
 }

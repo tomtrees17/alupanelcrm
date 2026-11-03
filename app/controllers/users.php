@@ -5,6 +5,24 @@ declare(strict_types=1);
 /** @var PDO $pdo */
 /** @var Auth $auth */
 
+// Signature images are printed on documents every logged-in user may print,
+// so fetching one is not an admin action; everything else here is.
+if ($action === 'signature') {
+    $st = $pdo->prepare('SELECT signature_path FROM users WHERE id = ?');
+    $st->execute([(int) input('id', 0)]);
+    $file = (string) ($st->fetchColumn() ?: '');
+    $path = signature_dir() . '/' . basename($file);
+    if ($file === '' || !is_file($path)) {
+        http_response_code(404);
+        exit('Not found');
+    }
+    header('Content-Type: ' . (str_ends_with($file, '.png') ? 'image/png' : 'image/jpeg'));
+    header('Cache-Control: private, max-age=300');
+    header('X-Content-Type-Options: nosniff');
+    readfile($path);
+    exit;
+}
+
 if (!$auth->isAdmin()) {
     http_response_code(403);
     flash(t('msg_user_admin_only'), 'error');
@@ -12,6 +30,41 @@ if (!$auth->isAdmin()) {
 }
 
 $roles = all_roles();
+
+/** Private folder for signature images (outside the web root, like HR attachments). */
+function signature_dir(): string
+{
+    $dir = dirname((string) $GLOBALS['config']['db_path']) . '/signatures';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0750, true);
+    }
+    return $dir;
+}
+
+/**
+ * Store an uploaded signature for a user; returns the new file name, '' when
+ * nothing was uploaded, or null when the file is not an image we accept.
+ */
+function store_signature(int $userId): ?string
+{
+    $f = $_FILES['signature'] ?? null;
+    if ($f === null || ($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return '';
+    }
+    if (($f['error'] ?? 1) !== UPLOAD_ERR_OK || (int) $f['size'] > 1024 * 1024) {
+        return null;
+    }
+    $info = @getimagesize((string) $f['tmp_name']);
+    $ext = ['image/png' => 'png', 'image/jpeg' => 'jpg'][$info['mime'] ?? ''] ?? null;
+    if ($ext === null) {
+        return null;
+    }
+    $name = 'sig-' . $userId . '-' . time() . '.' . $ext;
+    $moved = is_uploaded_file((string) $f['tmp_name'])
+        ? move_uploaded_file((string) $f['tmp_name'], signature_dir() . '/' . $name)
+        : copy((string) $f['tmp_name'], signature_dir() . '/' . $name);   // test harness
+    return $moved ? $name : null;
+}
 
 switch ($action) {
     case 'index':
@@ -86,6 +139,20 @@ switch ($action) {
             $pdo->prepare('UPDATE users SET name=?,email=?,role=?,title=?,phone=?,lang=? WHERE id=?')
                 ->execute([$name, $email, $role, $title, $phone, $lang, $user['id']]);
         }
+        // Signature image: replace, remove, or keep.
+        $sigNote = '';
+        if (input('remove_signature')) {
+            $pdo->prepare('UPDATE users SET signature_path = NULL WHERE id = ?')->execute([$user['id']]);
+            $sigNote = '删除了签名';
+        } else {
+            $sig = store_signature((int) $user['id']);
+            if ($sig === null) {
+                flash(t('msg_signature_bad'), 'error');
+            } elseif ($sig !== '') {
+                $pdo->prepare('UPDATE users SET signature_path = ? WHERE id = ?')->execute([$sig, $user['id']]);
+                $sigNote = '上传了签名';
+            }
+        }
         // Role changes are the security-relevant part — spell them out in words.
         $diff = audit_diff(
             ['name' => $user['name'], 'email' => $user['email'], 'title' => $user['title'],
@@ -96,6 +163,9 @@ switch ($action) {
         );
         if ($pass !== '') {
             $diff = ($diff !== '' ? $diff . '; ' : '') . '重置了密码';
+        }
+        if ($sigNote !== '') {
+            $diff = ($diff !== '' ? $diff . '; ' : '') . $sigNote;
         }
         audit($pdo, 'users', 'update', 'user', (int) $user['id'], $name, $diff !== '' ? $diff : '(无字段变化)');
         flash(t('msg_user_updated'));

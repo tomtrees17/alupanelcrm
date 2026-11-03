@@ -195,9 +195,16 @@ switch ($action) {
         $order = find_order($pdo, (int) input('id', 0));
         $its = $pdo->prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY id');
         $its->execute([$order['id']]);
-        $u = $pdo->prepare('SELECT name, title FROM users WHERE lower(name) = lower(?) LIMIT 1');
+        $u = $pdo->prepare('SELECT id, name, title, signature_path FROM users WHERE lower(name) = lower(?) LIMIT 1');
         $u->execute([(string) $order['submitter']]);
-        view('print.co', ['order' => $order, 'items' => $its->fetchAll(), 'sales' => $u->fetch() ?: []], false);
+        $signer = $pdo->prepare('SELECT id, name, signature_path FROM users WHERE lower(name) = lower(?) LIMIT 1');
+        $signer->execute([(string) ($config['signer_name'] ?? '')]);
+        // A draft's first CO print is the moment it goes to the customer: remember it so the
+        // assistant can see which drafts are waiting for a reply.
+        if (($order['status'] ?? '') === 'draft' && empty($order['co_sent_at'])) {
+            $pdo->prepare("UPDATE orders SET co_sent_at = datetime('now','localtime') WHERE id = ? AND co_sent_at IS NULL")->execute([(int) $order['id']]);
+        }
+        view('print.co', ['order' => $order, 'items' => $its->fetchAll(), 'sales' => $u->fetch() ?: [], 'signer' => $signer->fetch() ?: []], false);
         break;
 
     // ── CO numbers (Google-Form register) ──────────────────────────────────
@@ -409,7 +416,7 @@ function save_order(PDO $pdo, object $auth, ?array $existing): int   // $auth un
         }
     }
 
-    $status = $submit ? 'pending_sup' : 'draft';
+    $status = $submit ? order_first_stage() : 'draft';
 
     $pdo->beginTransaction();
     try {
@@ -502,7 +509,7 @@ function save_order(PDO $pdo, object $auth, ?array $existing): int   // $auth un
         audit($pdo, 'orders', 'submit', 'order', $oid, $orderNo, '提交主管审批');
         $fresh = $pdo->prepare('SELECT * FROM orders WHERE id = ?');
         $fresh->execute([$oid]);
-        notify_order_stage($pdo, $fresh->fetch() ?: [], 'pending_sup');
+        notify_order_stage($pdo, $fresh->fetch() ?: [], order_first_stage());
     }
 
     flash($submit ? '订单已提交，进入主管审批。' : '草稿已保存。');
@@ -528,11 +535,11 @@ function submit_order(PDO $pdo, array $order): void
         flash(shortage_message($short), 'error');
         return;
     }
-    $pdo->prepare("UPDATE orders SET status='pending_sup', reject_note=NULL, reject_by=NULL, reject_date=NULL WHERE id=?")
+    $pdo->prepare("UPDATE orders SET status='" . order_first_stage() . "', reject_note=NULL, reject_by=NULL, reject_date=NULL WHERE id=?")
         ->execute([$order['id']]);
     recompute_reservations($pdo);
     audit($pdo, 'orders', 'submit', 'order', (int) $order['id'], (string) $order['order_no'], '草稿提交，进入主管审批');
-    notify_order_stage($pdo, $order, 'pending_sup');
+    notify_order_stage($pdo, $order, order_first_stage());
     flash(t('msg_order_submitted'));
 }
 
@@ -569,18 +576,17 @@ function approve_order(PDO $pdo, Auth $auth, array $order, string $note): void
     $noteSuffix = $note !== '' ? '；批注: ' . $note : '';
 
     switch ($order['status']) {
-        case 'pending_sup':
-            $pdo->prepare('UPDATE orders SET status=?, sup_note=?, sup_approver=?, sup_date=? WHERE id=?')
-                ->execute(['pending_mgr', $note, $name, $today, $oid]);
-            audit($pdo, 'orders', 'approve', 'order', $oid, $ono, '主管通过 → 待经理审批' . $noteSuffix);
-            notify_order_stage($pdo, $order, 'pending_mgr');
-            flash(t('msg_order_sup_ok'));
-            break;
+        case 'pending_sup':   // legacy rows submitted under the old two-level flow
         case 'pending_mgr':
             $pdo->prepare('UPDATE orders SET status=?, mgr_note=?, mgr_approver=?, mgr_date=? WHERE id=?')
                 ->execute(['pending_wh', $note, $name, $today, $oid]);
-            audit($pdo, 'orders', 'approve', 'order', $oid, $ono, '经理通过 → 待仓库出货' . $noteSuffix);
+            audit($pdo, 'orders', 'approve', 'order', $oid, $ono, '销售经理通过 → 待仓库出货' . $noteSuffix);
             notify_order_stage($pdo, $order, 'pending_wh');
+            // Finance (invoice, collection) and the GM (oversight) are told, not asked.
+            foreach (order_cc_roles() as $role) {
+                notify_role($pdo, $role, 'order_approved', 'wa_order_approved',
+                    [(string) $order['order_no'], (string) $order['customer_name'], $name], 'order', $oid, $ono);
+            }
             flash(t('msg_order_mgr_ok'));
             break;
         case 'pending_wh':

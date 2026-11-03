@@ -185,9 +185,9 @@ $clientType = ['CONTRACTOR' => 'APLIKATOR / KONTRAKTOR', 'DISTRIBUTOR' => 'DISTR
 
     <div class="signs">
         <div>Sincerely,</div>
-        <div>Approved By,<br><span class="who"><?= e($coFull) ?></span><div class="space"></div><span class="nm"><?= e(strtoupper(no_cjk((string) ($sales['name'] ?? $order['submitter'])))) ?></span><br><?= e(no_cjk((string) ($sales['title'] ?? '')) ?: 'Sales') ?></div>
+        <div>Approved By,<br><span class="who"><?= e($coFull) ?></span><div class="space"><?php if (!empty($sales['signature_path'])): ?><img src="<?= url('users.signature', ['id' => $sales['id']]) ?>" alt="" style="max-height:52px;max-width:150px;margin-top:4px"><?php endif; ?></div><span class="nm"><?= e(strtoupper(no_cjk((string) ($sales['name'] ?? $order['submitter'])))) ?></span><br><?= e(no_cjk((string) ($sales['title'] ?? '')) ?: 'Sales') ?></div>
         <div>Acknowledge by Client,<br><span class="who"><?= e(strtoupper(no_cjk((string) ($order['company'] ?: $order['customer_name'])))) ?></span><div class="space"></div><span class="nm"><?= e(strtoupper(no_cjk((string) $order['customer_name']))) ?></span><br>&nbsp;</div>
-        <div>Acknowledge By,<br><span class="who"><?= e($coFull) ?></span><div class="space"></div><span class="nm"><?= e(ucwords(strtolower($cfg['signer_name']))) ?></span><br><?= e($cfg['signer_title']) ?></div>
+        <div>Acknowledge By,<br><span class="who"><?= e($coFull) ?></span><div class="space"><?php if (!empty($signer['signature_path'])): ?><img src="<?= url('users.signature', ['id' => $signer['id']]) ?>" alt="" style="max-height:52px;max-width:150px;margin-top:4px"><?php endif; ?></div><span class="nm"><?= e(ucwords(strtolower($cfg['signer_name']))) ?></span><br><?= e($cfg['signer_title']) ?></div>
     </div>
 </div>
 </body>

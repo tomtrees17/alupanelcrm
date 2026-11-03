@@ -2,21 +2,24 @@
 /** @var array $order */ /** @var array $items */ /** @var array $totals */ /** @var ?array $invoice */
 /** @var Auth $auth */
 
-// Determine the 4-step approval flow state.
+// Approval flow since 2026-11-03: sales → sales manager → warehouse (one approval).
+// Orders approved under the old flow still show the supervisor step they went through.
 $status = $order['status'];
 $steps = [
     ['key' => 'sales', 'label' => t('sales'), 'who' => $order['submitter'], 'note' => '', 'date' => $order['created_at']],
-    ['key' => 'sup', 'label' => t('supervisor'), 'who' => $order['sup_approver'], 'note' => $order['sup_note'], 'date' => $order['sup_date']],
-    ['key' => 'mgr', 'label' => t('manager'), 'who' => $order['mgr_approver'], 'note' => $order['mgr_note'], 'date' => $order['mgr_date']],
-    ['key' => 'wh', 'label' => t('warehouse'), 'who' => $order['wh_approver'], 'note' => $order['wh_note'], 'date' => $order['wh_date']],
 ];
-$activeMap = ['pending_sup' => 'sup', 'pending_mgr' => 'mgr', 'pending_wh' => 'wh'];
+if (!empty($order['sup_date']) || $status === 'pending_sup') {
+    $steps[] = ['key' => 'sup', 'label' => t('supervisor'), 'who' => $order['sup_approver'], 'note' => $order['sup_note'], 'date' => $order['sup_date']];
+}
+$steps[] = ['key' => 'mgr', 'label' => role_label('sales_manager'), 'who' => $order['mgr_approver'], 'note' => $order['mgr_note'], 'date' => $order['mgr_date']];
+$steps[] = ['key' => 'wh', 'label' => t('warehouse'), 'who' => $order['wh_approver'], 'note' => $order['wh_note'], 'date' => $order['wh_date']];
+$activeMap = ['pending_sup' => 'mgr', 'pending_mgr' => 'mgr', 'pending_wh' => 'wh'];
 $rejStage = null;
 if ($status === 'rejected') {
     foreach (['wh', 'mgr', 'sup'] as $k) {
         if (!empty($order["{$k}_date"])) { $rejStage = $k; break; }
     }
-    if (!$rejStage) { $rejStage = 'sup'; }
+    if (!$rejStage) { $rejStage = 'mgr'; }
 }
 $stateOf = function (string $key) use ($status, $activeMap, $rejStage, $order) {
     if ($key === 'sales') return 'approved';

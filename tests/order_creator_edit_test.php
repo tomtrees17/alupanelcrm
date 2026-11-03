@@ -38,7 +38,7 @@ if (function_exists('exec') && is_file($harness)) {
         'product_id' => ['1'], 'sku' => ['SJ8025'], 'color' => ['Light Grey'], 'spec' => ['3.0*0.10'], 'size' => ['1.22x2.44'], 'qty' => ['4'], 'price' => ['238000'], 'price_excl' => ['0'], 'price_basis' => 'incl']);
     $o = $q('SELECT * FROM orders WHERE id = 1')[0];
     ok('…fixes it and resubmits: back to approval, rejection cleared, still ridwan\'s order, still keyed in by nasya',
-        $o['status'] === 'pending_sup' && (float) $o['shipping_cost'] === 200000.0 && $o['reject_note'] === null && $o['submitter'] === 'ridwan' && $o['created_by'] === 'nasya', json_encode($o));
+        $o['status'] === 'pending_mgr' && (float) $o['shipping_cost'] === 200000.0 && $o['reject_note'] === null && $o['submitter'] === 'ridwan' && $o['created_by'] === 'nasya', json_encode($o));
     ok('…once submitted it is locked again for her', !str_contains($run(3, 'show', ['id' => 1], null)[0], $editLink));
 
     (new PDO('sqlite:' . $db))->exec("UPDATE orders SET status = 'rejected' WHERE id = 1");

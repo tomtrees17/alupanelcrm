@@ -18,7 +18,7 @@
 
 <div class="task-filters">
     <a class="filter-btn <?= $statusFilter === '' ? 'active' : '' ?>" href="<?= url('orders.index', array_filter(['q' => $q])) ?>"><?= t('filter_all') ?></a>
-    <?php foreach (order_statuses() as $s): ?>
+    <?php foreach (array_diff(order_statuses(), ['pending_sup']) as $s): ?>
         <a class="filter-btn <?= $statusFilter === $s ? 'active' : '' ?>" href="<?= url('orders.index', array_filter(['status' => $s, 'q' => $q])) ?>">
             <?= e(order_status_label($s)) ?><?php if (!empty($counts[$s])): ?> (<?= $counts[$s] ?>)<?php endif; ?>
         </a>
@@ -31,7 +31,7 @@
     <?php if (!$orders): ?><tr><td colspan="6" class="empty"><?= t('no_orders') ?></td></tr><?php endif; ?>
     <?php foreach ($orders as $o): ?>
         <tr class="clickable" onclick="location.href='<?= url('orders.show', ['id' => $o['id']]) ?>'">
-            <td><code><?= e($o['order_no']) ?></code></td>
+            <td><code><?= e($o['order_no']) ?></code><?php if ($o['status'] === 'draft'): ?><div class="small"><?php if (!empty($o['co_sent_at'])): ?><span class="tag tag-blue"><?= e(sprintf(t('co_sent_tag'), (int) floor((time() - strtotime((string) $o['co_sent_at'])) / 86400))) ?></span><?php else: ?><span class="muted"><?= t('co_not_sent_tag') ?></span><?php endif; ?></div><?php endif; ?></td>
             <td><strong><?= trim((string) $o['customer_name']) !== '' ? e($o['customer_name']) : '<span class="muted">' . t('order_no_customer') . '</span>' ?></strong><br><span class="muted"><?= e($o['company']) ?></span></td>
             <td><?= e($o['submitter']) ?></td>
             <td><?= e($o['payment_term']) ?><?= $o['payment_term'] === 'custom' ? ' ' . (int) $o['custom_days'] . 'd' : '' ?></td>

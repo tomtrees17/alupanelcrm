@@ -13,6 +13,7 @@ CREATE TABLE users (
     lang          TEXT    NOT NULL DEFAULT 'id',     -- preferred UI + notification language
     must_change_password INTEGER NOT NULL DEFAULT 0, -- force a password change on next login
     employee_id   INTEGER,                           -- 人力: the person behind the account (HR-00)
+    signature_path TEXT,                             -- signature image (data/signatures/, private) printed on the CO
     active        INTEGER NOT NULL DEFAULT 1,        -- 0 = deactivated on resignation; login refused, never deleted
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
@@ -136,6 +137,7 @@ CREATE TABLE orders (
     do_number        TEXT,
     invoice_number   TEXT,
     customer_matched TEXT,                   -- 'phone': a new order's customer was linked to an existing one by phone (CM-01)
+    co_sent_at       TEXT,                   -- first CO print while still a draft = sent to the customer for confirmation
     co_no            TEXT,                   -- CO number as the customer knows it (= order_no from 1379 on; older orders link the Google-Form number here)
     delivery_lat     REAL,                   -- geocoded delivery point (NULL = none / not resolved)
     delivery_lng     REAL,
