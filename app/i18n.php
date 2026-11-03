@@ -85,7 +85,7 @@ const I18N = [
         'sales' => '销售', 'supervisor' => '主管', 'manager' => '经理', 'warehouse' => '仓库',
         'approval_by' => '审批', 'wait_for' => '当前等待', 'no_permission_stage' => '审批，你没有该阶段的操作权限。',
         // form fields
-        'f_name' => '客户姓名 *', 'f_company' => '公司名称', 'f_phone' => '手机号', 'f_email' => '邮箱',
+        'f_user_name' => '姓名', 'f_name' => '客户姓名 *', 'f_company' => '公司名称', 'f_phone' => '手机号', 'f_email' => '邮箱',
         'f_city' => '城市', 'f_tag' => '客户标签', 'f_value' => '潜在价值 (Rp)', 'f_last_contact' => '最后跟进日期',
         'f_note' => '备注', 'f_deal_name' => '商机名称 *', 'f_customer' => '关联客户', 'f_deal_value' => '商机金额 (Rp) *',
         'f_stage' => '当前阶段', 'f_close_date' => '预计成交日期', 'f_task_title' => '任务标题 *', 'f_due' => '截止日期',
@@ -1142,7 +1142,7 @@ const I18N = [
         'delivery_addr' => 'Alamat Kirim', 'note' => 'Catatan', 'shipping' => 'Ongkir', 'total' => 'Total',
         'sales' => 'Sales', 'supervisor' => 'Supervisor', 'manager' => 'Manager', 'warehouse' => 'Gudang',
         'approval_by' => 'Persetujuan', 'wait_for' => 'Menunggu', 'no_permission_stage' => ', Anda tidak punya akses pada tahap ini.',
-        'f_name' => 'Nama Pelanggan *', 'f_company' => 'Nama Perusahaan', 'f_phone' => 'Nomor HP', 'f_email' => 'Email',
+        'f_user_name' => 'Nama', 'f_name' => 'Nama Pelanggan *', 'f_company' => 'Nama Perusahaan', 'f_phone' => 'Nomor HP', 'f_email' => 'Email',
         'f_city' => 'Kota', 'f_tag' => 'Label Pelanggan', 'f_value' => 'Nilai Potensi (Rp)', 'f_last_contact' => 'Kontak Terakhir',
         'f_note' => 'Catatan', 'f_deal_name' => 'Nama Peluang *', 'f_customer' => 'Pelanggan Terkait', 'f_deal_value' => 'Nilai Peluang (Rp) *',
         'f_stage' => 'Tahap Saat Ini', 'f_close_date' => 'Perkiraan Closing', 'f_task_title' => 'Judul Tugas *', 'f_due' => 'Tenggat',

@@ -13,7 +13,7 @@ $v = fn(string $k) => e($user[$k] ?? '');
         <?= Csrf::field() ?>
         <?php if ($isEdit): ?><input type="hidden" name="id" value="<?= (int) $user['id'] ?>"><?php endif; ?>
         <div class="form-row">
-            <div class="form-group"><label class="form-label"><?= t('th_name') ?> *</label><input class="form-input" name="name" value="<?= $v('name') ?>" required></div>
+            <div class="form-group"><label class="form-label"><?= t('f_user_name') ?> *</label><input class="form-input" name="name" value="<?= $v('name') ?>" required></div>
             <div class="form-group"><label class="form-label"><?= t('th_email') ?> *</label><input class="form-input" type="email" name="email" value="<?= $v('email') ?>" required></div>
         </div>
         <div class="form-row-3">
