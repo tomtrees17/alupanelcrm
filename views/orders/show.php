@@ -132,6 +132,36 @@ $canAct = $auth->isAdmin() || in_array($auth->user()['role'] ?? '', order_action
     </div>
 </div>
 
+<?php $shots ??= []; $canShots = order_editable($order); ?>
+<?php if ($shots || $canShots): ?>
+    <div class="card"><div class="card-body">
+        <span class="card-title"><?= t('oa_title') ?></span>
+        <div class="oa-shots">
+            <?php foreach ($shots as $s): $src = url('orders.attachment', ['id' => $order['id'], 'att' => $s['id']]); ?>
+                <figure>
+                    <a href="<?= $src ?>" target="_blank"><img src="<?= $src ?>" alt="<?= e($s['name']) ?>" loading="lazy"></a>
+                    <figcaption class="muted small"><?= e($s['uploaded_by']) ?> · <?= e(Hr::dmy(substr((string) $s['uploaded_at'], 0, 10))) ?>
+                    <?php if ($canShots): ?>
+                        <form method="post" action="<?= url('orders.detach') ?>" style="display:inline" onsubmit="return confirm('<?= e(t('oa_remove_confirm')) ?>')">
+                            <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $order['id'] ?>"><input type="hidden" name="att" value="<?= (int) $s['id'] ?>">
+                            <button class="btn btn-ghost btn-sm" type="submit"><?= t('oa_btn_remove') ?></button>
+                        </form>
+                    <?php endif; ?></figcaption>
+                </figure>
+            <?php endforeach; ?>
+            <?php if (!$shots): ?><span class="muted"><?= t('oa_none') ?></span><?php endif; ?>
+        </div>
+        <?php if ($canShots && count($shots) < OrderFiles::MAX_PER_ORDER): ?>
+            <form method="post" action="<?= url('orders.attach') ?>" enctype="multipart/form-data" class="no-print" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+                <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $order['id'] ?>">
+                <input class="form-input" type="file" name="confirm_shots[]" accept="image/png,image/jpeg" multiple style="max-width:360px">
+                <button class="btn btn-ghost btn-sm" type="submit"><?= t('oa_btn_upload') ?></button>
+            </form>
+            <div class="muted small" style="margin-top:4px"><?= t('oa_hint') ?></div>
+        <?php endif; ?>
+    </div></div>
+<?php endif; ?>
+
 <?php if ($order['sup_note'] || $order['mgr_note'] || $order['wh_note']): ?>
     <div class="card"><div class="card-body">
         <span class="card-title"><?= t('approval_opinions') ?></span>
@@ -146,6 +176,7 @@ $canAct = $auth->isAdmin() || in_array($auth->user()['role'] ?? '', order_action
 <?php if ($canAct && in_array($status, ['pending_sup', 'pending_mgr', 'pending_wh'], true)): ?>
     <div class="card"><div class="card-body">
         <span class="card-title"><?= e(order_stage_label($status)) ?> · <?= t('approval_by') ?></span>
+        <?php if (!$shots && $status !== 'pending_wh'): ?><div class="alert alert-info oa-missing" style="margin-top:10px">⚠ <?= t('oa_missing') ?></div><?php endif; ?>
         <form method="post" style="margin-top:10px">
             <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $order['id'] ?>">
             <div class="form-group"><label class="form-label"><?= t('approval_opinions') ?></label><textarea class="form-textarea" name="note"></textarea></div>

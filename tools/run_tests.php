@@ -42,6 +42,7 @@ require __DIR__ . '/../app/WaChat.php';
 require __DIR__ . '/../app/VisitImport.php';
 require __DIR__ . '/../app/SalesReview.php';
 require __DIR__ . '/../app/CustomerMerge.php';
+require_once __DIR__ . '/../app/OrderFiles.php';
 require __DIR__ . '/../app/SalesHistory.php';
 require __DIR__ . '/../app/CoNumbers.php';
 require __DIR__ . '/../app/OrderParse.php';

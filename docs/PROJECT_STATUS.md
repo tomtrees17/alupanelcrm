@@ -436,6 +436,17 @@ chown -R www:www data
   - 权限：新视图权限 `ai_usage`（权限矩阵新列），默认只给 finance_manager，老板始终可见（用户 2026-10-22 定）。一次性迁移 `app_meta.perm_ai_usage_v1`，之后管理员的调整不会被覆盖；
   - 内容：今日 / 本月费用与上限；本月按任务列出调用次数（按状态拆开）、tokens、费用、平均耗时、采纳率、改动最多的字段；库存助手单独一栏（数据来自 ai_queries）；月份可切换。
 - **上线**：`git pull`，再打开一次网站，`ensureSchema()` 会建好两张表并授权，不需要改 `.env`。服务器 `config.local.php` 里的 `'ai' => ['driver' => 'claude']` 与新配置用 `array_replace_recursive` 合并，互不影响。
+## 6zq. 订单附客户确认截图 CO-02（2026-11-03）
+
+**来源**：Mutia 请求 CO 客户签字处写 "attached"；用户提议录单时传销售与客户的聊天截图证明客户已确认。卡：`docs/任务卡-客户确认截图.md`。
+
+- `app/OrderFiles.php` + 表 `order_attachments`（order_id、stored、name、mime、size、uploaded_by/at、removed_by/at）。文件在私有 `data/orders/<订单id>/`，上传检查复用 `Hr::accept_upload`（JPG / PNG 按内容判断，≤ 10MB），每单最多 5 张（`MAX_PER_ORDER`）。
+- 上传：订单表单 `confirm_shots[]`（新建 / 编辑，存单后处理）、详情页 `orders.attach`；撤下 `orders.detach`（设 removed_at，文件与行保留）；都要 `order_editable()`（录单人 / 提交人 / 管理员，草稿或驳回），提交后锁定。审计 orders/attach、orders/detach。
+- 查看：`orders.attachment&id=<订单>&att=<截图>`，先过 `find_order()` 的可见性检查，再 `Hr::send_file`。详情页缩略图卡片。
+- CO：有未撤下的截图 → 「Acknowledge by Client」签字处印 **ATTACHED**。
+- 可选（用户定）：不卡提交；销售经理审批没有截图的单时，审批卡片里显示「无客户确认截图」提醒（`.oa-missing`）。
+- 备份：`Backup::folders()` 加 `orders/`。测试 `tests/order_files_test.php`；控制器测试工具新增 `TEST_ORDER_FILES_ROOT`。
+
 ## 6zp. CO 的 Approved By 与 Sales Name（2026-11-03）
 
 `orders.print_co`：「Approved By」印销售经理（`role = 'sales_manager'` 的在职账号，取 id 最小的一个，现为 ridwan）的名字、职位（空则 Sales Manager）和签名图——订单一级审批后他是唯一审批人（用户：CO 上只留 ridwan 的签字）。订单的销售（`orders.submitter`，助理录单时选的）印在抬头 Client Phone Number 下新增的「Sales Name」行。右侧仍是签字人（config signer_name）+ CO 签名。测试在 `tests/co_numbers_test.php`。
@@ -929,7 +940,7 @@ config.php                  应用与公司配置
 
 ## 9. 数据模型（表）
 
-**faktur_exports（生成的 Coretax / Digunggung 文件，见 6zf）**, customers(+tax_npwp/tax_nik/tax_name/tax_address/tax_nitku/tax_email 买方税务资料), invoices(+faktur_class 分类覆盖), **bank_accounts / bank_imports / bank_transactions / payment_allocations / customer_payer_aliases / bank_book（银行流水与回款对账，见 6ze）**, payments(+noncash 结案差额行), **ai_calls(AI 调用台账：任务/模型/prompt 版本/tokens/费用/耗时/状态，见 6zd)**, **ai_suggestions(AI 建议与人工确认、采纳率)**, hr_todos(+type ai_budget / sales_review：老板专属、无员工), **sales_reviews / sales_review_items(销售周评，见 6zk)**, customers(+merged_into/merged_at/merged_by/merge_log 重复客户合并，见 6zl), orders(+customer_matched 按电话匹配到现有客户), **sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, **co_requests(Google 表单 CO 号登记，见 6zg)**, ai_calls(+task order_parse 粘贴识别, 见 6zh), orders(+co_no 客户看到的 CO 号, +co_sent_at 草稿 CO 发出时间), users(+signature_path 签名图), users(+must_change_password；+signature_path / invoice_signature_path 签名图，见 6zo；新建账号自动建员工档案并关联 employee_id，见 6zm), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
+**faktur_exports（生成的 Coretax / Digunggung 文件，见 6zf）**, customers(+tax_npwp/tax_nik/tax_name/tax_address/tax_nitku/tax_email 买方税务资料), invoices(+faktur_class 分类覆盖), **bank_accounts / bank_imports / bank_transactions / payment_allocations / customer_payer_aliases / bank_book（银行流水与回款对账，见 6ze）**, payments(+noncash 结案差额行), **ai_calls(AI 调用台账：任务/模型/prompt 版本/tokens/费用/耗时/状态，见 6zd)**, **ai_suggestions(AI 建议与人工确认、采纳率)**, hr_todos(+type ai_budget / sales_review：老板专属、无员工), **sales_reviews / sales_review_items(销售周评，见 6zk)**, customers(+merged_into/merged_at/merged_by/merge_log 重复客户合并，见 6zl), **order_attachments(客户确认截图，见 6zq)**, orders(+customer_matched 按电话匹配到现有客户), **sales_history / sales_history_items(历史销售，只读统计用，见 6zc)**, **co_requests(Google 表单 CO 号登记，见 6zg)**, ai_calls(+task order_parse 粘贴识别, 见 6zh), orders(+co_no 客户看到的 CO 号, +co_sent_at 草稿 CO 发出时间), users(+signature_path 签名图), users(+must_change_password；+signature_path / invoice_signature_path 签名图，见 6zo；新建账号自动建员工档案并关联 employee_id，见 6zm), customer_followups(跟进记录), customer_insights(回访清单, 夜间重建), insights_history(每日上榜记录), customers(+industry/industry_source/industry_confidence/industry_pending/industry_note/region/delivery_regions/enriched_at 客户画像), orders(+delivery_lat/delivery_lng/delivery_region/geo_source 送货点), invoices(+calc/dpp Coretax 口径), orders(+price_basis 含税/不含税), order_items(+price_excl), **geocode_cache(地理编码缓存)**, deals, tasks, products(+reserved), stock_txn, orders, order_items(+product_id), delivery_orders, invoices, invoice_items, payments, admin_requests(行政审批), role_permissions, app_meta, login_attempts, invoices(+rounding 尾差), **audit_log(审计日志)**, **notifications(WhatsApp 队列)**, **ai_queries(AI 用量与限流)**, payments(+created_by/reversal_of 冲销), users(+phone/lang), orders(+created_by)。
 
 ## 10. 提交历史（main）
 

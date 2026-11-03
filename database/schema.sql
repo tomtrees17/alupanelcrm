@@ -889,3 +889,10 @@ CREATE TABLE co_requests (
     imported_at TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX idx_co_requests_order ON co_requests(order_id);
+
+-- CO-02: customer confirmation screenshots (data/orders/<order id>/, private). Never deleted; removed_at hides one.
+CREATE TABLE order_attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER NOT NULL, stored TEXT NOT NULL, name TEXT NOT NULL, mime TEXT NOT NULL,
+    size INTEGER NOT NULL, uploaded_by TEXT NOT NULL, uploaded_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    removed_by TEXT, removed_at TEXT);
+CREATE INDEX idx_order_attach ON order_attachments(order_id);

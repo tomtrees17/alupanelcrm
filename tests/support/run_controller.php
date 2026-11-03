@@ -10,7 +10,7 @@ declare(strict_types=1);
  *   php run_controller.php <db-file> <controller> <action> <json-get> <json-user> [<json-post> [<json-session>]]
  *
  * Env: TEST_HTTP_REFERER / TEST_HTTP_HOST / TEST_HTTP_USER_AGENT, TEST_HR_KEY, TEST_HR_UPLOAD_ROOT, TEST_FILES (JSON for $_FILES),
- *      TEST_DATA_DIR (stands in for data/, e.g. signature images),
+ *      TEST_DATA_DIR (stands in for data/, e.g. signature images), TEST_ORDER_FILES_ROOT (order screenshots),
  *      TEST_FAKTUR_STORE (where generated Faktur files go).
  *
  * With <json-post> the request is a POST carrying a valid CSRF token. Flash
@@ -27,7 +27,7 @@ require __DIR__ . '/../../app/helpers.php';
 require __DIR__ . '/../../app/domain.php';
 require __DIR__ . '/../../app/Database.php';
 require __DIR__ . '/../../app/Csrf.php';
-foreach (['Notify', 'Claude', 'AiTask', 'Bank', 'Faktur', 'Ai', 'Dashboard', 'Export', 'Word', 'Docx', 'Enrich', 'CustomerData', 'Insights', 'Hr', 'HrContract', 'HrBpjs', 'Visits', 'WaChat', 'VisitImport', 'SalesReview', 'CustomerMerge', 'SalesHistory', 'CoNumbers', 'OrderParse'] as $cls) {
+foreach (['Notify', 'Claude', 'AiTask', 'Bank', 'Faktur', 'Ai', 'Dashboard', 'Export', 'Word', 'Docx', 'Enrich', 'CustomerData', 'Insights', 'Hr', 'HrContract', 'HrBpjs', 'Visits', 'WaChat', 'VisitImport', 'SalesReview', 'CustomerMerge', 'SalesHistory', 'CoNumbers', 'OrderParse', 'OrderFiles'] as $cls) {
     if (is_file(__DIR__ . "/../../app/{$cls}.php")) {
         require_once __DIR__ . "/../../app/{$cls}.php";
     }
@@ -70,6 +70,9 @@ if (getenv('TEST_HR_UPLOAD_ROOT') !== false) {
 }
 if (getenv('TEST_FAKTUR_STORE') !== false) {
     Faktur::$storeDir = (string) getenv('TEST_FAKTUR_STORE');
+}
+if (getenv('TEST_ORDER_FILES_ROOT') !== false) {
+    OrderFiles::$root = (string) getenv('TEST_ORDER_FILES_ROOT');
 }
 if (getenv('TEST_VISIT_PHOTO_ROOT') !== false) {
     Visits::$photoRoot = (string) getenv('TEST_VISIT_PHOTO_ROOT');

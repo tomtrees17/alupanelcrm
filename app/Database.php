@@ -472,6 +472,11 @@ final class Database
         if (!in_array('customer_matched', array_column($pdo->query('PRAGMA table_info(orders)')->fetchAll(), 'name'), true)) {
             $pdo->exec('ALTER TABLE orders ADD COLUMN customer_matched TEXT');
         }
+        // CO-02 客户确认截图
+        if (!class_exists('OrderFiles')) {
+            require_once __DIR__ . '/OrderFiles.php';
+        }
+        OrderFiles::ensure_schema($pdo);
 
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_emp ON visits(employee_id, visited_at)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_visits_day ON visits(visited_at)');

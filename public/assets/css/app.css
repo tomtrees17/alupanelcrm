@@ -576,3 +576,9 @@ th.center, td.center { text-align: center; }
 .cm-confirm ul { margin: 0 0 12px; padding-left: 20px; }
 .cm-confirm li { margin: 2px 0; }
 .cm-into summary { cursor: pointer; list-style: none; }
+
+/* CO-02 customer confirmation screenshots */
+.oa-shots { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; align-items: flex-start; }
+.oa-shots figure { margin: 0; width: 140px; }
+.oa-shots img { width: 140px; height: 180px; object-fit: cover; object-position: top; border: 1px solid var(--border); border-radius: 6px; background: #fff; display: block; }
+.oa-shots figcaption { margin-top: 4px; }

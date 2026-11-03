@@ -38,7 +38,7 @@ $basis = ($order['price_basis'] ?? 'incl') === 'excl' ? 'excl' : 'incl';
 </div>
 <?php endif; ?>
 
-<form method="post" action="<?= url($isEdit ? 'orders.update' : 'orders.store') ?>" id="order-form">
+<form method="post" action="<?= url($isEdit ? 'orders.update' : 'orders.store') ?>" id="order-form" enctype="multipart/form-data">
     <?= Csrf::field() ?>
     <?php if ($isEdit): ?><input type="hidden" name="id" value="<?= (int) $order['id'] ?>"><?php endif; ?>
     <div class="card"><div class="card-body">
@@ -121,6 +121,12 @@ $basis = ($order['price_basis'] ?? 'incl') === 'excl' ? 'excl' : 'incl';
             </tfoot>
         </table></div>
     </div>
+
+    <div class="card"><div class="card-body">
+        <label class="form-label"><?= t('oa_title') ?></label>
+        <input class="form-input" type="file" name="confirm_shots[]" accept="image/png,image/jpeg" multiple>
+        <div class="muted small" style="margin-top:4px"><?= t('oa_hint') ?></div>
+    </div></div>
 
     <div class="form-actions order-actions">
         <span class="muted small" id="autosave-state"></span>

@@ -15,8 +15,8 @@ final class Backup
     /**
      * zip prefix => absolute folder. Paths follow where each owner writes:
      * uploads and signatures sit next to the database (config db_path);
-     * HR, visits and Faktur under the app's data/ (Hr::upload_dir,
-     * Visits::photo_dir, Faktur::store_dir).
+     * HR, visits, Faktur and order screenshots under the app's data/
+     * (Hr::upload_dir, Visits::photo_dir, Faktur::store_dir, OrderFiles::dir).
      */
     public static function folders(array $config, ?string $appData = null): array
     {
@@ -28,6 +28,7 @@ final class Backup
             'hr'         => $appData . '/hr',
             'visits'     => $appData . '/visits',
             'faktur'     => $appData . '/faktur',
+            'orders'     => $appData . '/orders',
         ];
     }
 

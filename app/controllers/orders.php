@@ -70,7 +70,7 @@ switch ($action) {
             'pageTitle' => $order['order_no'], 'pageSub' => $order['company'],
             'canLinkCo' => co_can_link($auth, $order), 'coAvailable' => CoNumbers::available($pdo, 120, $order['co_no'] ?? null),
             'order' => $order, 'items' => $items->fetchAll(), 'totals' => $totals,
-            'invoice' => $invoice, 'deliveryId' => $deliveryId,
+            'invoice' => $invoice, 'deliveryId' => $deliveryId, 'shots' => OrderFiles::list($pdo, (int) $order['id']),
         ]);
         break;
 
@@ -133,6 +133,47 @@ switch ($action) {
         $order = find_order($pdo, (int) input('id', 0));
         approve_order($pdo, $auth, $order, trim((string) input('note', '')));
         redirect('orders.show', ['id' => $order['id']]);
+        break;
+
+    // CO-02 customer confirmation screenshots: add / hide while the order is editable, view with the order.
+    case 'attach':
+        Csrf::verify();
+        $order = find_order($pdo, (int) input('id', 0));
+        if (!order_editable($order)) {
+            flash(t('oa_err_locked'), 'error');
+            redirect('orders.show', ['id' => $order['id']]);
+        }
+        [$n, $errs] = OrderFiles::accept($pdo, $order, $_FILES['confirm_shots'] ?? null, own_name());
+        foreach ($errs as $err) {
+            flash(t($err), 'error');
+        }
+        if ($n > 0) {
+            flash(sprintf(t('oa_msg_added'), $n));
+        }
+        redirect('orders.show', ['id' => $order['id']]);
+        break;
+
+    case 'detach':
+        Csrf::verify();
+        $order = find_order($pdo, (int) input('id', 0));
+        if (!order_editable($order)) {
+            flash(t('oa_err_locked'), 'error');
+            redirect('orders.show', ['id' => $order['id']]);
+        }
+        if (OrderFiles::remove($pdo, $order, (int) input('att', 0), own_name())) {
+            flash(t('oa_msg_removed'));
+        }
+        redirect('orders.show', ['id' => $order['id']]);
+        break;
+
+    case 'attachment':
+        $order = find_order($pdo, (int) input('id', 0));
+        $att = OrderFiles::find($pdo, (int) $order['id'], (int) input('att', 0));
+        if ($att === null) {
+            http_response_code(404);
+            exit('Not found');
+        }
+        Hr::send_file(0, (string) $att['stored'], (string) $att['mime'], (string) $att['name'], OrderFiles::dir((int) $order['id']));
         break;
 
     case 'reject':
@@ -205,7 +246,8 @@ switch ($action) {
         if (($order['status'] ?? '') === 'draft' && empty($order['co_sent_at'])) {
             $pdo->prepare("UPDATE orders SET co_sent_at = datetime('now','localtime') WHERE id = ? AND co_sent_at IS NULL")->execute([(int) $order['id']]);
         }
-        view('print.co', ['order' => $order, 'items' => $its->fetchAll(), 'approver' => $approver, 'signer' => $signer->fetch() ?: []], false);
+        view('print.co', ['order' => $order, 'items' => $its->fetchAll(), 'approver' => $approver, 'signer' => $signer->fetch() ?: [],
+            'confirmed' => OrderFiles::count($pdo, (int) $order['id']) > 0], false);
         break;
 
     // ── CO numbers (Google-Form register) ──────────────────────────────────
@@ -514,6 +556,14 @@ function save_order(PDO $pdo, object $auth, ?array $existing): int   // $auth un
     }
 
     flash($submit ? '订单已提交，进入主管审批。' : '草稿已保存。');
+    // CO-02: screenshots picked on the form (optional).
+    [$nShots, $shotErrs] = OrderFiles::accept($pdo, ['id' => $oid, 'order_no' => $orderNo], $_FILES['confirm_shots'] ?? null, own_name());
+    foreach ($shotErrs as $err) {
+        flash(t($err), 'error');
+    }
+    if ($nShots > 0) {
+        flash(sprintf(t('oa_msg_added'), $nShots));
+    }
     return $oid;
 }
 

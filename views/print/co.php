@@ -1,5 +1,5 @@
 <?php
-/** @var array $order */ /** @var array $items */ /** @var array $approver */
+/** @var array $order */ /** @var array $items */ /** @var array $approver */ /** @var bool $confirmed */
 // Confirmation Order (CO): the quotation / order confirmation the customer signs.
 // Mirrors the sheet the sales team used before the platform issued CO numbers.
 // Printed documents carry no Chinese (no_cjk rule) — everything here is English / Indonesian.
@@ -76,6 +76,7 @@ $clientType = ['CONTRACTOR' => 'APLIKATOR / KONTRAKTOR', 'DISTRIBUTOR' => 'DISTR
         .co .signs > div { width: 25%; }
         .co .signs .who { font-weight: 700; }
         .co .signs .space { height: 58px; }
+        .co .signs .attached { padding-top: 20px; font-size: 14px; font-weight: 700; letter-spacing: 2px; }
         .co .signs .nm { font-weight: 700; }
     </style>
 </head>
@@ -187,7 +188,7 @@ $clientType = ['CONTRACTOR' => 'APLIKATOR / KONTRAKTOR', 'DISTRIBUTOR' => 'DISTR
     <div class="signs">
         <div>Sincerely,</div>
         <div>Approved By,<br><span class="who"><?= e($coFull) ?></span><div class="space"><?php if (!empty($approver['signature_path'])): ?><img src="<?= url('users.signature', ['id' => $approver['id']]) ?>" alt="" style="max-height:52px;max-width:150px;margin-top:4px"><?php endif; ?></div><span class="nm"><?= e(strtoupper(no_cjk((string) ($approver['name'] ?? '')))) ?></span><br><?= e(no_cjk((string) ($approver['title'] ?? '')) ?: 'Sales Manager') ?></div>
-        <div>Acknowledge by Client,<br><span class="who"><?= e(strtoupper(no_cjk((string) ($order['company'] ?: $order['customer_name'])))) ?></span><div class="space"></div><span class="nm"><?= e(strtoupper(no_cjk((string) $order['customer_name']))) ?></span><br>&nbsp;</div>
+        <div>Acknowledge by Client,<br><span class="who"><?= e(strtoupper(no_cjk((string) ($order['company'] ?: $order['customer_name'])))) ?></span><div class="space"><?php if (!empty($confirmed)): ?><div class="attached">ATTACHED</div><?php endif; ?></div><span class="nm"><?= e(strtoupper(no_cjk((string) $order['customer_name']))) ?></span><br>&nbsp;</div>
         <div>Acknowledge By,<br><span class="who"><?= e($coFull) ?></span><div class="space"><?php if (!empty($signer['signature_path'])): ?><img src="<?= url('users.signature', ['id' => $signer['id']]) ?>" alt="" style="max-height:52px;max-width:150px;margin-top:4px"><?php endif; ?></div><span class="nm"><?= e(ucwords(strtolower($cfg['signer_name']))) ?></span><br><?= e($cfg['signer_title']) ?></div>
     </div>
 </div>

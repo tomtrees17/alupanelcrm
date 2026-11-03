@@ -50,6 +50,7 @@ require __DIR__ . '/WaChat.php';
 require __DIR__ . '/VisitImport.php';
 require __DIR__ . '/SalesReview.php';
 require __DIR__ . '/CustomerMerge.php';
+require_once __DIR__ . '/OrderFiles.php';
 require __DIR__ . '/SalesHistory.php';
 require __DIR__ . '/CoNumbers.php';
 require __DIR__ . '/OrderParse.php';
