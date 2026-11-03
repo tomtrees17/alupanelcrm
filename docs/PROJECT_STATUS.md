@@ -462,7 +462,7 @@ chown -R www:www data
 
 - **找**：客户管理页头「重复客户」（`customers.duplicates`，`CustomerMerge::groups()`）。电话后 9 位相同；名称或公司名去掉 Bpk/Ibu/Pak/PT/CV/Toko 等后相同；公司名只差 1–2 个字母（同首词分桶、levenshtein）。名称 / 公司名的匹配只在两条电话不冲突时才算。并查集成组，有订单的组在前，组内订单最多的默认"保留"。每条显示订单数、最近下单、累计销售额（发票、作废除外）、拜访数、建档日。「不是同一个」记在 `app_meta.customer_dup_ignored`（id 对）。
 - **合并**：选保留 + 勾选并入 → 核对页（转移数量、负责销售不同的提示）→ 确认。一个事务里把 orders / deals / tasks / customer_followups / visits / sales_history / customer_name_aliases / bank_book / customer_payer_aliases 的 customer_id 改指保留记录（付款人别名重复的只留一条）；保留记录空字段用被并记录补（税务资料整块搬、不拆）；任一条「成交」则保留记录为「成交」；之前并入被并记录的也改指保留记录（无链）。被并记录**不删除**：`merged_into / merged_at / merged_by / merge_log`（JSON，每张表转了哪些 id，供手工还原）。审计 customers/merge/customer。回访清单里被并记录的行由 `Insights::drop_merged()` 当场去掉（`customer_insights` 仍只有 Insights.php 写），保留记录当晚重算。
-- **规则**（用户 2026-10-30 定）：管理员 + 销售经理（`sales_manager`）能合并（`CustomerMerge::can()`），其他角色看不到入口、请求被拒；两条 NPWP 不同不让合并；录新单勾"保存新客户"且未选客户时，电话与**恰好一个**现有客户相同 → 直接挂到该客户、不新建，`orders.customer_matched = 'phone'`，订单详情注明"已按电话匹配到现有客户"（电话空或匹配多个照旧新建）。
+- **规则**（用户 2026-10-30 定）：管理员 + 销售经理（`sales_manager`）+ 财务经理（`finance_manager`，2026-11-03 追加）能合并（`CustomerMerge::can()`），其他角色看不到入口、请求被拒；两条 NPWP 不同不让合并；录新单勾"保存新客户"且未选客户时，电话与**恰好一个**现有客户相同 → 直接挂到该客户、不新建，`orders.customer_matched = 'phone'`，订单详情注明"已按电话匹配到现有客户"（电话空或匹配多个照旧新建）。
 - **隐藏**：被并记录不出现在客户列表 / 筛选项 / 导出、订单与商机 / 任务的客户下拉、拜访客户搜索、数据整理、回访清单负责人统计、客户画像（Enrich 不再给它跑规则 / AI）。旧链接 → 跳到保留记录并提示。拜访匹配、粘贴识别、历史销售导入的客户查找用 `COALESCE(merged_into, id)`，旧名字仍认到保留记录。客户详情页显示"由以下记录合并"，管理员 / 销售经理另有「合并到其他客户…」（输入搜索选目标）。
 - **线上库副本**（10-30 备份）：496 个客户，39 组疑似重复 / 92 条（35 组有订单；2 条 29 组、3 条 6 组、4 条 4 组）；Darim 4 条成一组（电话 + 名称 + 公司名），试合并：8 张订单全到保留记录、销售额 13.792.000 不变、看板排名不变、3 条被并记录保留。
 - **测试**：`tests/customer_merge_test.php` 50 项。

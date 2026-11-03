@@ -30,11 +30,11 @@ final class CustomerMerge
 
     public const IGNORED_KEY = 'customer_dup_ignored';
 
-    /** Admin and the sales manager (user 2026-10-30). */
+    /** Admin, the sales manager (user 2026-10-30) and the finance manager (user 2026-11-03: finance knows customers and payments best). */
     public static function can(): bool
     {
         $auth = $GLOBALS['auth'] ?? null;
-        return $auth !== null && ($auth->isAdmin() || ($auth->user()['role'] ?? '') === 'sales_manager');
+        return $auth !== null && ($auth->isAdmin() || in_array($auth->user()['role'] ?? '', ['sales_manager', 'finance_manager'], true));
     }
 
     /** Last 9 digits of the first number in the field; '' when it is not a phone number. */

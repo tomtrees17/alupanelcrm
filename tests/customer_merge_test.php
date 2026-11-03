@@ -7,7 +7,7 @@
 $cmFixture = function (PDO $p): void {
     $p->exec("INSERT INTO users (id, name, email, password_hash, role) VALUES
         (1, 'Admin', 'a@x', 'x', 'admin'), (2, 'rian', 'r@x', 'x', 'sales'), (3, 'calvin', 'c@x', 'x', 'sales'),
-        (4, 'Mgr', 'm@x', 'x', 'sales_manager'), (5, 'nasya', 'n@x', 'x', 'sales_assistant')");
+        (4, 'Mgr', 'm@x', 'x', 'sales_manager'), (5, 'nasya', 'n@x', 'x', 'sales_assistant'), (6, 'Mutia', 'f@x', 'x', 'finance_manager')");
     $p->exec("INSERT INTO customers (id, name, company, phone, city, owner, tag, note, tax_npwp, created_at) VALUES
         (1, 'Bpk Darim', 'Multi Jaya Darim', '08129813257', '', 'rian', '潜在', 'minta katalog', NULL, '2026-09-01 10:00:00'),
         (2, 'Darim', 'MULTI JAYA ALUMUNIUM', '08129813257', '', 'rian', '成交', '', NULL, '2026-09-10 10:00:00'),
@@ -177,6 +177,10 @@ if (function_exists('exec') && is_file($harness)) {
         ok("{$who}: no button, page and merge refused", !str_contains($l, 'r=customers.duplicates') && ($fl[0]['message'] ?? '') === $zh('cm_msg_no_access')
             && ($fl2[0]['message'] ?? '') === $zh('cm_msg_no_access') && $q('SELECT merged_into FROM customers WHERE id = 6')[0]['merged_into'] === null);
     }
+    // Finance manager may merge too (user 2026-11-03).
+    [$lf] = $run(6, 'customers', 'index', [], null);
+    [$conf6, $fl6] = $run(6, 'customers', 'merge', [], ['keep' => '5', 'from' => ['6']]);
+    ok('finance manager: sees 重复客户 and reaches the merge check', str_contains($lf, 'r=customers.duplicates') && str_contains($conf6, $zh('cm_confirm_title')) && $fl6 === [], json_encode($fl6));
     ok('salesperson: no 合并到… on a customer page', !str_contains($run(2, 'customers', 'show', ['id' => 9], null)[0], $zh('cm_into_title')));
 
     $base = ['do' => 'draft', 'save_customer' => '1', 'product_id' => [''], 'sku' => [''], 'qty' => ['0'], 'price' => ['0'], 'price_basis' => 'incl', 'sales_name' => 'rian'];
