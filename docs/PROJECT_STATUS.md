@@ -436,6 +436,10 @@ chown -R www:www data
   - 权限：新视图权限 `ai_usage`（权限矩阵新列），默认只给 finance_manager，老板始终可见（用户 2026-10-22 定）。一次性迁移 `app_meta.perm_ai_usage_v1`，之后管理员的调整不会被覆盖；
   - 内容：今日 / 本月费用与上限；本月按任务列出调用次数（按状态拆开）、tokens、费用、平均耗时、采纳率、改动最多的字段；库存助手单独一栏（数据来自 ai_queries）；月份可切换。
 - **上线**：`git pull`，再打开一次网站，`ensureSchema()` 会建好两张表并授权，不需要改 `.env`。服务器 `config.local.php` 里的 `'ai' => ['driver' => 'claude']` 与新配置用 `array_replace_recursive` 合并，互不影响。
+## 6zp. CO 的 Approved By 与 Sales Name（2026-11-03）
+
+`orders.print_co`：「Approved By」印销售经理（`role = 'sales_manager'` 的在职账号，取 id 最小的一个，现为 ridwan）的名字、职位（空则 Sales Manager）和签名图——订单一级审批后他是唯一审批人（用户：CO 上只留 ridwan 的签字）。订单的销售（`orders.submitter`，助理录单时选的）印在抬头 Client Phone Number 下新增的「Sales Name」行。右侧仍是签字人（config signer_name）+ CO 签名。测试在 `tests/co_numbers_test.php`。
+
 ## 6zo. 发票签名（2026-11-03）
 
 签字人（`config.signer_name`，Mutia）在 CO 和发票上用两张不同的签名图（发票那张可带公司章）。`users.invoice_signature_path` 与 `signature_path` 并存；用户编辑页的「发票签名」上传框只对签字人（或已有发票签名的账号）显示。取图 `users.signature&id=N[&kind=invoice]`（登录即可，文件在私有 `data/signatures/`）。`doc_signer()`（helpers）按 signer_name 找账号；发票网页打印（`views/print/invoice.php`）和 Word 版（`views/word/invoice_docx.php`，图片嵌入 docx）在「On Your Behalf」下印发票签名，没传则留白。CO 仍印 `signature_path`。`signature_dir()` 移到 helpers。测试：`tests/invoice_signature_test.php`；控制器测试工具新增 `TEST_DATA_DIR`（代替 data/，避免写真实目录）。

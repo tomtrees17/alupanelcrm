@@ -1,5 +1,5 @@
 <?php
-/** @var array $order */ /** @var array $items */ /** @var array $sales */
+/** @var array $order */ /** @var array $items */ /** @var array $approver */
 // Confirmation Order (CO): the quotation / order confirmation the customer signs.
 // Mirrors the sheet the sales team used before the platform issued CO numbers.
 // Printed documents carry no Chinese (no_cjk rule) — everything here is English / Indonesian.
@@ -103,6 +103,7 @@ $clientType = ['CONTRACTOR' => 'APLIKATOR / KONTRAKTOR', 'DISTRIBUTOR' => 'DISTR
         <tr><td class="k">Name of Client</td><td class="v" colspan="2"><?= e(strtoupper(no_cjk((string) $order['customer_name']))) ?></td></tr>
         <tr><td class="k">Client Address</td><td class="v" colspan="2"><?= e(strtoupper(no_cjk((string) $order['address']))) ?></td></tr>
         <tr><td class="k">Client Phone Number</td><td class="v" colspan="2"><?= e((string) $order['phone']) ?></td></tr>
+        <tr><td class="k">Sales Name</td><td class="v" colspan="2"><?= e(strtoupper(no_cjk((string) $order['submitter']))) ?></td></tr>
         <tr><td colspan="3" class="gap"></td></tr>
         <tr><td class="k">Type Of Client</td><td class="v" colspan="2"><?= e($clientType) ?></td></tr>
         <tr><td colspan="3" class="gap"></td></tr>
@@ -185,7 +186,7 @@ $clientType = ['CONTRACTOR' => 'APLIKATOR / KONTRAKTOR', 'DISTRIBUTOR' => 'DISTR
 
     <div class="signs">
         <div>Sincerely,</div>
-        <div>Approved By,<br><span class="who"><?= e($coFull) ?></span><div class="space"><?php if (!empty($sales['signature_path'])): ?><img src="<?= url('users.signature', ['id' => $sales['id']]) ?>" alt="" style="max-height:52px;max-width:150px;margin-top:4px"><?php endif; ?></div><span class="nm"><?= e(strtoupper(no_cjk((string) ($sales['name'] ?? $order['submitter'])))) ?></span><br><?= e(no_cjk((string) ($sales['title'] ?? '')) ?: 'Sales') ?></div>
+        <div>Approved By,<br><span class="who"><?= e($coFull) ?></span><div class="space"><?php if (!empty($approver['signature_path'])): ?><img src="<?= url('users.signature', ['id' => $approver['id']]) ?>" alt="" style="max-height:52px;max-width:150px;margin-top:4px"><?php endif; ?></div><span class="nm"><?= e(strtoupper(no_cjk((string) ($approver['name'] ?? '')))) ?></span><br><?= e(no_cjk((string) ($approver['title'] ?? '')) ?: 'Sales Manager') ?></div>
         <div>Acknowledge by Client,<br><span class="who"><?= e(strtoupper(no_cjk((string) ($order['company'] ?: $order['customer_name'])))) ?></span><div class="space"></div><span class="nm"><?= e(strtoupper(no_cjk((string) $order['customer_name']))) ?></span><br>&nbsp;</div>
         <div>Acknowledge By,<br><span class="who"><?= e($coFull) ?></span><div class="space"><?php if (!empty($signer['signature_path'])): ?><img src="<?= url('users.signature', ['id' => $signer['id']]) ?>" alt="" style="max-height:52px;max-width:150px;margin-top:4px"><?php endif; ?></div><span class="nm"><?= e(ucwords(strtolower($cfg['signer_name']))) ?></span><br><?= e($cfg['signer_title']) ?></div>
     </div>

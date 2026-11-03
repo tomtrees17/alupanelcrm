@@ -133,22 +133,22 @@ $coOrder = array_merge($ocols, ['id' => 9, 'order_no' => 'SO-9', 'customer_name'
     'price_basis' => 'excl', 'status' => 'approved', 'created_at' => '2026-10-28 10:00:00', 'submitter' => 'Admin']);
 $coItems = [array_merge($icols, ['sku' => 'SJ2020-07', 'spec' => '4.0*0.15', 'size' => '1220X2440', 'qty' => 23, 'unit' => 'LBR', 'price' => 463500.48, 'price_excl' => 417568]),
             array_merge($icols, ['sku' => 'SJ8033', 'spec' => '4.0*0.21', 'size' => '1220X2440', 'qty' => 10, 'unit' => 'LBR', 'price' => 432394.95, 'price_excl' => 389545])];
-$co = $render(__DIR__ . '/../views/print/co.php', ['order' => $coOrder, 'items' => $coItems, 'sales' => []]);
+$co = $render(__DIR__ . '/../views/print/co.php', ['order' => $coOrder, 'items' => $coItems, 'approver' => []]);
 ok('CO pre-tax: Sub Total is the DPP, then DPP Nilai Lain and PPN 12%, with the 11/12 and effective 11% note (Coretax wording)',
     str_contains($co, 'SUB TOTAL (DPP)') && str_contains($co, '>DPP Nilai Lain<') && str_contains($co, '>PPN 12%<')
     && str_contains($co, 'DPP Nilai Lain = 11/12 × DPP') && str_contains($co, 'PPN efektif 11%'));
-$coShip = $render(__DIR__ . '/../views/print/co.php', ['order' => array_merge($coOrder, ['shipping_cost' => 500000]), 'items' => $coItems, 'sales' => []]);
+$coShip = $render(__DIR__ . '/../views/print/co.php', ['order' => array_merge($coOrder, ['shipping_cost' => 500000]), 'items' => $coItems, 'approver' => []]);
 ok('CO pre-tax with ongkir: Sub Total is not labelled DPP (the tax base also holds shipping ÷ 1,11)',
     !str_contains($coShip, 'SUB TOTAL (DPP)') && str_contains($coShip, '>SUB TOTAL<') && str_contains($coShip, '>DPP Nilai Lain<'));
 ok('CO pre-tax: figures unchanged (DPP 12.374.554,50 · PPN 1.484.946,54 · total 14.984.460,54)',
     str_contains($co, '12.374.554,5') && str_contains($co, '1.484.946,54') && str_contains($co, '14.984.460,54'));
-$coIncl = $render(__DIR__ . '/../views/print/co.php', ['order' => array_merge($coOrder, ['price_basis' => 'incl']), 'items' => $coItems, 'sales' => []]);
+$coIncl = $render(__DIR__ . '/../views/print/co.php', ['order' => array_merge($coOrder, ['price_basis' => 'incl']), 'items' => $coItems, 'approver' => []]);
 ok('CO tax-inclusive: no PPN rows, no effective-rate note', !str_contains($coIncl, 'PPN efektif') && !str_contains($coIncl, 'SUB TOTAL (DPP)') && str_contains($coIncl, 'Harga sudah termasuk PPN'));
 
 $signs = substr($co, (int) strpos($co, 'Acknowledge by Client'), 300);
 ok('CO client signature block: the order\'s company and client name, not the template placeholders',
     str_contains($signs, 'DAPUR GEMILANG') && str_contains($signs, 'IBU DEWI') && !str_contains($co, 'Department of Client') && !str_contains($signs, 'Name of Client'), $signs);
-$coNoCo = $render(__DIR__ . '/../views/print/co.php', ['order' => array_merge($coOrder, ['company' => '']), 'items' => $coItems, 'sales' => []]);
+$coNoCo = $render(__DIR__ . '/../views/print/co.php', ['order' => array_merge($coOrder, ['company' => '']), 'items' => $coItems, 'approver' => []]);
 ok('…no company → the client name stands in, as in the header table', str_contains(substr($coNoCo, (int) strpos($coNoCo, 'Acknowledge by Client'), 300), '<span class="who">IBU DEWI</span>'));
 
 // 4) Legacy invoices keep their old presentation.

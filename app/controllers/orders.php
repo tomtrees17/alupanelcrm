@@ -195,8 +195,9 @@ switch ($action) {
         $order = find_order($pdo, (int) input('id', 0));
         $its = $pdo->prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY id');
         $its->execute([$order['id']]);
-        $u = $pdo->prepare('SELECT id, name, title, signature_path FROM users WHERE lower(name) = lower(?) LIMIT 1');
-        $u->execute([(string) $order['submitter']]);
+        // "Approved By" is the sales manager, the one approver since 2026-11-03 (owner: only Ridwan signs);
+        // the order's salesperson gets their own "Sales Name" line instead.
+        $approver = $pdo->query("SELECT id, name, title, signature_path FROM users WHERE role = 'sales_manager' AND active = 1 ORDER BY id LIMIT 1")->fetch() ?: [];
         $signer = $pdo->prepare('SELECT id, name, signature_path FROM users WHERE lower(name) = lower(?) LIMIT 1');
         $signer->execute([(string) ($config['signer_name'] ?? '')]);
         // A draft's first CO print is the moment it goes to the customer: remember it so the
@@ -204,7 +205,7 @@ switch ($action) {
         if (($order['status'] ?? '') === 'draft' && empty($order['co_sent_at'])) {
             $pdo->prepare("UPDATE orders SET co_sent_at = datetime('now','localtime') WHERE id = ? AND co_sent_at IS NULL")->execute([(int) $order['id']]);
         }
-        view('print.co', ['order' => $order, 'items' => $its->fetchAll(), 'sales' => $u->fetch() ?: [], 'signer' => $signer->fetch() ?: []], false);
+        view('print.co', ['order' => $order, 'items' => $its->fetchAll(), 'approver' => $approver, 'signer' => $signer->fetch() ?: []], false);
         break;
 
     // ── CO numbers (Google-Form register) ──────────────────────────────────
