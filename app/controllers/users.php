@@ -8,7 +8,8 @@ declare(strict_types=1);
 // Signature images are printed on documents every logged-in user may print,
 // so fetching one is not an admin action; everything else here is.
 if ($action === 'signature') {
-    $st = $pdo->prepare('SELECT signature_path FROM users WHERE id = ?');
+    $col = input('kind') === 'invoice' ? 'invoice_signature_path' : 'signature_path';   // CO vs invoice signature (owner 2026-11-03)
+    $st = $pdo->prepare("SELECT {$col} FROM users WHERE id = ?");
     $st->execute([(int) input('id', 0)]);
     $file = (string) ($st->fetchColumn() ?: '');
     $path = signature_dir() . '/' . basename($file);
@@ -31,23 +32,13 @@ if (!$auth->isAdmin()) {
 
 $roles = all_roles();
 
-/** Private folder for signature images (outside the web root, like HR attachments). */
-function signature_dir(): string
-{
-    $dir = dirname((string) $GLOBALS['config']['db_path']) . '/signatures';
-    if (!is_dir($dir)) {
-        @mkdir($dir, 0750, true);
-    }
-    return $dir;
-}
-
 /**
  * Store an uploaded signature for a user; returns the new file name, '' when
  * nothing was uploaded, or null when the file is not an image we accept.
  */
-function store_signature(int $userId): ?string
+function store_signature(int $userId, string $field = 'signature'): ?string
 {
-    $f = $_FILES['signature'] ?? null;
+    $f = $_FILES[$field] ?? null;
     if ($f === null || ($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
         return '';
     }
@@ -59,7 +50,7 @@ function store_signature(int $userId): ?string
     if ($ext === null) {
         return null;
     }
-    $name = 'sig-' . $userId . '-' . time() . '.' . $ext;
+    $name = ($field === 'invoice_signature' ? 'sig-inv-' : 'sig-') . $userId . '-' . time() . '.' . $ext;
     $moved = is_uploaded_file((string) $f['tmp_name'])
         ? move_uploaded_file((string) $f['tmp_name'], signature_dir() . '/' . $name)
         : copy((string) $f['tmp_name'], signature_dir() . '/' . $name);   // test harness
@@ -115,7 +106,9 @@ switch ($action) {
         break;
 
     case 'edit':
-        view('users.form', ['pageTitle' => t('btn_edit') . ' · ' . t('nav_users'), 'pageSub' => '', 'user' => find_user($pdo, (int) input('id', 0)), 'roles' => $roles]);
+        $user = find_user($pdo, (int) input('id', 0));
+        view('users.form', ['pageTitle' => t('btn_edit') . ' · ' . t('nav_users'), 'pageSub' => '', 'user' => $user, 'roles' => $roles,
+            'isSigner' => strcasecmp(trim((string) $user['name']), trim((string) ($config['signer_name'] ?? ''))) === 0 || !empty($user['invoice_signature_path'])]);
         break;
 
     case 'update':
@@ -139,20 +132,23 @@ switch ($action) {
             $pdo->prepare('UPDATE users SET name=?,email=?,role=?,title=?,phone=?,lang=? WHERE id=?')
                 ->execute([$name, $email, $role, $title, $phone, $lang, $user['id']]);
         }
-        // Signature image: replace, remove, or keep.
-        $sigNote = '';
-        if (input('remove_signature')) {
-            $pdo->prepare('UPDATE users SET signature_path = NULL WHERE id = ?')->execute([$user['id']]);
-            $sigNote = '删除了签名';
-        } else {
-            $sig = store_signature((int) $user['id']);
+        // Signature images (CO, invoice): replace, remove, or keep.
+        $sigNotes = [];
+        foreach (['signature' => ['signature_path', '签名'], 'invoice_signature' => ['invoice_signature_path', '发票签名']] as $field => [$col, $label]) {
+            if (input('remove_' . $field)) {
+                $pdo->prepare("UPDATE users SET {$col} = NULL WHERE id = ?")->execute([$user['id']]);
+                $sigNotes[] = '删除了' . $label;
+                continue;
+            }
+            $sig = store_signature((int) $user['id'], $field);
             if ($sig === null) {
                 flash(t('msg_signature_bad'), 'error');
             } elseif ($sig !== '') {
-                $pdo->prepare('UPDATE users SET signature_path = ? WHERE id = ?')->execute([$sig, $user['id']]);
-                $sigNote = '上传了签名';
+                $pdo->prepare("UPDATE users SET {$col} = ? WHERE id = ?")->execute([$sig, $user['id']]);
+                $sigNotes[] = '上传了' . $label;
             }
         }
+        $sigNote = implode('; ', $sigNotes);
         // Role changes are the security-relevant part — spell them out in words.
         $diff = audit_diff(
             ['name' => $user['name'], 'email' => $user['email'], 'title' => $user['title'],

@@ -676,3 +676,21 @@ function audit_action_class(string $a): string
         'import' => 'tag-blue', 'confirm' => 'tag-green', 'classify' => 'tag-orange', 'link' => 'tag-blue',
     ][$a] ?? 'tag-gray';
 }
+
+/** Private folder for signature images (outside the web root, like HR attachments). */
+function signature_dir(): string
+{
+    $dir = dirname((string) $GLOBALS['config']['db_path']) . '/signatures';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0750, true);
+    }
+    return $dir;
+}
+
+/** The account of the documents' signer (config signer_name), for her signature images; [] when none. */
+function doc_signer(PDO $pdo): array
+{
+    $st = $pdo->prepare('SELECT id, name, signature_path, invoice_signature_path FROM users WHERE lower(name) = lower(?) LIMIT 1');
+    $st->execute([trim((string) ($GLOBALS['config']['signer_name'] ?? ''))]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: [];
+}

@@ -48,6 +48,9 @@ final class CoNumbers
         if (!in_array('signature_path', $ucols, true)) {
             $pdo->exec('ALTER TABLE users ADD COLUMN signature_path TEXT');
         }
+        if (!in_array('invoice_signature_path', $ucols, true)) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN invoice_signature_path TEXT');
+        }
         // 2026-11-03: one approval (sales manager) instead of supervisor + manager.
         // Orders waiting for a supervisor move to the manager stage, once.
         $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (k TEXT PRIMARY KEY, v TEXT)');

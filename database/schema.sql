@@ -14,6 +14,7 @@ CREATE TABLE users (
     must_change_password INTEGER NOT NULL DEFAULT 0, -- force a password change on next login
     employee_id   INTEGER,                           -- 人力: the person behind the account (HR-00)
     signature_path TEXT,                             -- signature image (data/signatures/, private) printed on the CO
+    invoice_signature_path TEXT,                     -- second image for invoices (e.g. signature + company stamp), signer only
     active        INTEGER NOT NULL DEFAULT 1,        -- 0 = deactivated on resignation; login refused, never deleted
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );

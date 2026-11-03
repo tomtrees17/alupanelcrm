@@ -1,6 +1,7 @@
 <?php
-/** @var array $invoice */ /** @var array $items */ /** @var string $orderNo */
+/** @var array $invoice */ /** @var array $items */ /** @var string $orderNo */ /** @var array $signer */
 $cfg = $GLOBALS['config'];
+$signer ??= [];
 // Totals as presented (Pembulatan folded into VAT by default) — invoice_display().
 $disp = invoice_display($invoice, $cfg);
 $subtotal = $disp['subtotal'];
@@ -130,7 +131,7 @@ foreach (['logo-print.png', 'logo-print.svg', 'logo-print.jpg'] as $cand) {
         </td>
         <td class="inv-sign">
             On Your Behalf
-            <div class="gap"></div>
+            <div class="gap"><?php if (!empty($signer['invoice_signature_path'])): ?><img src="<?= url('users.signature', ['id' => $signer['id'], 'kind' => 'invoice']) ?>" alt="" style="max-height:66px;max-width:170px;margin-top:2px"><?php endif; ?></div>
             <?= e($cfg['signer_title']) ?>
         </td>
     </tr></table>

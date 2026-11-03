@@ -10,6 +10,7 @@
  * @var string $orderNo
  * @var array  $cfg
  * @var Docx   $doc
+ * @var array  $signer   doc_signer(): her invoice signature image, if uploaded
  * Sets $body (WordprocessingML for <w:body>).
  */
 $disp = invoice_display($invoice, $cfg);    // Pembulatan folded into VAT by default
@@ -124,6 +125,9 @@ foreach ($cfg['banks'] as $bk) {
     ], ['pad' => 30]);
     $bank .= Docx::p('', ['size' => 4, 'after' => 4]);
 }
-$sign = Docx::p('On Your Behalf', ['align' => 'center', 'size' => 9.5, 'after' => 54])
-    . Docx::p((string) $cfg['signer_title'], ['align' => 'center', 'size' => 9.5]);
+$sigFile = !empty($signer['invoice_signature_path']) ? signature_dir() . '/' . basename((string) $signer['invoice_signature_path']) : '';
+$sign = is_file($sigFile)
+    ? Docx::p('On Your Behalf', ['align' => 'center', 'size' => 9.5, 'after' => 2]) . Docx::p($doc->image($sigFile, 45, 18), ['raw' => true, 'align' => 'center', 'after' => 2])
+    : Docx::p('On Your Behalf', ['align' => 'center', 'size' => 9.5, 'after' => 54]);
+$sign .= Docx::p((string) $cfg['signer_title'], ['align' => 'center', 'size' => 9.5]);
 $body .= Docx::table([$W - 4000, 4000], [[['xml' => $bank], ['xml' => $sign]]], ['pad' => 0]);

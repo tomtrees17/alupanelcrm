@@ -92,7 +92,7 @@ switch ($action) {
             $o->execute([$invoice['order_id']]);
             $orderNo = (string) ($o->fetchColumn() ?: '');
         }
-        view('print.invoice', ['invoice' => $invoice, 'items' => $items->fetchAll(), 'orderNo' => $orderNo], false);
+        view('print.invoice', ['invoice' => $invoice, 'items' => $items->fetchAll(), 'orderNo' => $orderNo, 'signer' => doc_signer($pdo)], false);
         break;
 
     case 'word':
@@ -114,6 +114,7 @@ switch ($action) {
         }
         // A real .docx (fixed column widths, logo embedded) — see app/Docx.php.
         $cfg = $GLOBALS['config'];
+        $signer = doc_signer($pdo);
         $doc = new Docx();
         $body = '';
         include __DIR__ . '/../../views/word/invoice_docx.php';

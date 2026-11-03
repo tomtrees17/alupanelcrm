@@ -36,6 +36,19 @@ $v = fn(string $k) => e($user[$k] ?? '');
             <?php endif; ?>
             <input class="form-input" type="file" name="signature" accept="image/png,image/jpeg">
         </div>
+        <?php if (!empty($isSigner)): ?>
+        <div class="form-group">
+            <label class="form-label"><?= t('f_invoice_signature') ?></label>
+            <?php if (!empty($user['invoice_signature_path'])): ?>
+                <div style="display:flex;gap:12px;align-items:center;margin-bottom:6px">
+                    <img src="<?= url('users.signature', ['id' => $user['id'], 'kind' => 'invoice']) ?>" alt="" style="max-height:60px;border:1px solid var(--border);background:#fff;padding:4px">
+                    <label class="muted small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" name="remove_invoice_signature" value="1" style="width:auto"> <?= t('btn_remove_signature') ?></label>
+                </div>
+                <div class="muted small"><?= t('f_signature_keep') ?></div>
+            <?php endif; ?>
+            <input class="form-input" type="file" name="invoice_signature" accept="image/png,image/jpeg">
+        </div>
+        <?php endif; ?>
         <?php endif; ?>
         <div class="form-row">
             <div class="form-group">

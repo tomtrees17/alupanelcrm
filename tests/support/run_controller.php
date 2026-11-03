@@ -10,6 +10,7 @@ declare(strict_types=1);
  *   php run_controller.php <db-file> <controller> <action> <json-get> <json-user> [<json-post> [<json-session>]]
  *
  * Env: TEST_HTTP_REFERER / TEST_HTTP_HOST / TEST_HTTP_USER_AGENT, TEST_HR_KEY, TEST_HR_UPLOAD_ROOT, TEST_FILES (JSON for $_FILES),
+ *      TEST_DATA_DIR (stands in for data/, e.g. signature images),
  *      TEST_FAKTUR_STORE (where generated Faktur files go).
  *
  * With <json-post> the request is a POST carrying a valid CSRF token. Flash
@@ -85,6 +86,10 @@ $config = (array) (require __DIR__ . '/../../config.php');
 // Tests never reach the real API: on the server config.php reads the live key
 // from .env, so the key is blanked here (in-process AI tests use Claude::$http).
 $config['ai']['key'] = '';
+// Throwaway data folder (signature images live next to the DB): never the real data/.
+if (getenv('TEST_DATA_DIR') !== false) {
+    $config['db_path'] = (string) getenv('TEST_DATA_DIR') . '/app.db';
+}
 $pdo = new PDO('sqlite:' . $dbFile, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
 $userArr = (array) json_decode($userJson, true);
 if (!empty($userArr['real'])) {
