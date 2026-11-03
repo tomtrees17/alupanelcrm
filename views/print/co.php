@@ -186,7 +186,7 @@ $clientType = ['CONTRACTOR' => 'APLIKATOR / KONTRAKTOR', 'DISTRIBUTOR' => 'DISTR
     <div class="signs">
         <div>Sincerely,</div>
         <div>Approved By,<br><span class="who"><?= e($coFull) ?></span><div class="space"></div><span class="nm"><?= e(strtoupper(no_cjk((string) ($sales['name'] ?? $order['submitter'])))) ?></span><br><?= e(no_cjk((string) ($sales['title'] ?? '')) ?: 'Sales') ?></div>
-        <div>Acknowledge by Client,<br><span class="who">Company of Client</span><div class="space"></div><span class="nm">Name of Client</span><br>(Department of Client)</div>
+        <div>Acknowledge by Client,<br><span class="who"><?= e(strtoupper(no_cjk((string) ($order['company'] ?: $order['customer_name'])))) ?></span><div class="space"></div><span class="nm"><?= e(strtoupper(no_cjk((string) $order['customer_name']))) ?></span><br>&nbsp;</div>
         <div>Acknowledge By,<br><span class="who"><?= e($coFull) ?></span><div class="space"></div><span class="nm"><?= e(ucwords(strtolower($cfg['signer_name']))) ?></span><br><?= e($cfg['signer_title']) ?></div>
     </div>
 </div>

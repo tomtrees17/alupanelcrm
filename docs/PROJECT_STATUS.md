@@ -434,6 +434,10 @@ chown -R www:www data
   - 权限：新视图权限 `ai_usage`（权限矩阵新列），默认只给 finance_manager，老板始终可见（用户 2026-10-22 定）。一次性迁移 `app_meta.perm_ai_usage_v1`，之后管理员的调整不会被覆盖；
   - 内容：今日 / 本月费用与上限；本月按任务列出调用次数（按状态拆开）、tokens、费用、平均耗时、采纳率、改动最多的字段；库存助手单独一栏（数据来自 ai_queries）；月份可切换。
 - **上线**：`git pull`，再打开一次网站，`ensureSchema()` 会建好两张表并授权，不需要改 `.env`。服务器 `config.local.php` 里的 `'ai' => ['driver' => 'claude']` 与新配置用 `array_replace_recursive` 合并，互不影响。
+## 6zn. CO 客户签字栏（2026-11-03）
+
+`views/print/co.php` 底部「Acknowledge by Client」原来印模板占位字（Company of Client / Name of Client / (Department of Client)）。现与上方客户表同口径：`company ?: customer_name` + `customer_name`，大写、去中文；客户部门无数据，该行留空。测试在 `tests/coretax_test.php`。
+
 ## 6zm. 开账号自动建员工档案（2026-11-01）
 
 **来源**：新销售有 CRM 账号，但拜访「发送者」下拉（列 `employees` 在职记录）里找不到——员工档案以前只由 `Hr::migrate_users()` 在人力上线时建过一次。

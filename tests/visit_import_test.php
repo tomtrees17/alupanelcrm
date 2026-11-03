@@ -364,6 +364,7 @@ if (function_exists('exec') && is_file($harness) && class_exists('ZipArchive')) 
     ok('page: quality for the boss only', ($fl[0]['type'] ?? '') === 'error' && str_contains($h, t('vis_q_template')));
     [$h] = $run('report', $tania, ['week' => '2026-W43']);
     ok('page: weekly report with Baru and new prospects; digest needs AI', str_contains($h, '>Baru<') && str_contains($h, t('vis_new_prospects')) && str_contains($h, t('vis_digest_ai_off')));
+    $hq()->exec("UPDATE visits SET visited_at = date('now', 'localtime') || substr(visited_at, 11)");   // the list shows the last 14 days; keep the fixture inside it whatever today is
     [$h] = $run('index', $ridwan);
     ok('page: the salesperson sees their imported visits and the matched name; the form is 补录', str_contains($h, 'Abadi Glass') && str_contains($h, t('vis_new')));
     @unlink($zipPath);

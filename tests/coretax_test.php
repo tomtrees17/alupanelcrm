@@ -145,6 +145,12 @@ ok('CO pre-tax: figures unchanged (DPP 12.374.554,50 · PPN 1.484.946,54 · tota
 $coIncl = $render(__DIR__ . '/../views/print/co.php', ['order' => array_merge($coOrder, ['price_basis' => 'incl']), 'items' => $coItems, 'sales' => []]);
 ok('CO tax-inclusive: no PPN rows, no effective-rate note', !str_contains($coIncl, 'PPN efektif') && !str_contains($coIncl, 'SUB TOTAL (DPP)') && str_contains($coIncl, 'Harga sudah termasuk PPN'));
 
+$signs = substr($co, (int) strpos($co, 'Acknowledge by Client'), 300);
+ok('CO client signature block: the order\'s company and client name, not the template placeholders',
+    str_contains($signs, 'DAPUR GEMILANG') && str_contains($signs, 'IBU DEWI') && !str_contains($co, 'Department of Client') && !str_contains($signs, 'Name of Client'), $signs);
+$coNoCo = $render(__DIR__ . '/../views/print/co.php', ['order' => array_merge($coOrder, ['company' => '']), 'items' => $coItems, 'sales' => []]);
+ok('…no company → the client name stands in, as in the header table', str_contains(substr($coNoCo, (int) strpos($coNoCo, 'Acknowledge by Client'), 300), '<span class="who">IBU DEWI</span>'));
+
 // 4) Legacy invoices keep their old presentation.
 $legacy = array_merge($inv, ['calc' => 'legacy', 'subtotal' => 1351352, 'ppn' => 148649, 'dpp' => null, 'rounding' => -1]);
 $dl = invoice_display($legacy, $GLOBALS['config']);
