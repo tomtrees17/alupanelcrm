@@ -142,6 +142,8 @@ chown -R www:www data && chmod -R u=rwX,go=rX data                              
 ## 6e. 数据备份（运维）
 
 `tools/backup_db.php`：用 `VACUUM INTO` 生成**一致快照**到 `backups/`（WAL 下也安全,不需要 wal/shm),自动滚动保留最近 **14** 份。`backups/` 已 gitignore（不进仓库,也不在 web 根 `public/` 下,外网访问不到）。
+
+- **打包范围（2026-11-03 起）**：zip 里除 `crm.sqlite` 外，按 data/ 原样放 `uploads/`（行政附件）、`hr/`（人力附件）、`visits/`（拜访照片）、`faktur/`（已生成的 Coretax 文件）、`signatures/`（CO / 发票签名图）；之前只有 `uploads/`。目录清单在 `app/Backup.php`，还原 = 解压后把 crm.sqlite 和这些文件夹放回 data/。输出行列出每个文件夹的文件数。测试 `tests/backup_files_test.php`。注意：拜访照片会让每份 zip 变大，OSS 永久保留，体积需要留意。
 - 宝塔「计划任务 → Shell 脚本」每天执行(PHP 路径按版本调整):
   ```
   /www/server/php/82/bin/php /www/wwwroot/www.alupanel.cc/tools/backup_db.php

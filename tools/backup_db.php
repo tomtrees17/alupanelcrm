@@ -4,7 +4,13 @@
  *
  * Produces ../backups/backup_<timestamp>.zip containing:
  *   crm.sqlite        a standalone VACUUM INTO snapshot (consistent even under WAL)
- *   uploads/...       every request attachment from data/uploads/
+ *   uploads/...       request attachments (data/uploads/)
+ *   hr/...            HR attachments: KTP, contracts … (data/hr/)
+ *   visits/...        visit photos (data/visits/)
+ *   faktur/...        generated Coretax files (data/faktur/)
+ *   signatures/...    CO / invoice signature images (data/signatures/)
+ * Same layout as data/ (app/Backup.php): to restore, unzip and put crm.sqlite
+ * and the folders back into data/.
  * Keeps the newest N and drops the rest. If the zip extension is unavailable it
  * falls back to a DB-only crm_<timestamp>.sqlite snapshot (attachments NOT included).
  *
@@ -26,6 +32,7 @@ if (PHP_SAPI !== 'cli') {
 
 $config  = require __DIR__ . '/../config.php';
 require __DIR__ . '/../app/Oss.php';
+require __DIR__ . '/../app/Backup.php';
 
 /** Upload one file offsite. @return array{0:?bool,1:string} [ok (null = disabled), message] */
 function offsite_push(array $config, string $file): array
@@ -49,8 +56,6 @@ if (in_array('--test-offsite', $argv, true)) {
     exit($ok ? 0 : 2);
 }
 $dbPath  = $config['db_path'] ?? (__DIR__ . '/../data/crm.sqlite');
-$dataDir = dirname($dbPath);
-$uploads = $dataDir . '/uploads';
 
 if (!is_file($dbPath)) {
     fwrite(STDERR, "Database not found at: {$dbPath}\n");
@@ -102,33 +107,22 @@ if (class_exists('ZipArchive')) {
     }
     $zip->addFile($snap, 'crm.sqlite');
 
-    $nFiles = 0;
-    if (is_dir($uploads)) {
-        $it = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($uploads, FilesystemIterator::SKIP_DOTS)
-        );
-        foreach ($it as $file) {
-            if ($file->isFile()) {
-                $rel = 'uploads/' . str_replace('\\', '/', substr($file->getPathname(), strlen($uploads) + 1));
-                $zip->addFile($file->getPathname(), $rel);
-                $nFiles++;
-            }
-        }
-    }
+    $counts = Backup::add_folders($zip, Backup::folders($config));
+    $nFiles = array_sum($counts);
     $zip->close();
     @unlink($snap);
     $rotate('backup_*.zip');
 
     $kept = min(count(glob($dir . '/backup_*.zip') ?: []), $keep);
     echo 'Backup OK: ' . $out . ' (' . number_format((int) filesize($out)) . ' bytes, DB + '
-        . $nFiles . " attachment file(s)), keeping {$kept} snapshot(s).\n";
+        . $nFiles . ' file(s): ' . implode(', ', array_map(fn($k, $n) => "{$k} {$n}", array_keys($counts), $counts)) . "), keeping {$kept} snapshot(s).\n";
 } else {
     // 3) Fallback: DB-only snapshot (zip extension missing).
     $out = $dir . '/crm_' . $stamp . '.sqlite';
     rename($snap, $out);
     $rotate('crm_*.sqlite');
     $kept = min(count(glob($dir . '/crm_*.sqlite') ?: []), $keep);
-    fwrite(STDERR, "Note: zip extension not available — attachments (data/uploads) NOT backed up.\n");
+    fwrite(STDERR, "Note: zip extension not available — attachments, photos and signatures NOT backed up.\n");
     echo 'Backup OK (DB only): ' . $out . ' (' . number_format((int) filesize($out)) . " bytes), keeping {$kept} snapshot(s).\n";
 }
 

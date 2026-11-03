@@ -29,6 +29,7 @@ require __DIR__ . '/../app/Faktur.php';
 require __DIR__ . '/../app/Ai.php';
 require __DIR__ . '/../app/Dashboard.php';
 require __DIR__ . '/../app/Oss.php';
+require __DIR__ . '/../app/Backup.php';
 require __DIR__ . '/../app/Docx.php';
 require __DIR__ . '/../app/Enrich.php';
 require __DIR__ . '/../app/CustomerData.php';
