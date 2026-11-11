@@ -36,6 +36,11 @@ $config = [
     'company_nitku' => '',
     'signer_name'   => 'MUTIARA FARIANDA',
     'signer_title'  => 'Finance Manager',
+    // CO "Approved By" (owner 2026-11-11): printed name and title; the signature
+    // image is the one uploaded on this CRM account (用户管理 → 签名图片).
+    'co_approver_name'    => 'YUAN SHUJIA',
+    'co_approver_title'   => 'President Director',
+    'co_approver_account' => 'Administrator',
     'banks' => [
         [
             'name' => 'Bank ICBC',

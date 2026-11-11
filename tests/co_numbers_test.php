@@ -196,15 +196,17 @@ if (function_exists('exec') && is_file($harness)) {
     ok('CO print: number, customer, line and total', str_contains($sheet, '1377/AMI-CO/10/26') && str_contains($sheet, 'OLD ONE') && str_contains($sheet, 'SJ8001') && str_contains($sheet, '1.800.000'), substr($sheet, 0, 200));
     ok('CO print carries no Chinese', !preg_match('/[\x{4e00}-\x{9fff}]/u', $sheet));
     ok('CO print: signatures from config and sales', str_contains($sheet, 'RIDWAN') && str_contains($sheet, 'Finance Manager'));
-    // Owner 2026-11-03: "Approved By" = the sales manager (the one approver) with his signature;
-    // the salesperson the assistant picked gets a "Sales Name" line in the header instead.
+    // Owner 2026-11-11: "Approved By" = the owner (config co_approver_*), signature from the
+    // Administrator account — not the sales manager, not the order's salesperson.
     $q()->exec("INSERT INTO users (id, name, email, password_hash, role, signature_path) VALUES
-        (9, 'ridwan', 'r@x', 'x', 'sales_manager', 'sig-9-1.png'), (10, 'Mr Fang', 'f@x', 'x', 'sales', 'sig-10-1.png'), (11, 'nasya', 'n@x', 'x', 'sales_assistant', NULL)");
+        (1, 'Administrator', 'adm@x', 'x', 'admin', 'sig-1-1.png'), (9, 'ridwan', 'r@x', 'x', 'sales_manager', 'sig-9-1.png'),
+        (10, 'Mr Fang', 'f@x', 'x', 'sales', 'sig-10-1.png'), (11, 'nasya', 'n@x', 'x', 'sales_assistant', NULL)");
     $q()->exec("UPDATE orders SET submitter = 'Mr Fang', created_by = 'nasya' WHERE id = $oldId");
     [$html] = $run('print_co', $fin, ['id' => $oldId]);
     preg_match('/Approved By,(.*?)<\/div>\s*<div>/s', $html, $ab);
-    ok('CO: Approved By is the sales manager with his signature, not the order\'s salesperson',
-        str_contains($ab[1] ?? '', 'RIDWAN') && str_contains($ab[1] ?? '', 'Sales Manager') && str_contains($ab[1] ?? '', 'id=9') && !str_contains($ab[1] ?? '', 'FANG') && !str_contains($ab[1] ?? '', 'id=10'), $ab[1] ?? '');
+    ok('CO: Approved By is YUAN SHUJIA, President Director, with the Administrator account\'s signature',
+        str_contains($ab[1] ?? '', 'YUAN SHUJIA') && str_contains($ab[1] ?? '', 'President Director')
+        && preg_match('/users\.signature&(amp;)?id=1"/', $ab[1] ?? '') === 1 && !str_contains($ab[1] ?? '', 'RIDWAN') && !str_contains($ab[1] ?? '', 'FANG') && !str_contains($ab[1] ?? '', 'id=9'), $ab[1] ?? '');
     ok('CO: the salesperson nasya picked is on its own "Sales Name" line under the client phone',
         (bool) preg_match('/Client Phone Number<\/td>.*?<\/tr>\s*<tr><td class="k">Sales Name<\/td><td class="v" colspan="2">MR FANG<\/td>/s', $html));
     // Reserve a number before the order exists (what the Google Form did); the next

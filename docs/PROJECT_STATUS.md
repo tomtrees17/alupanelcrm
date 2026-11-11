@@ -447,9 +447,9 @@ chown -R www:www data
 - 可选（用户定）：不卡提交；销售经理审批没有截图的单时，审批卡片里显示「无客户确认截图」提醒（`.oa-missing`）。
 - 备份：`Backup::folders()` 加 `orders/`。测试 `tests/order_files_test.php`；控制器测试工具新增 `TEST_ORDER_FILES_ROOT`。
 
-## 6zp. CO 的 Approved By 与 Sales Name（2026-11-03）
+## 6zp. CO 的 Approved By 与 Sales Name（2026-11-03，11-11 改为老板签字）
 
-`orders.print_co`：「Approved By」印销售经理（`role = 'sales_manager'` 的在职账号，取 id 最小的一个，现为 ridwan）的名字、职位（空则 Sales Manager）和签名图——订单一级审批后他是唯一审批人（用户：CO 上只留 ridwan 的签字）。订单的销售（`orders.submitter`，助理录单时选的）印在抬头 Client Phone Number 下新增的「Sales Name」行。右侧仍是签字人（config signer_name）+ CO 签名。测试在 `tests/co_numbers_test.php`。
+`orders.print_co`：「Approved By」**2026-11-11 起印老板**：名字 / 职位取 config `co_approver_name`（YUAN SHUJIA）/ `co_approver_title`（President Director），签名图取 `co_approver_account`（Administrator）账号上传的签名图片。（11-03 至 11-11 印的是销售经理 ridwan。）订单的销售（`orders.submitter`，助理录单时选的）印在抬头 Client Phone Number 下新增的「Sales Name」行。右侧仍是签字人（config signer_name）+ CO 签名。测试在 `tests/co_numbers_test.php`。
 
 ## 6zo. 发票签名（2026-11-03）
 

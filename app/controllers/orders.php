@@ -236,9 +236,12 @@ switch ($action) {
         $order = find_order($pdo, (int) input('id', 0));
         $its = $pdo->prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY id');
         $its->execute([$order['id']]);
-        // "Approved By" is the sales manager, the one approver since 2026-11-03 (owner: only Ridwan signs);
-        // the order's salesperson gets their own "Sales Name" line instead.
-        $approver = $pdo->query("SELECT id, name, title, signature_path FROM users WHERE role = 'sales_manager' AND active = 1 ORDER BY id LIMIT 1")->fetch() ?: [];
+        // "Approved By": the owner signs every CO (2026-11-11; before that the sales manager) —
+        // name and title from config, signature image from config co_approver_account.
+        // The order's salesperson has their own "Sales Name" line.
+        $ap = $pdo->prepare('SELECT id, signature_path FROM users WHERE lower(name) = lower(?) LIMIT 1');
+        $ap->execute([trim((string) ($config['co_approver_account'] ?? ''))]);
+        $approver = $ap->fetch() ?: [];
         $signer = $pdo->prepare('SELECT id, name, signature_path FROM users WHERE lower(name) = lower(?) LIMIT 1');
         $signer->execute([(string) ($config['signer_name'] ?? '')]);
         // A draft's first CO print is the moment it goes to the customer: remember it so the
